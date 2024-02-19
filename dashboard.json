@@ -1,0 +1,1318 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 13878,
+  "links": [],
+  "panels": [
+    {
+      "content": "# API",
+      "datasource": null,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "links": [],
+      "mode": "markdown",
+      "options": {},
+      "title": "",
+      "type": "text"
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Create API response code rates",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 3
+      },
+      "hiddenSeries": false,
+      "id": 1,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "2XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.createProject.ResponseOut.StatusFamily.2XX.Count",
+          "project": "lvv-service",
+          "refId": "B"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "4XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.createProject.ResponseOut.StatusFamily.4XX.Count",
+          "project": "lvv-service",
+          "refId": "A"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "5XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.createProject.ResponseOut.StatusFamily.5XX.Count",
+          "project": "lvv-service",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Create Availability",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Get API response code rates",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 3
+      },
+      "hiddenSeries": false,
+      "id": 18,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "2XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.getProject.ResponseOut.StatusFamily.2XX.Count",
+          "project": "lvv-service",
+          "refId": "B"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "4XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.getProject.ResponseOut.StatusFamily.4XX.Count",
+          "project": "lvv-service",
+          "refId": "A"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "5XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.getProject.ResponseOut.StatusFamily.5XX.Count",
+          "project": "lvv-service",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Get Availability",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Update API response code rates",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 3
+      },
+      "hiddenSeries": false,
+      "id": 19,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "2XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.updateProject.ResponseOut.StatusFamily.2XX.Count",
+          "project": "lvv-service",
+          "refId": "B"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "4XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.updateProject.ResponseOut.StatusFamily.4XX.Count",
+          "project": "lvv-service",
+          "refId": "A"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "5XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.updateProject.ResponseOut.StatusFamily.5XX.Count",
+          "project": "lvv-service",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Update Availability",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Delete API response code rates",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 11
+      },
+      "hiddenSeries": false,
+      "id": 11,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "2XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.deleteProject.ResponseOut.StatusFamily.2XX.Count",
+          "project": "lvv-service",
+          "refId": "B"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "4XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.deleteProject.ResponseOut.StatusFamily.4XX.Count",
+          "project": "lvv-service",
+          "refId": "A"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "5XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.deleteProject.ResponseOut.StatusFamily.5XX.Count",
+          "project": "lvv-service",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Delete Availability",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "List API response code rates",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 11
+      },
+      "hiddenSeries": false,
+      "id": 16,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "2XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.listProjects.ResponseOut.StatusFamily.2XX.Count",
+          "project": "lvv-service",
+          "refId": "A"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "4XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.listProjects.ResponseOut.StatusFamily.4XX.Count",
+          "project": "lvv-service",
+          "refId": "C"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "sum",
+          "alias": "5XX",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "300",
+          "host": "_all",
+          "metric": "ProjectResource.listProjects.ResponseOut.StatusFamily.5XX.Count",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "List Availability",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "hiddenSeries": false,
+      "id": 3,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "p99",
+          "alias": "Create Latency",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "60",
+          "hide": false,
+          "host": "_all",
+          "metric": "ProjectResource.createProject.Time",
+          "project": "lvv-service",
+          "refId": "B"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "p99",
+          "alias": "Get Latency",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "ProjectResource.getProject.Time",
+          "project": "lvv-service",
+          "refId": "D"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "p99",
+          "alias": "Update Latency",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "ProjectResource.updateProject.Time",
+          "project": "lvv-service",
+          "refId": "E"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "p99",
+          "alias": "Delete Latency",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "60",
+          "hide": false,
+          "host": "_all",
+          "metric": "ProjectResource.deleteProject.Time",
+          "project": "lvv-service",
+          "refId": "C"
+        },
+        {
+          "ad": "_all",
+          "aggregation": "p99",
+          "alias": "List Latency",
+          "fillMissing": false,
+          "fleet": "lvv-service-api",
+          "granularity": "60",
+          "hide": false,
+          "host": "_all",
+          "metric": "ProjectResource.listProjects.Time",
+          "project": "lvv-service",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Latency",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "content": "# Canary",
+      "datasource": null,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 20,
+      "links": [],
+      "mode": "markdown",
+      "options": {},
+      "title": "",
+      "type": "text"
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Records success of CreateProject canary operation",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
+      "hiddenSeries": false,
+      "id": 21,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "mean",
+          "alias": "Success",
+          "fillMissing": false,
+          "fleet": "lvv-service-canary",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "lvv-service-canary.createProjectCall",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "CreateProject Success Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Records success of GetProjectCompartment canary operation",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
+      "hiddenSeries": false,
+      "id": 22,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "mean",
+          "alias": "Success",
+          "fillMissing": false,
+          "fleet": "lvv-service-canary",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "lvv-service-canary.getProjectCall",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "GetProjectCompartment Success Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Records success of UpdateProject canary operation",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "hiddenSeries": false,
+      "id": 25,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "mean",
+          "alias": "Success",
+          "fillMissing": false,
+          "fleet": "lvv-service-canary",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "lvv-service-canary.updateProjectCall",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "UpdateProject Success Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Records success of ListProject canary operation",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
+      "hiddenSeries": false,
+      "id": 24,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "mean",
+          "alias": "Success",
+          "fillMissing": false,
+          "fleet": "lvv-service-canary",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "lvv-service-canary.listProjectCall",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "ListProject Success Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": true,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "T2-R2",
+      "description": "Records success of DeleteProject canary operation",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      },
+      "hiddenSeries": false,
+      "id": 23,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 1,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "ad": "_all",
+          "aggregation": "mean",
+          "alias": "Success",
+          "fillMissing": false,
+          "fleet": "lvv-service-canary",
+          "granularity": "60",
+          "host": "_all",
+          "metric": "lvv-service-canary.deleteProjectCall",
+          "project": "lvv-service",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "DeleteProject Success Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    }
+  ],
+  "refresh": false,
+  "schemaVersion": 21,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
+  "timezone": "",
+  "title": "lvv-service"
+}

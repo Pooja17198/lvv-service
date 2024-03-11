@@ -260,18 +260,21 @@
                 <artifactItem>
                   <groupId>com.oracle.pic.jipher</groupId>
                   <artifactId>jipher-jce</artifactId>
+                  <!--suppress UnresolvedMavenProperty -->
                   <version>${jipher-jce-version}</version>
                   <outputDirectory>${project.build.directory}/classpath</outputDirectory>
                 </artifactItem>
                 <artifactItem>
                   <groupId>bc-fips</groupId>
                   <artifactId>bc-fips</artifactId>
+                  <!--suppress UnresolvedMavenProperty -->
                   <version>${bouncycastle-version}</version>
                   <outputDirectory>${project.build.directory}/classpath</outputDirectory>
                 </artifactItem>
                 <artifactItem>
                   <groupId>bcpkix-fips</groupId>
                   <artifactId>bcpkix-fips</artifactId>
+                  <!--suppress UnresolvedMavenProperty -->
                   <version>${bouncycastle-version}</version>
                   <outputDirectory>${project.build.directory}/classpath</outputDirectory>
                 </artifactItem>

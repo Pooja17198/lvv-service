@@ -15,9 +15,7 @@ import lombok.Setter;
 import lombok.ToString;
 import org.apache.commons.lang3.Validate;
 
-/**
- * {@code LvvServiceCanaryConfiguration} stores the configuration for the LvvServiceCanary.
- */
+/** {@code LvvServiceCanaryConfiguration} stores the configuration for the LvvServiceCanary. */
 @Getter
 @Setter
 @ToString

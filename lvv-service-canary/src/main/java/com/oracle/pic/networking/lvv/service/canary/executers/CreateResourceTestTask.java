@@ -43,18 +43,14 @@ public class CreateResourceTestTask implements Runnable {
 
         // Create Project
         CreateProjectResponse createProjectResponse =
-                projectsUtils.createProject(
-                        client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
+                projectsUtils.createProject(client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
         if (createProjectResponse != null
                 && StringUtils.isNotBlank(createProjectResponse.getOpcRequestId())
                 && createProjectResponse
                         .getProject()
                         .getCompartmentId()
                         .equals(canaryTestCompartmentId)
-                && createProjectResponse
-                        .getProject()
-                        .getDisplayName()
-                        .equals(TEST_DISPLAY_NAME)) {
+                && createProjectResponse.getProject().getDisplayName().equals(TEST_DISPLAY_NAME)) {
 
             log.info("CreateProject call succeeded.");
         } else {
@@ -67,8 +63,7 @@ public class CreateResourceTestTask implements Runnable {
         try {
             // Expect to throw an error.
             CreateProjectResponse response =
-                    projectsUtils.createProject(
-                            client, INVALID_COMPARTMENT, TEST_DISPLAY_NAME);
+                    projectsUtils.createProject(client, INVALID_COMPARTMENT, TEST_DISPLAY_NAME);
             if (response != null) {
                 Metrics.emit(CREATE_PROJECT_CALL_METRIC_KEY, 0d);
                 log.error("CreateProject with invalid compartmentId test failed.");
@@ -89,7 +84,6 @@ public class CreateResourceTestTask implements Runnable {
         }
         // Clean up
         String projectId = createProjectResponse.getProject().getId();
-        projectsUtils.deleteProject(
-                client, projectId, createProjectResponse.getOpcRequestId());
+        projectsUtils.deleteProject(client, projectId, createProjectResponse.getOpcRequestId());
     }
 }

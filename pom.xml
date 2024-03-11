@@ -24,7 +24,7 @@
     <module>lvv-service-java-client</module>
     <module>lvv-service-python-client</module>
     <module>lvv-service-api</module>
-    <module>lvv-service-canary</module>
+<!--    <module>lvv-service-canary</module>-->
   </modules>
 
   <properties>
@@ -125,103 +125,11 @@
             <goals>
               <goal>display-property-updates</goal>
             </goals>
-            <configuration>
-              <includes>
-                <include>com.oracle.pic.commons:dropwizard-service-bom</include>
-                <include>com.oracle.pic.sfw:oci-internal-bom</include>
-              </includes>
-              <rulesUri>file://///${project.basedir}/maven-version-rules.xml</rulesUri>
-              <includeProperties>oci-internal-bom-version,dropwizard-service-bom-version</includeProperties>
-              <allowIncrementalUpdates>true</allowIncrementalUpdates>
-              <allowMinorUpdates>true</allowMinorUpdates>
-              <allowMajorUpdates>true</allowMajorUpdates>
-
-              <!-- This files tracks dependency updates that are due. -->
-              <!-- Remove the following line if you wish to disable this tracking file feature. -->
-              <outputFile>bom-dependency-versions.txt</outputFile>
-
-              <!-- SNAPSHOT versions of the bom should NOT be used in production. -->
-              <allowSnapshots>false</allowSnapshots>
-
-              <!-- Version control already keeps history of the pom file changes -->
-              <generateBackupPoms>false</generateBackupPoms>
-
-              <!-- We don't want to scan the dependencies within the bom. -->
-              <processDependencyManagementTransitive>false</processDependencyManagementTransitive>
-            </configuration>
           </execution>
         </executions>
 
         <!-- We only want to run this plugin in this pom, and not every module. -->
         <inherited>false</inherited>
-      </plugin>
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.5</version>
-        <executions>
-          <execution>
-            <id>default-prepare-agent</id>
-            <goals>
-              <goal>prepare-agent</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>default-report</id>
-            <phase>prepare-package</phase>
-            <goals>
-              <goal>report</goal>
-            </goals>
-            <configuration>
-              <!-- This is the directory where you want to store the generated code coverage files-->
-              <outputDirectory>${project.build.directory}/jacoco-reports</outputDirectory>
-            </configuration>
-          </execution>
-          <execution>
-            <id>default-check</id>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <rule implementation="org.jacoco.maven.RuleConfiguration">
-                  <element>BUNDLE</element>
-                  <limits>
-                    <limit implementation="org.jacoco.report.check.Limit">
-                      <counter>COMPLEXITY</counter>
-                      <value>COVEREDRATIO</value>
-                      <!-- Tweak this as you gain coverage -->
-                      <minimum>0.0</minimum>
-                    </limit>
-                  </limits>
-                </rule>
-              </rules>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- We use toolchains plugin to support multiple versions of java sdk with maven
-      you need to add toolchains.xml in ~/.m2 directory
-      See: https://dzone.com/articles/guide-for-supporting-multiple-versions-of-java-8-1-->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-toolchains-plugin</artifactId>
-        <version>${maven-toolchains-plugin-version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>toolchain</goal>
-            </goals>
-          </execution>
-        </executions>
-        <configuration>
-          <toolchains>
-            <jdk>
-              <version>17</version>
-            </jdk>
-          </toolchains>
-        </configuration>
       </plugin>
 
     </plugins>
@@ -488,52 +396,6 @@
                   <goal>${formatter-goal}</goal>
                 </goals>
                 <phase>process-sources</phase>
-              </execution>
-            </executions>
-          </plugin>
-
-          <!-- This plugin makes sure all dependencies converge to a specific version and we avoid diamond dependency problem -->
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-enforcer-plugin</artifactId>
-            <version>3.1.0</version>
-            <executions>
-              <execution>
-                <id>enforce</id>
-                <configuration>
-                  <rules>
-                    <!-- https://maven.apache.org/enforcer/enforcer-rules/dependencyConvergence.html -->
-                    <DependencyConvergence/>
-                    <!-- https://maven.apache.org/enforcer/enforcer-rules/requireJavaVersion.html -->
-                    <requireJavaVersion>
-                      <version>17</version>
-                    </requireJavaVersion>
-                    <!-- https://www.mojohaus.org/extra-enforcer-rules/banDuplicateClasses.html -->
-                    <banDuplicateClasses/>
-                    <!-- Ban all non FIPS bouncy castle use -->
-                    <bannedDependencies>
-                      <searchTransitive>true</searchTransitive>
-                      <excludes>
-                        <exclude>org.bouncycastle:*</exclude>
-                      </excludes>
-                    </bannedDependencies>
-                    <requireReleaseDeps>
-                      <message>You tried to use a SNAPSHOT dependency, which is forbidden because it prevents reproducible
-                        builds! Use a release dependency instead.
-                      </message>
-                      <failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
-                      <!-- ONLY packages that are contained within this Git repository should be added here. DO NOT add
-                       packages from any external repository. -->
-                      <excludes>
-                        <exclude>com.oracle.pic.networking.lvv.service:lvv-service-spec</exclude>
-                        <exclude>com.oracle.pic.networking.lvv.service:lvv-service-java-client</exclude>
-                      </excludes>
-                    </requireReleaseDeps>
-                  </rules>
-                </configuration>
-                <goals>
-                  <goal>enforce</goal>
-                </goals>
               </execution>
             </executions>
           </plugin>

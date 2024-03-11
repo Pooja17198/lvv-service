@@ -10,13 +10,13 @@ import com.oracle.pic.commons.crypto.JCEProviders;
 import com.oracle.pic.commons.service.configuration.ServiceCoreModule;
 import com.oracle.pic.commons.service.configuration.TypesafeConfigProvider;
 import com.oracle.pic.commons.service.environment.ServiceConfigurator;
+import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
+import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
-import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
-import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.sfw.internal.GeneratedApplicationHeartbeater;
 import com.oracle.pic.sherlock.collector.dropwizard.AuditFilterInstaller;
 import io.dropwizard.Application;
@@ -92,8 +92,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
      * @throws Exception if something goes wrong
      */
     @Override
-    public void run(LvvServiceApiConfiguration config, Environment environment)
-            throws Exception {
+    public void run(LvvServiceApiConfiguration config, Environment environment) throws Exception {
         config.validateAdAndRegionConfiguration();
         log.info("Initializing LvvServiceApi...");
 
@@ -149,8 +148,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
         log.info("Registering health checks");
         environment
                 .healthChecks()
-                .register(
-                        LvvServiceApiHealthCheck.getName(), new LvvServiceApiHealthCheck());
+                .register(LvvServiceApiHealthCheck.getName(), new LvvServiceApiHealthCheck());
     }
 
     private void registerAuth(

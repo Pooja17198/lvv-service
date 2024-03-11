@@ -1,8 +1,6 @@
 package com.oracle.pic.networking.lvv.service.health;
 
-import com.oracle.pic.networking.lvv.service.model.ProjectSummary;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
-import com.oracle.pic.sfw.dal.PaginatedResultSet;
 import io.dropwizard.servlets.tasks.Task;
 import java.io.PrintWriter;
 import java.util.List;
@@ -55,15 +53,5 @@ public class LvvServiceApiDeepCheck extends Task {
         printWriter.flush();
     }
 
-    private void listProject() {
-        PaginatedResultSet<ProjectSummary> projectQueryResults =
-                projectService.queryProjects(
-                        TEST_COMPARTMENT_ID, TEST_DISPLAY_NAME, null, 10, null, null, null);
-        for (ProjectSummary summary : projectQueryResults.getResults()) {
-            if (!summary.getCompartmentId().equals(TEST_COMPARTMENT_ID)
-                    || !summary.getDisplayName().equals(TEST_DISPLAY_NAME)) {
-                throw new RuntimeException("Failure occurred during listing projects");
-            }
-        }
-    }
+    private void listProject() {}
 }

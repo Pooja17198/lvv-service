@@ -94,9 +94,7 @@ public class LvvServiceCanary extends Application<LvvServiceCanaryConfiguration>
         log.info("Registering health checks");
         environment
                 .healthChecks()
-                .register(
-                        LvvServiceCanaryHealthCheck.getName(),
-                        new LvvServiceCanaryHealthCheck());
+                .register(LvvServiceCanaryHealthCheck.getName(), new LvvServiceCanaryHealthCheck());
     }
 
     /** The entry point of the service. */

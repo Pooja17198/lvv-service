@@ -33,19 +33,14 @@ public class ProjectsUtils {
                         .build();
 
         CreateProjectRequest createProjectRequest =
-                CreateProjectRequest.builder()
-                        .createProjectDetails(createProjectDetails)
-                        .build();
+                CreateProjectRequest.builder().createProjectDetails(createProjectDetails).build();
         return client.createProject(createProjectRequest);
     }
 
     public GetProjectResponse getProject(
             ProjectClient client, String projectId, String opcRequestId) {
         GetProjectRequest getProjectRequest =
-                GetProjectRequest.builder()
-                        .projectId(projectId)
-                        .opcRequestId(opcRequestId)
-                        .build();
+                GetProjectRequest.builder().projectId(projectId).opcRequestId(opcRequestId).build();
         return client.getProject(getProjectRequest);
     }
 

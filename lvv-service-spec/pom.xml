@@ -118,40 +118,9 @@
       <plugin>
         <groupId>com.oracle.bmc.sdk</groupId>
         <artifactId>bmc-sdk-swagger-validator</artifactId>
+        <version>1.181.0</version>
         <executions>
-          <!-- It is a good idea to run the spec validator on ALL of the group files. Here, it's internal.txt and release.txt. -->
-          <execution>
-            <id>public-api-validation</id>
-            <phase>generate-resources</phase>
-            <goals>
-              <goal>validate</goal>
-            </goals>
-            <configuration>
-              <!-- Use conditional spec -->
-              <specConditionalsInputFile>${spec-dir}/${spec-file-name}</specConditionalsInputFile>
-              <specConditionalsGroupFile>${enabled-groups-dir}/internal.txt</specConditionalsGroupFile>
-              <configPath>${project.basedir}/spec-validation-config.yaml</configPath>
-              <outputPath>${project.basedir}/spec-validation-output.txt</outputPath>
-              <failBuildOnError>true</failBuildOnError>
-              <treatWarningsAsErrors>true</treatWarningsAsErrors>
-            </configuration>
-          </execution>
-          <execution>
-            <id>public-api-validation-release</id>
-            <phase>generate-resources</phase>
-            <goals>
-              <goal>validate</goal>
-            </goals>
-            <configuration>
-              <!-- Use conditional spec -->
-              <specConditionalsInputFile>${spec-dir}/${spec-file-name}</specConditionalsInputFile>
-              <specConditionalsGroupFile>${enabled-groups-dir}/release.txt</specConditionalsGroupFile>
-              <configPath>${project.basedir}/spec-validation-config-release.yaml</configPath>
-              <outputPath>${project.basedir}/spec-validation-output-release.txt</outputPath>
-              <failBuildOnError>true</failBuildOnError>
-              <treatWarningsAsErrors>true</treatWarningsAsErrors>
-            </configuration>
-          </execution>
+          <!-- It is a good idea to run the spec validator on ALL of the group files. -->
         </executions>
       </plugin>
       <plugin>

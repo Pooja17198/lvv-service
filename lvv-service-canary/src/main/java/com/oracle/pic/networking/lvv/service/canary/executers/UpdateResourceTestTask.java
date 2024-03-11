@@ -44,8 +44,7 @@ public class UpdateResourceTestTask implements Runnable {
         ProjectClient client = exampleClientProvider.getClient();
 
         CreateProjectResponse createProjectResponse =
-                projectsUtils.createProject(
-                        client, canaryTestCompartmentId, TEST_DISPLAY_NAME_1);
+                projectsUtils.createProject(client, canaryTestCompartmentId, TEST_DISPLAY_NAME_1);
         if (createProjectResponse == null) {
             log.error("Create Project call failed");
             return;
@@ -92,7 +91,6 @@ public class UpdateResourceTestTask implements Runnable {
         }
 
         // Clean up
-        projectsUtils.deleteProject(
-                client, projectId, createProjectResponse.getOpcRequestId());
+        projectsUtils.deleteProject(client, projectId, createProjectResponse.getOpcRequestId());
     }
 }

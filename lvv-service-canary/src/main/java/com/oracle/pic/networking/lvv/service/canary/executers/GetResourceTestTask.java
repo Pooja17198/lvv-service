@@ -11,8 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class GetResourceTestTask implements Runnable {
-    private static final String GET_PROJECT_CALL_METRIC_KEY =
-            "lvv-service-canary.getProjectCall";
+    private static final String GET_PROJECT_CALL_METRIC_KEY = "lvv-service-canary.getProjectCall";
     private static final String INVALID_OPC_REQUEST_ID = "";
     private static final String TEST_DISPLAY_NAME = "projectTest";
 
@@ -42,8 +41,7 @@ public class GetResourceTestTask implements Runnable {
         ProjectClient client = exampleClientProvider.getClient();
 
         CreateProjectResponse createProjectResponse =
-                projectsUtils.createProject(
-                        client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
+                projectsUtils.createProject(client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
         if (createProjectResponse == null) {
             log.error("Create Project call failed");
             return;
@@ -87,7 +85,6 @@ public class GetResourceTestTask implements Runnable {
         }
 
         // Clean up
-        projectsUtils.deleteProject(
-                client, projectId, createProjectResponse.getOpcRequestId());
+        projectsUtils.deleteProject(client, projectId, createProjectResponse.getOpcRequestId());
     }
 }

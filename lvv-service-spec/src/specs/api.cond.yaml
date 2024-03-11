@@ -8,595 +8,155 @@ x-oracle-package: com.oracle.pic.networking.lvv.service
 info:
   title: LvvService API
   description: A description of the LvvService API.
-  # Todo-Replace: please update the version to your estimated release date. Make sure that basePath(below) contains the version.
-  version: "20180828"
-# the domain of the service
-host: 127.0.0.1
+  contact:
+    name: "Network Control Plane"
+    email: opc_nw_automation_dev_us_grp@oracle.com
+    url: https://confluence.oci.oraclecorp.com/display/NETAUTO/Low+Voltage+Vendor+Portal+Security+Design+and+Considerations
+  version: "1.0.0"
+
 # array of all schemes that your API supports
 schemes:
-- http
-- https
+  - http
+  - https
 # basePath will be prefixed to all paths. Make sure to update the path in resource files and audit config in api base.conf after modifying the basePath.
-basePath: /20180828
+basePath: /lvv
 produces:
-- application/json
+  - application/json
 
+host: localhost:25000
 # Enable SDK Retries by default
 # Details: https://confluence.oci.oraclecorp.com/display/DEX/API+Consistency+Guidelines#APIConsistencyGuidelines-DefaultRetriesintheSDKs
 x-obmcs-client-retries-enabled: true
 
-# please refer to https://confluence.oci.oraclecorp.com/pages/viewpage.action?pageId=12205175#SwaggerExtensions(x*fields)-x-obmcs-issue-routing-table for details.
-x-obmcs-issue-routing-table:
-  default:
-    phonebookId: pegasus
-    email: opc_nw_automation_dev_us_grp@oracle.com
-    # Todo-Replace: Update your Jira Project name - instance of https://jira.oci.oraclecorp.com against which tickets would be cut for service teams.
-    # For example, if your Jira queue is https://jira.oci.oraclecorp.com/projects/DEX/issues, then you should only mention DEX.
-    jiraProject: REPLACE_THIS
-    # Todo-Replace: Update your Jira Project name - instance of jira-sd.mc1.oracleiaas.com against which tickets may be cut for operational issues.
-    # For example, if your Jira queue is https://jira-sd.mc1.oracleiaas.com/projects/SDK/queues, then you should only mention SDK.
-    opsJiraProject: REPLACE_THIS
-    # For engagements related to relevant API calls on github, this user shall be tagged to respond. Please note that
-    # this list should contain at least 2 items (PM and Dev Manager). The github users should be added the Oracle
-    # organization in github. For details check - https://confluence.oraclecorp.com/confluence/x/K8rPlQ.
-    githubUsers:
-      - githubUser1
-      - githubUser2
-
-# Todo-Replace: Update your endpoint-template.
-# As per the DNS wiki(see below), going ahead, the endpoints for web services would need to follow one of the following naming schemes:
-#  - OCI Services - <service>.<region>.oci.{secondLevelDomain}
-#  - PAAS Services - <service>.<region>.ocp.{secondLevelDomain}
-#  - SAAS Services - <service>.<region>.ocs.{secondLevelDomain}
-#
-# For non-regional endpoints it should be 'https://<service>.(oci|ocp|ocs).{secondLevelDomain}'
-# For region specific endpoints it should be 'https://<service>.{region}.(oci|ocp|ocs).{secondLevelDomain}'
-#
-# {region} -
-#   It holds a special meaning during codegen of the different SDKs/CLI and on encountering this parameter,
-#   the codegen shall generate an endpoint format that would be replaced by the region code from the equivalent of a
-#   setRegion call during client configuration.
-#
-# {secondLevelDomain} -
-#   Case sensitive parameter in this x-obmcs-endpoint-template is used to support different realms.
-#
-# For list of regions & secondLevelDomain and more information, please refer
-#  Service Endpoint Update - https://confluence.oci.oraclecorp.com/display/DEX/Service+Endpoint+Update
-#  External DNS: New Subdomain Request - https://confluence.oraclecorp.com/confluence/display/OCIID/External+DNS%3A+New+Subdomain+Request
 x-obmcs-endpoint-template: 'https://lvv-service.{region}.oci.{secondLevelDomain}'
 
-# =============================================================================
-# Anchors used to reference common headers, properties, ...etc...
-# =============================================================================
-x-anchors:
-  x-headers:
-    etag: &ref-etag
-      description: |
-        For optimistic concurrency control. See `if-match`.
-      type: string
-    opc-next-page: &ref-opc-next-page
-      description: |
-        For pagination of a list of items. When paging through a list, if this header appears in the response,
-        then a partial list might have been returned. Include this value as the `page` parameter for the
-        subsequent GET request to get the next batch of items.
-      type: string
-    opc-request-id: &ref-opc-request-id
-      description: |
-        Unique Oracle-assigned identifier for the request. If you need to contact
-        Oracle about a particular request, please provide the request ID.
-      type: string
-
-  x-properties:
-    definedTags: &ref-definedTags
-      type: object
-      additionalProperties:
-        type: object
-        additionalProperties:
-          type: object
-      description: |
-        Defined tags for this resource. Each key is predefined and scoped to a namespace.
-        Example: `{"foo-namespace": {"bar-key": "value"}}`
-
-    freeformTags: &ref-freeformTags
-      type: object
-      additionalProperties:
-        type: string
-      description: |
-        Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.
-        Example: `{"bar-key": "value"}`
-
-    systemTags: &ref-systemTags
-      type: object
-      additionalProperties:
-        type: object
-        additionalProperties:
-          type: object
-      description: |
-        System tags for this resource. Each key is predefined and scoped to a namespace.
-        Example: `{"orcl-cloud": {"free-tier-retained": "true"}}`
 
 # =============================================================================
 # Paths
 # =============================================================================
 paths:
-  /projects:
+  /projects/{project-id}:
     get:
-      tags: ['project']
-      operationId: ListProjects
-      summary: Gets a list of all Projects in a compartment
-      description: |
-        Returns a list of Projects.
-      parameters:
-        - $ref: '#/parameters/CompartmentIdQueryParam'
-        - $ref: '#/parameters/DisplayNameQueryParam'
-        - $ref: '#/parameters/PaginationLimitQueryParam'
-        - $ref: '#/parameters/PaginationTokenQueryParam'
-        - $ref: '#/parameters/LifecycleStateQueryParam'
-        - $ref: '#/parameters/SortOrderQueryParam'
-        - $ref: '#/parameters/SortByQueryParam'
-        - $ref: '#/parameters/RequestIdHeader'
-        # It is recommended to use the UDX ticket number as group name to enable/disable the feature.
-        # The UDX ticket number used here is only an example.
-          @ifdef UDX-123
-          # Add the new feature that you want to enable/disable here. Similar login applies to methods as well.
-          # - $ref: '#/parameters/NewParameterExample'
-          @endif # UDX-123
-      x-related-resource: '#/definitions/ProjectCollection'
-      responses:
-        200:
-          description: A page of ProjectSummary objects.
-          schema:
-            $ref: '#/definitions/ProjectCollection'
-          headers:
-            opc-request-id: *ref-opc-request-id
-            opc-next-page: *ref-opc-next-page
-        400:
-          $ref: '#/responses/400'
-        401:
-          $ref: '#/responses/401'
-        404:
-          $ref: '#/responses/404'
-        429:
-          $ref: '#/responses/429'
-        500:
-          $ref: '#/responses/500'
-        default:
-          $ref: '#/responses/default'
-
-    post:
-      tags: ['project']
-      operationId: CreateProject
-      summary: Creates a new Project
-      description: |
-        Creates a new Project.
-      parameters:
-        - name: CreateProjectDetails
-          description: Details for the new Project.
-          required: true
-          in: body
-          schema:
-            $ref: '#/definitions/CreateProjectDetails'
-        - $ref: '#/parameters/RetryTokenHeader'
-        - $ref: '#/parameters/RequestIdHeader'
-      x-related-resource: '#/definitions/Project'
-      responses:
-        200:
-          description: The Project was successfully created.
-          headers:
-            etag: *ref-etag
-            opc-request-id:  *ref-opc-request-id
-          schema:
-            $ref: '#/definitions/Project'
-        400:
-          $ref: '#/responses/400'
-        401:
-          $ref: '#/responses/401'
-        404:
-          $ref: '#/responses/404'
-        409:
-          $ref: '#/responses/409'
-        429:
-          $ref: '#/responses/429'
-        500:
-          $ref: '#/responses/500'
-        default:
-          $ref: '#/responses/default'
-
-  /projects/{projectId}:
-    get:
-      tags: ['project']
+      tags: ['projects']
       operationId: GetProject
       summary: Get Project
-      description: Gets a Project by identifier
+      description: Gets a project by identifier
       parameters:
         - $ref: '#/parameters/ProjectIdentifierPathParam'
-        - $ref: '#/parameters/RequestIdHeader'
+        - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: Retrieves the Project with the given id
+          description: Retrieves the project with the given id
           schema:
             $ref: '#/definitions/Project'
-          headers:
-            etag: *ref-etag
-            opc-request-id: *ref-opc-request-id
-        400:
-          $ref: '#/responses/400'
-        401:
-          $ref: '#/responses/401'
         404:
-          $ref: '#/responses/404'
-        429:
-          $ref: '#/responses/429'
-        500:
-          $ref: '#/responses/500'
+          description: The project with the given projectId could not be found
+          schema:
+            $ref: '#/definitions/Error'
         default:
-          $ref: '#/responses/default'
+          $ref: '#/responses/Error'
 
     put:
-      tags: ['project']
-      operationId: UpdateProject
-      summary: Update the Project identified by the id
-      description: Updates the Project
+      tags: ['projects']
+      operationId: CreateProject
+      summary: Creates a new project
+      description: Create a new project with the provided identifier
       parameters:
         - $ref: '#/parameters/ProjectIdentifierPathParam'
-        - name: UpdateProjectDetails
-          description: The information to be updated.
-          required: true
-          in: body
-          schema:
-            $ref: '#/definitions/UpdateProjectDetails'
-        - $ref: '#/parameters/IfMatchHeader'
-        - $ref: '#/parameters/RequestIdHeader'
-      x-related-resource: '#/definitions/Project'
+        - $ref: '#/parameters/PutProjectRequestBodyParam'
+        - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: The Project was successfully updated.
-          headers:
-            etag: *ref-etag
-            opc-request-id: *ref-opc-request-id
+          description: Newly created project
           schema:
             $ref: '#/definitions/Project'
         400:
-          $ref: '#/responses/400'
-        401:
-          $ref: '#/responses/401'
-        404:
-          $ref: '#/responses/404'
-        412:
-          $ref: '#/responses/412'
-        429:
-          $ref: '#/responses/429'
-        500:
-          $ref: '#/responses/500'
+          description: The project Id is not valid
+          schema:
+            $ref: '#/definitions/Error'
         default:
-          $ref: '#/responses/default'
+          $ref: '#/responses/Error'
 
     delete:
-      tags: ['project']
+      tags: ['projects']
       operationId: DeleteProject
-      summary: Delete a provisioned Project
-      description: Deletes a Project resource by identifier
+      description: Deletes an existing project
       parameters:
         - $ref: '#/parameters/ProjectIdentifierPathParam'
-        - $ref: '#/parameters/IfMatchHeader'
-        - $ref: '#/parameters/RequestIdHeader'
-      x-related-resource: '#/definitions/Project'
+        - $ref: '#/parameters/OpcRequestId'
       responses:
         204:
-          description: The Project was successfully deleted.
-          headers:
-            opc-request-id: *ref-opc-request-id
-        400:
-          $ref: '#/responses/400'
-        401:
-          $ref: '#/responses/401'
-        404:
-          $ref: '#/responses/404'
-        412:
-          $ref: '#/responses/412'
-        429:
-          $ref: '#/responses/429'
-        500:
-          $ref: '#/responses/500'
+          description: The project was successfully deleted.
         default:
-          $ref: '#/responses/default'
+          $ref: '#/responses/Error'
 
 #==========[ Definitions ]================================================================================================
 
 definitions:
-
-  LifecycleState:
-    type: string
-    description: Possible lifecycle states.
-    enum: &LIFECYCLESTATE
-      - CREATING
-      - UPDATING
-      - ACTIVE
-      - DELETING
-      - DELETED
-      - FAILED
-
-  Project:
-    description: Description of Project.
-    type: object
-    required:
-      - id
-      - compartmentId
-      - lifecycleState
-    properties:
-      id:
-        description: The Unique Oracle ID (OCID) that is immutable on creation.
-        type: string
-      compartmentId:
-        description: The OCID of the compartment containing the Project.
-        type: string
-      displayName:
-        description: A user-friendly name. Does not have to be unique, and it's changeable. Avoid entering confidential information.
-        type: string
-      timeCreated:
-        description: The time the the Project was created. An RFC3339 formatted datetime string
-        type: string
-        format: date-time
-      lifecycleState:
-        description: The current state of the Project.
-        type: string
-        x-obmcs-top-level-enum: '#/definitions/LifecycleState'
-        enum: *LIFECYCLESTATE
-      freeformTags: *ref-freeformTags
-      definedTags: *ref-definedTags
-      systemTags: *ref-systemTags
-
-  ProjectSummary:
-    description: Summary of the Project.
-    type: object
-    required:
-      - id
-      - compartmentId
-      - lifecycleState
-    properties:
-      id:
-        description: Unique identifier that is immutable on creation
-        type: string
-      compartmentId:
-        description: Compartment Identifier
-        type: string
-      displayName:
-        description: Project Identifier, can be renamed
-        type: string
-      timeCreated:
-        description: The time the the Project was created. An RFC3339 formatted datetime string
-        type: string
-        format: date-time
-      lifecycleState:
-        description: The current state of the Project.
-        type: string
-        x-obmcs-top-level-enum: '#/definitions/LifecycleState'
-        enum: *LIFECYCLESTATE
-      freeformTags: *ref-freeformTags
-      definedTags: *ref-definedTags
-      systemTags: *ref-systemTags
-
-  ProjectCollection:
-    type: object
-    description: Results of a project search. Contains both ProjectSummary items and other data.
-    required:
-      - items
-    properties:
-      items:
-        description: List of projects.
-        type: array
-        items:
-          $ref: "#/definitions/ProjectSummary"
-
-  CreateProjectDetails:
-    description: The information about new Project.
-    type: object
-    required:
-      - displayName
-      - compartmentId
-    properties:
-      displayName:
-        description: Project Identifier
-        type: string
-        minLength: 1
-        maxLength: 255
-      compartmentId:
-        description: Compartment Identifier
-        type: string
-        minLength: 1
-        maxLength: 255
-      freeformTags: *ref-freeformTags
-      definedTags: *ref-definedTags
-
-  UpdateProjectDetails:
-    description: The information to be updated.
-    type: object
-    required:
-      - displayName
-    properties:
-      displayName:
-        description: Project Identifier
-        type: string
-        minLength: 1
-        maxLength: 255
-      freeformTags: *ref-freeformTags
-      definedTags: *ref-definedTags
-
-  SortOrders:
-    type: string
-    description: Sort orders.
-    enum: &SORTORDERS
-      - ASC
-      - DESC
-
   Error:
-    description: Error Information.
+    type: object
     required:
       - code
       - message
     properties:
       code:
-        description: A short error code that defines the error, meant for programmatic parsing.
-        type: string
+        type: integer
+        format: int32
       message:
-        description: A human-readable error string.
         type: string
+      fields:
+        type: string
+  Project:
+    description: A project object represents the information of a specific project.
+    type: object
+    required:
+      - vendorName
+      - type
+    properties:
+      vendorName:
+        type: string
+        description: Name of the vendor the project is assigned to
+        minLength: 1
+        maxLength: 100
+      type:
+        type: string
+        description: Project type
+        minLength: 1
+        maxLength: 50
+  PutProjectRequest:
+    description: A request to create a new project
+    properties:
+      project:
+        $ref: '#/definitions/Project'
+
+
 
 #==========[ Parameters ]================================================================================================
 parameters:
-
+  PutProjectRequestBodyParam:
+    name: value
+    in: body
+    required: true
+    schema:
+      $ref: '#/definitions/PutProjectRequest'
+    description: Information required for creating a project
   ProjectIdentifierPathParam:
     name: projectId
     type: string
     in: path
-    required: true
-    description: Unique Project identifier
-
-  LifecycleStateQueryParam:
-    name: lifecycleState
-    in: query
-    required: false
-    type: string
-    x-obmcs-top-level-enum: '#/definitions/LifecycleState'
-    enum: *LIFECYCLESTATE
-    x-default-description: 'null'
-    description: A filter to return only resources their lifecycleState matches the given lifecycleState.
-
-  PaginationLimitQueryParam:
-    name: limit
-    in: query
-    type: integer
-    minimum: 1
-    maximum: 100
-    default: 10
-    description: The maximum number of items to return.
-
-  PaginationTokenQueryParam:
-    name: page
-    in: query
-    type: string
+    description: Unique Id for a project
     minLength: 1
-    description: A token representing the position at which to start retrieving results. This must come from the `opc-next-page` header field of a previous response.
-
-  SortOrderQueryParam:
-    name: sortOrder
-    in: query
-    type: string
-    x-obmcs-top-level-enum: '#/definitions/SortOrders'
-    enum: *SORTORDERS
-    x-default-description: |
-      The default value depends upon `sortBy`, and
-      in general is 'DESC' when sorting by time and 'ASC' otherwise.
-    description: The sort order to use, either 'ASC' or 'DESC'.
-
-  SortByQueryParam:
-    name: sortBy
-    in: query
-    type: string
-    enum:
-      - timeCreated
-      - displayName
-    default: 'timeCreated'
-    description: |
-      The field to sort by. Only one sort order may be provided. Default order for timeCreated is descending. Default order for displayName is ascending.
-
-  CompartmentIdQueryParam:
-    name: compartmentId
-    in: query
-    required: true
-    type: string
-    description: The ID of the compartment in which to list resources.
-
-  DisplayNameQueryParam:
-    in: query
-    maxLength: 255
-    minLength: 1
-    name: displayName
-    type: string
-    x-default-description: 'null'
-    description: A filter to return only resources that match the entire display name given.
-
-  RequestIdHeader:
+    maxLength: 50
+  OpcRequestId:
     name: opc-request-id
     in: header
     type: string
-    description: |
-      The client request ID for tracing. The only valid characters for request IDs are letters, numbers,
-      underscore, and dash.
+    description: The client request ID for tracing
 
-  RetryTokenHeader:
-    description: |
-      A token that uniquely identifies a request so it can be retried in case of a timeout or
-      server error without risk of executing that same action again. Retry tokens expire after 24
-      hours, but can be invalidated before then due to conflicting operations. For example, if a resource
-      has been deleted and purged from the system, then a retry of the original creation request
-      might be rejected.
-    in: header
-    maxLength: 64
-    minLength: 1
-    name: opc-retry-token
-    required: false
-    type: string
-
-  IfMatchHeader:
-    description: |
-      For optimistic concurrency control. In the PUT or DELETE call
-      for a resource, set the `if-match` parameter to the value of the
-      etag from a previous GET or POST response for that resource.
-      The resource will be updated or deleted only if the etag you
-      provide matches the resource's current etag value.
-    in: header
-    name: if-match
-    required: false
-    type: string
 
 #==========[ Responses ]================================================================================================
 responses:
-  400:
-    description: Bad Request
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  401:
-    description: Unauthorized
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  404:
-    description: Not Found
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  409:
-    description: Conflict
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  412:
-    description: Precondition failed
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  429:
-    description: Too Many Requests
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  500:
-    description: Internal Server Error
-    headers:
-      opc-request-id: *ref-opc-request-id
-    schema:
-      $ref: '#/definitions/Error'
-  default:
-    description: Unknown Error
-    headers:
-      opc-request-id: *ref-opc-request-id
+  Error:
+    description: An unexpected error has occurred
     schema:
       $ref: '#/definitions/Error'

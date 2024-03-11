@@ -13,8 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class ListResourceTestTask implements Runnable {
-    private static final String LIST_PROJECT_CALL_METRIC_KEY =
-            "lvv-service-canary.listProjectCall";
+    private static final String LIST_PROJECT_CALL_METRIC_KEY = "lvv-service-canary.listProjectCall";
     private static final String TEST_DISPLAY_NAME = "projectTest";
     private static final String INVALID_COMPARTMENT = "";
 
@@ -44,8 +43,7 @@ public class ListResourceTestTask implements Runnable {
         ProjectClient client = exampleClientProvider.getClient();
 
         CreateProjectResponse createProjectResponse =
-                projectsUtils.createProject(
-                        client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
+                projectsUtils.createProject(client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
         if (createProjectResponse == null) {
             log.error("Create Project call failed");
             return;
@@ -72,8 +70,7 @@ public class ListResourceTestTask implements Runnable {
 
         // list Project with invalid parameters.
         try {
-            ListProjectsResponse response =
-                    projectsUtils.listProject(client, INVALID_COMPARTMENT);
+            ListProjectsResponse response = projectsUtils.listProject(client, INVALID_COMPARTMENT);
             if (response != null) {
                 Metrics.emit(LIST_PROJECT_CALL_METRIC_KEY, 0d);
                 log.error("ListProject with invalid compartmentId test failed.");
@@ -95,7 +92,6 @@ public class ListResourceTestTask implements Runnable {
 
         // Clean up
         String projectId = createProjectResponse.getProject().getId();
-        projectsUtils.deleteProject(
-                client, projectId, createProjectResponse.getOpcRequestId());
+        projectsUtils.deleteProject(client, projectId, createProjectResponse.getOpcRequestId());
     }
 }

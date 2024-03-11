@@ -4,6 +4,8 @@
 .idea
 .project
 .settings
+bom-dependency-versions.txt
+lvv-service-spec/spec-validation-output.txt
 abandoned/
 bin/
 generated-srcs/

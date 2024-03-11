@@ -43,8 +43,7 @@ public class DeleteResourceTestTask implements Runnable {
         ProjectClient client = exampleClientProvider.getClient();
 
         CreateProjectResponse createProjectResponse =
-                projectsUtils.createProject(
-                        client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
+                projectsUtils.createProject(client, canaryTestCompartmentId, TEST_DISPLAY_NAME);
         if (createProjectResponse == null) {
             log.error("Create Project call failed");
             return;

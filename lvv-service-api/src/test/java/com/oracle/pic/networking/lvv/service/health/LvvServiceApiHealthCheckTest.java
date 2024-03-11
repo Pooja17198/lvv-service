@@ -25,12 +25,14 @@ public class LvvServiceApiHealthCheckTest {
 
     @Test
     void getName() {
-        Assertions.assertEquals(
-                LvvServiceApiHealthCheck.NAME, LvvServiceApiHealthCheck.getName());
+        Assertions.assertEquals(LvvServiceApiHealthCheck.NAME, LvvServiceApiHealthCheck.getName());
     }
 
     @Test
     void check() throws Exception {
-        Assertions.assertEquals(Result.unhealthy("You need to update the Default healthcheck to correctly reflect application health"), health.check());
+        Assertions.assertEquals(
+                Result.unhealthy(
+                        "You need to update the Default healthcheck to correctly reflect application health"),
+                health.check());
     }
 }

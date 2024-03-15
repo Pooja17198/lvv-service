@@ -90,6 +90,25 @@ paths:
         default:
           $ref: '#/responses/Error'
 
+  /cablingTasks:
+    get:
+      tags: [ 'cablingTasks' ]
+      operationId: GetCablingTasks
+      summary: Get cabling tasks
+      description: Get cabling tasks based on query parameters
+      parameters:
+        - $ref: '#/parameters/BuildingParam'
+        - $ref: '#/parameters/BlockParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Retrieves the cabling tasks with the given query parameters
+          schema:
+            $ref: '#/definitions/CablingTaskCollection'
+        default:
+          $ref: '#/responses/Error'
+
 #==========[ Definitions ]================================================================================================
 
 definitions:
@@ -128,7 +147,49 @@ definitions:
     properties:
       project:
         $ref: '#/definitions/Project'
-
+  CablingTaskCollection:
+    description: An array of cabling tasks.
+    type: object
+    properties:
+      initialCablingTasks:
+        description: An array of initial cabling tasks.
+        type: array
+        items:
+          $ref: '#/definitions/InitialCablingTaskDetails'
+      validationFailureTasks:
+        description: An array of cable validation failure tasks.
+        type: array
+        items:
+          $ref: '#/definitions/ValidationFailureTaskDetails'
+  InitialCablingTaskDetails:
+    description: Details for each initial cabling task.
+    type: object
+    properties:
+      building:
+        type: string
+        description: Building ID.
+      block:
+        type: string
+        description: Block ID.
+      rackSerialNumber:
+        type: string
+        description: Rack serial number.
+  ValidationFailureTaskDetails:
+    description: Details for each cable validation failure task.
+    type: object
+    properties:
+      building:
+        type: string
+        description: Building ID.
+      block:
+        type: string
+        description: Block ID.
+      rackSerialNumber:
+        type: string
+        description: Rack serial number.
+      failureReason:
+        type: string
+        description: JSON of why cable validation fails.
 
 
 #==========[ Parameters ]================================================================================================
@@ -145,6 +206,29 @@ parameters:
     type: string
     in: path
     description: Unique Id for a project
+    minLength: 1
+    maxLength: 50
+  BuildingParam:
+    name: building
+    type: string
+    in: query
+    required: true
+    description: Unique Id for a building
+    minLength: 1
+    maxLength: 10
+  BlockParam:
+    name: block
+    type: string
+    in: query
+    required: true
+    description: Unique Id for a block
+    minLength: 1
+    maxLength: 10
+  RackSerialNumberParam:
+    name: rackSerialNumber
+    type: string
+    in: query
+    description: Serial number for a rack
     minLength: 1
     maxLength: 50
   OpcRequestId:

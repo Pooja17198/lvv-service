@@ -16,6 +16,7 @@ import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
+import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
 import com.oracle.pic.sfw.internal.GeneratedApplicationHeartbeater;
 import com.oracle.pic.sherlock.collector.dropwizard.AuditFilterInstaller;
@@ -51,7 +52,10 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
 
     // Add your resources to this list.
     public static final List<Class<?>> RESOURCE_CLASSES =
-            ImmutableList.<Class<?>>builder().add(ProjectResource.class).build();
+            ImmutableList.<Class<?>>builder()
+                    .add(ProjectResource.class)
+                    .add(CablingTaskResource.class)
+                    .build();
 
     /*
      * Install JCE providers.

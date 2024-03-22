@@ -7,6 +7,7 @@ import com.oracle.pic.commons.service.metrics.jersey.MetricsConfiguration;
 import com.oracle.pic.commons.util.AvailabilityDomain;
 import com.oracle.pic.commons.util.Realm;
 import com.oracle.pic.commons.util.Region;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.sherlock.collector.AuditConfig;
 import com.oracle.pic.vault.SecretServiceConfig;
 import io.dropwizard.bundles.assets.AssetsBundleConfiguration;
@@ -35,6 +36,8 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     private AuditConfig auditConfig;
 
     @NotNull private AuthConfig authConfig;
+
+    @NotNull private JiraSDConfig jiraSDConfig;
 
     public void validateAdAndRegionConfiguration() {
         Validate.isTrue(getLocation().isValid());

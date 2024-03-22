@@ -85,3 +85,15 @@ This only applies to *Overlay/Customer enclave* users
       defaultTrustStorePath: "/etc/oci-pki/ca-bundle.pem"
     }
     ```
+# How to test Jira related functions on local desktop
+1. Follow https://dyn.slack.com/archives/GAJ2G1U56/p1709777583665419 to setup OSSH. Here is the full version of the guideline:  
+   https://confluence.oci.oraclecorp.com/display/SS/OSSH+%28OCI+SSH%29+User+Guide
+2. Run this command to create an one-time JIT (Just in Time) password which lasts for 10 hours.
+```agsl
+ssh operator-access-token.svc.ad1.us-ashburn-1 'generate --mode=password'
+```
+Here is the full guideline of JIT in case the above command is out of date https://confluence.oci.oraclecorp.com/display/SS/JIT+%28Just+in+Time%29+Password+Service+User+Guide
+3. Put the genearted password in src/main/resources/jira-sd-test-password (without the last %)
+4. Put your OCI email in src/main/resources/jira-sd-test-username, for example a.b@oracle.com
+5. Now you can run the service, should be able to call to Jira
+6. Remember don't commit these two files to git

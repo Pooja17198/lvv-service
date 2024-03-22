@@ -1,5 +1,8 @@
 package com.oracle.pic.networking.lvv.service.config;
 
+import com.atlassian.jira.rest.client.api.JiraRestClient;
+import com.atlassian.jira.rest.client.api.JiraRestClientFactory;
+import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory;
 import com.google.common.base.Preconditions;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
@@ -22,15 +25,21 @@ import com.oracle.pic.identity.authorization.sdk.AuthorizationClient;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
 import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
 import com.oracle.pic.networking.lvv.service.auth.PassThruAuthHelper;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
+import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
+import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
 import com.oracle.pic.telemetry.overlay.metrics.MetricsModules;
 import com.oracle.pic.vault.MockAuthenticationDetailsProvider;
 import com.oracle.pic.vault.VaultClient;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -51,6 +60,7 @@ public class LvvServiceApiModule extends AbstractModule {
         log.info("Binding");
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
+        bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
             bind(c).in(Singleton.class);
@@ -189,5 +199,26 @@ public class LvvServiceApiModule extends AbstractModule {
         } else {
             return new PassThruAuthHelper(authorizationClient);
         }
+    }
+
+    @Provides
+    @Singleton
+    public JiraSDService getJiraSDService(SecretRetriever secretRetriever)
+            throws URISyntaxException, SecretRetrieverException {
+        JiraSDConfig jiraSDConfig = this.config.getJiraSDConfig();
+        String usernameSecretPath = jiraSDConfig.getUsernameSecretPath();
+        String passwordSecretPath = jiraSDConfig.getPasswordSecretPath();
+        String username =
+                new String(
+                        secretRetriever.retrieveSecret(usernameSecretPath), StandardCharsets.UTF_8);
+        String password =
+                new String(
+                        secretRetriever.retrieveSecret(passwordSecretPath), StandardCharsets.UTF_8);
+        JiraRestClientFactory clientFactory = new AsynchronousJiraRestClientFactory();
+        JiraRestClient jiraRestClient =
+                clientFactory.createWithBasicHttpAuthentication(
+                        new URI(jiraSDConfig.getJiraSDEndpoint()), username, password);
+        JiraSDService jiraProxy = new JiraSDService(jiraRestClient);
+        return jiraProxy;
     }
 }

@@ -34,4 +34,10 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
             AuthorizationRequest authorizationRequest) {
         return this.cablingTaskService.getCablingTasks(building, block, rackSerialNumber);
     }
+
+    @Override
+    public void resolveValidationFailureTask(
+            String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
+        this.cablingTaskService.resolveValidationFailureTask(cablingTaskId);
+    }
 }

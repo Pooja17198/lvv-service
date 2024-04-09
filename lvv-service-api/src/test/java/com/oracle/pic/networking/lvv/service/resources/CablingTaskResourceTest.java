@@ -1,5 +1,6 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,13 +20,15 @@ public class CablingTaskResourceTest {
 
     private CablingTaskResource cablingTaskResource;
 
-    private String building = "PHX1";
-    private String block = "15";
-    private String rackSerialNumber = "1S7D9XCTO1WWJ102GBN7";
-    private String opcRequestId = "opcRequestId";
-    @Mock private Principal principal;
+    private static final String BUILDING = "PHX1";
+    private static final String BLOCK = "15";
+    private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
+    private static final String OPC_REQUEST_ID = "opcRequestId";
+    private static final String TASK_ID = "DO-1191815";
 
-    @Mock private AuthorizationRequest authorizationRequest;
+    @Mock private Principal principalMock;
+
+    @Mock private AuthorizationRequest authorizationRequestMock;
 
     @BeforeEach
     public void setup() {
@@ -34,19 +37,25 @@ public class CablingTaskResourceTest {
     }
 
     @Test
-    public void getCablingTasksTest() {
+    public void shouldGetCablingTasks() {
         CablingTaskCollection cablingTaskCollection = mock();
-        when(this.mockedCablingTaskService.getCablingTasks(
-                        this.building, this.block, this.rackSerialNumber))
+        when(this.mockedCablingTaskService.getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER))
                 .thenReturn(cablingTaskCollection);
         this.cablingTaskResource.getCablingTasks(
-                this.building,
-                this.block,
-                this.rackSerialNumber,
-                this.opcRequestId,
-                this.principal,
-                this.authorizationRequest);
-        verify(this.mockedCablingTaskService)
-                .getCablingTasks(this.building, this.block, this.rackSerialNumber);
+                BUILDING,
+                BLOCK,
+                RACK_SERIAL_NUMBER,
+                OPC_REQUEST_ID,
+                this.principalMock,
+                this.authorizationRequestMock);
+        verify(this.mockedCablingTaskService).getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
+    }
+
+    @Test
+    public void shouldResolveValidationFailureTask() {
+        doNothing().when(this.mockedCablingTaskService).resolveValidationFailureTask(TASK_ID);
+        this.cablingTaskResource.resolveValidationFailureTask(
+                TASK_ID, this.principalMock, this.authorizationRequestMock);
+        verify(this.mockedCablingTaskService).resolveValidationFailureTask(TASK_ID);
     }
 }

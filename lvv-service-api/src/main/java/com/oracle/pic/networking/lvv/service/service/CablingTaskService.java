@@ -1,6 +1,7 @@
 package com.oracle.pic.networking.lvv.service.service;
 
 import com.atlassian.jira.rest.client.api.domain.Issue;
+import com.atlassian.jira.rest.client.api.domain.IssueField;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.google.inject.Inject;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
@@ -33,9 +34,23 @@ public class CablingTaskService {
         List<ValidationFailureTaskDetails> validationFailureTaskDetailsLinkedList =
                 new LinkedList<>();
         for (Issue issue : cableValidationTickets.getIssues()) {
+            // Populate rack serial number for search requests without rack serial number
+            String ticketRackSerialNumber = rackSerialNumber;
+            if (ticketRackSerialNumber == null) {
+                for (IssueField issueField : issue.getFields()) {
+                    if (issueField.getName().equals("Serial Number")) {
+                        ticketRackSerialNumber = issueField.getValue().toString();
+                        break;
+                    }
+                }
+            }
             ValidationFailureTaskDetails validationFailureTaskDetails =
                     new ValidationFailureTaskDetails(
-                            building, block, rackSerialNumber, issue.getDescription());
+                            issue.getKey(),
+                            building,
+                            block,
+                            ticketRackSerialNumber,
+                            issue.getDescription());
             validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
         }
 
@@ -45,7 +60,8 @@ public class CablingTaskService {
                 this.searchInitialCablingTickets(building, block, rackSerialNumber);
         for (Issue issue : initialCablingTickets.getIssues()) {
             InitialCablingTaskDetails initialCablingTaskDetails =
-                    new InitialCablingTaskDetails(building, block, rackSerialNumber);
+                    new InitialCablingTaskDetails(
+                            issue.getKey(), building, block, rackSerialNumber);
             initialCablingTaskDetailsList.add(initialCablingTaskDetails);
         }
 
@@ -53,6 +69,12 @@ public class CablingTaskService {
                 new CablingTaskCollection(
                         initialCablingTaskDetailsList, validationFailureTaskDetailsLinkedList);
         return cablingTaskCollection;
+    }
+
+    public void resolveValidationFailureTask(String cablingTaskId) {
+        String resolution = "Fixed";
+        String comment = "Vendor has resolved the issue through Low-voltage Vendor Portal";
+        this.jiraSDService.resolveTicket(cablingTaskId, resolution, comment);
     }
 
     private SearchResult searchCableValidationTickets(

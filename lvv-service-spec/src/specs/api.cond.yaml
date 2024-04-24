@@ -109,6 +109,22 @@ paths:
         default:
           $ref: '#/responses/Error'
 
+  /cablingTasks/{cablingTaskId}/actions/getCableValidationFailureTask:
+    get:
+      tags: [ 'cablingTasks' ]
+      operationId: GetCableValidationFailureTask
+      summary: Get cabling tasks
+      description: Get details of cabling task based on cablingTaskId
+      parameters:
+        - $ref: '#/parameters/CablingTaskIdentifierPathParam'
+      responses:
+        200:
+          description: Retrieves the detailed JSON object for a cabling task with the given query parameters 'cablingTaskId'
+          schema:
+            type: string
+        default:
+          $ref: '#/responses/Error'
+
   /cablingTasks/{cablingTaskId}/actions/resolveValidationFailureTask:
     post:
       tags: [ 'cablingTasks' ]

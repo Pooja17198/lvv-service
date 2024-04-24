@@ -57,7 +57,7 @@ public class JiraSDService {
         this.issueRestClient.transition(issue, transitionInput).claim();
     }
 
-    private Issue getIssue(String issueKey) {
+    public Issue getIssue(String issueKey) {
         return this.issueRestClient.getIssue(issueKey).claim();
     }
 }

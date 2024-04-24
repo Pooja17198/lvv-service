@@ -40,4 +40,10 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
             String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
         this.cablingTaskService.resolveValidationFailureTask(cablingTaskId);
     }
+
+    @Override
+    public String getCableValidationFailureTask(
+            String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
+        return this.cablingTaskService.getCableValidationFailureTask(cablingTaskId);
+    }
 }

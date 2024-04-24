@@ -7,8 +7,11 @@ import com.google.common.base.Preconditions;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.google.inject.name.Named;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
+import com.oracle.bmc.http.ClientConfigurator;
 import com.oracle.bmc.monitoring.MonitoringClient;
 import com.oracle.pic.commons.metrics.naming.FilteringNamingStrategy;
 import com.oracle.pic.commons.metrics.naming.SimpleMetricsNamingStrategy;
@@ -27,16 +30,22 @@ import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
 import com.oracle.pic.networking.lvv.service.auth.PassThruAuthHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
+import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
+import com.oracle.pic.networking.lvv.service.identity.S2SAuthenticationClientHelper;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.ncp.JobsClient;
 import com.oracle.pic.telemetry.overlay.metrics.MetricsModules;
 import com.oracle.pic.vault.MockAuthenticationDetailsProvider;
 import com.oracle.pic.vault.VaultClient;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -58,10 +67,22 @@ public class LvvServiceApiModule extends AbstractModule {
     @Override
     protected void configure() {
         log.info("Binding");
+
+        bind(NcpService.class).in(Singleton.class);
+        bind(NcpServiceConfiguration.class).toInstance(config.getNcpServiceConfiguration());
+        bind(IdentityConfiguration.class).toInstance(config.getIdentityConfig());
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
+        try {
+            JobsClient jobsClient =
+                    this.provideNcpJobsClient(
+                            config.getNcpServiceConfiguration(), config.getIdentityConfig());
+            bind(JobsClient.class).toInstance(jobsClient);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
             bind(c).in(Singleton.class);
         }
@@ -220,5 +241,31 @@ public class LvvServiceApiModule extends AbstractModule {
                         new URI(jiraSDConfig.getJiraSDEndpoint()), username, password);
         JiraSDService jiraProxy = new JiraSDService(jiraRestClient);
         return jiraProxy;
+    }
+
+    @Named("NcpJobsClient")
+    @Provides
+    @Singleton
+    public JobsClient provideNcpJobsClient(
+            NcpServiceConfiguration ncpServiceConfiguration,
+            IdentityConfiguration identityConfiguration)
+            throws IOException {
+        S2SAuthenticationDetailsProvider authProvider =
+                S2SAuthenticationClientHelper.getS2SAuthProvider(identityConfiguration);
+        ClientConfigurator additionalClientConfig =
+                S2SAuthenticationClientHelper.getRootCaConfigurator(identityConfiguration);
+        JobsClient jobsClient =
+                JobsClient.builder()
+                        .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
+                        .clientConfigurator(additionalClientConfig)
+                        .build(authProvider);
+        return jobsClient;
+    }
+
+    @Named("NcpServiceClient")
+    @Provides
+    @Singleton
+    public NcpService createNcpService(@Named("NcpJobsClient") JobsClient jobsClient) {
+        return new NcpService(jobsClient);
     }
 }

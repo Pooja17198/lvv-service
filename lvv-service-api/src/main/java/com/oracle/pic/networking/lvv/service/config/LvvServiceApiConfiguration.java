@@ -8,6 +8,8 @@ import com.oracle.pic.commons.util.AvailabilityDomain;
 import com.oracle.pic.commons.util.Realm;
 import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
+import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
 import com.oracle.pic.sherlock.collector.AuditConfig;
 import com.oracle.pic.vault.SecretServiceConfig;
 import io.dropwizard.bundles.assets.AssetsBundleConfiguration;
@@ -38,6 +40,20 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     @NotNull private AuthConfig authConfig;
 
     @NotNull private JiraSDConfig jiraSDConfig;
+
+    // string used to construct regional endpoint, such as value "ap-tokyo-1" for
+    // "ext-proxy.svc.${regionDnsName}"
+    // to generate "ext-proxy.svc.ap-tokyo-1"
+    @NotNull private String regionDnsName;
+
+    // string used to construct AD endpoint, such as value "ad1" for
+    // "authservice.svc.${adDnsName}.${regionDnsName}"
+    // to generate "authservice.svc.ad1.ap-tokyo-1"
+    @NotNull private String adDnsName;
+
+    @NotNull private NcpServiceConfiguration ncpServiceConfiguration;
+
+    @NotNull private IdentityConfiguration identityConfig;
 
     public void validateAdAndRegionConfiguration() {
         Validate.isTrue(getLocation().isValid());

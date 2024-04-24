@@ -163,6 +163,28 @@
         <artifactId>jettison</artifactId>
         <version>1.5.4</version>
       </dependency>
+
+      <!-- NCP & Mockito-->
+      <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <version>4.11.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.oracle.pic.networking.ncp</groupId>
+        <artifactId>ncp-api-java-public-client</artifactId>
+        <version>1.1.1988</version>
+        <exclusions>
+          <exclusion>
+            <groupId>com.oracle.pic.telemetry.dianoga</groupId>
+            <artifactId>dianoga-service-java-client</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.oracle.pic.identity.authorization</groupId>
+            <artifactId>sdk</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

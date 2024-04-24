@@ -4,21 +4,71 @@ import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.IssueField;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.google.inject.Inject;
+import com.google.inject.name.Named;
+import com.oracle.bmc.model.BmcException;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.InitialCablingTaskDetails;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
+import com.oracle.pic.networking.ncp.model.Job;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CablingTaskService {
     private JiraSDService jiraSDService;
+    private NcpService ncpService;
 
     @Inject
-    public CablingTaskService(JiraSDService jiraSDService) {
+    public CablingTaskService(
+            JiraSDService jiraSDService, @Named("NcpServiceClient") NcpService ncpService) {
         this.jiraSDService = jiraSDService;
+        this.ncpService = ncpService;
+    }
+
+    public String getResultFromIssueField(Issue issue) {
+        String descRegex = "(\\w+-\\w+-\\w+-\\w+-\\w+)";
+
+        Pattern pattern = Pattern.compile(descRegex);
+        Set<String> labels = issue.getLabels();
+        Optional<String> ncpField =
+                labels.stream()
+                        .filter(label -> label.startsWith("NCP_JOB_ID:"))
+                        .map(
+                                label -> {
+                                    Matcher matcher = pattern.matcher(label);
+                                    if (matcher.find()) {
+                                        return matcher.group(1);
+                                    }
+                                    return null;
+                                })
+                        .filter(Objects::nonNull)
+                        .findFirst();
+        if (ncpField.isPresent()) {
+            return getResultFromNcpJob(ncpField.get(), issue.getDescription());
+        } else {
+            return issue.getDescription();
+        }
+    }
+
+    public String getResultFromNcpJob(String jobId, String fallbackResult) {
+        try {
+            Job ncpJobResult = ncpService.getNcpJob(jobId);
+            return ncpJobResult.toString();
+        } catch (BmcException e) {
+            log.error(
+                    "Exception occurred while processing ncp job id {}: error {}",
+                    jobId,
+                    e.toString());
+            return fallbackResult;
+        }
     }
 
     public CablingTaskCollection getCablingTasks(
@@ -75,6 +125,11 @@ public class CablingTaskService {
         String resolution = "Fixed";
         String comment = "Vendor has resolved the issue through Low-voltage Vendor Portal";
         this.jiraSDService.resolveTicket(cablingTaskId, resolution, comment);
+    }
+
+    public String getCableValidationFailureTask(String cablingTaskId) {
+        Issue issue = this.jiraSDService.getIssue(cablingTaskId);
+        return getResultFromIssueField(issue);
     }
 
     private SearchResult searchCableValidationTickets(

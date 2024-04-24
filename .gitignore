@@ -16,6 +16,7 @@ violations
 **/lvv-service-python-client/src/lvv_service_python_client
 lvv-service-canary/secret
 
+.vscode/**
 bldenv/
 input_ocibuild/
 output_ocibuild_compilesource/

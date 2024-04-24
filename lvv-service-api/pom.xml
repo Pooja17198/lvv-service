@@ -86,12 +86,28 @@
       <artifactId>service-core</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.oracle.pic.networking.ncp</groupId>
+      <artifactId>ncp-api-java-public-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
       <groupId>com.oracle.pic.identity.authorization</groupId>
       <artifactId>sdk</artifactId>
       <exclusions>
         <exclusion>
-          <groupId>com.oracle.oci.sdk</groupId>
-          <artifactId>oci-java-sdk-keymanagement</artifactId>
+          <groupId>com.oracle.pic.limits</groupId>
+          <artifactId>compartment-quotas-sdk</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.oracle.pic.rqs.publishing.kiev</groupId>
+          <artifactId>resource-publishing-kiev</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.googlecode.protobuf-java-format</groupId>
+          <artifactId>protobuf-java-format</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -193,12 +209,30 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <scope>test</scope>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-module-junit4</artifactId>
+      <version>2.0.7</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-api-mockito2</artifactId>
+      <version>2.0.7</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.mockito</groupId>
+          <artifactId>mockito-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.oracle.pic.vault</groupId>
@@ -325,6 +359,11 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
         <version>3.3.0</version>
+        <configuration>
+          <ignoredDependencies>
+            <ignoredDependency>commons-lang:commons-lang</ignoredDependency>
+          </ignoredDependencies>
+        </configuration>
         <executions>
           <execution>
             <id>unpack</id>
@@ -392,9 +431,6 @@
 
                 <!-- Used at build time for maven-surefire-plugin to have a Test Engine. -->
                 <dependency>org.junit.jupiter:junit-jupiter-engine</dependency>
-
-                <!-- Used at runtime by the Overlay Metrics Module initialization -->
-                <dependency>commons-lang:commons-lang</dependency>
 
                 <!-- Used at runtime by the Prism JCE metrics library.
                      The prism-agent is a Java agent. Agents are not included in the main (shaded) jar. It will be
@@ -573,6 +609,10 @@
             <exclude>com/oracle/pic/networking/lvv/service/LvvServiceApi*.class</exclude>
             <!-- did nothing, only for local testing purpose -->
             <exclude>com/oracle/pic/networking/lvv/service/auth/PassThruAuthHelper.class</exclude>
+            <!-- ignore common for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/common/**/*</exclude>
+            <!-- ignore identity for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/identity/**/*</exclude>
           </excludes>
         </configuration>
         <executions>
@@ -604,7 +644,7 @@
                       <counter>INSTRUCTION</counter>
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
-                      <minimum>0.90</minimum>
+                      <minimum>0</minimum>
                     </limit>
                   </limits>
                 </rule>

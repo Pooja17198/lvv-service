@@ -1,94 +1,89 @@
+## Accessing Kubernetes Cluster Resources
 
-## Build
-### Building your service locally
-Install JDK17 on your machine.
+### Download the kubectl tooling and create your Kube Config
 
-Setup toolchains plugin for JDK17. Copy the following contents to ~/.m2/toolchains.xml file. 
-Replace {JDK_17_HOME} with the path of JDK17 on your machine. To find JDK17 path on MacOS run the following command `/usr/libexec/java_home -v 17`
-```
-<?xml version="1.0" encoding="UTF8"?>
-<toolchains>
-    <!-- JDK toolchains -->
-    <toolchain>
-        <type>jdk</type>
-        <provides>
-            <version>17</version>
-        </provides>
-        <configuration>
-            <jdkHome>{JDK_17_HOME}</jdkHome>
-        </configuration>
-    </toolchain>
-</toolchains>
-```
+[Kubernetes Documentation](https://kubernetes.io/docs/home/)
 
-Build the whole solution by running the following command from the repository root: 
-```mvn clean install```
+Client Downloads
 
-### Building your service on Build Service
-ocibuild.conf is included by default in your service that is used to integrate with the Build Service.
-To learn more, please follow https://confluence.oci.oraclecorp.com/x/7kMZBg
+    brew install kubectl
+    curl -LO https://github.com/kvaps/kubectl-node-shell/raw/master/kubectl-node_shell
+    chmod +x ./kubectl-node_shell
+    sudo mv ./kubectl-node_shell /usr/local/bin/kubectl-node_shell
 
-By default, we use compartment ID provided by Build Service which only has Read permission and
-not Update/Delete/Create permission. With read permission, you are only limited to accessing your builds in Build Service UI. The Update/Delete/Create permissions are required for essential operations like retrying builds, canceling ongoing builds, etc.
-Hence, we highly recommend onboard to build service AuthZ using a compartment ID in your service's tenancy- https://confluence.oci.oraclecorp.com/x/h81fJw
+Authenticate kubectl with oci cli and create config
 
-To common questions related to build service issues in your generate service, please refer to   
-https://confluence.oci.oraclecorp.com/x/u0O8Gg and https://confluence.oci.oraclecorp.com/x/OCHQCg
+    mkdir -p $HOME/.kube
+    oci ce cluster create-kubeconfig --cluster-id <cluster_ocid> --file $HOME/.kube/config --region us-phoenix-1 --token-version 2.0.0
+    □    Cluster ocid can be grabbed from the console under the respective compartment
+    □    Will have to run this again if oci cli needed to authenticate using ocna-saml the first time
+    export KUBECONFIG=$HOME/.kube/config
 
 
-**Troubleshooting**
+## Describing OKE Resources
 
-Make sure your development environment is set up properly. Including, making sure that the maven settings.xml file has the correct content. See the following links for details:
+Test kubectl connection to your kube config
+	
+    kubectl version
+    kubectl get nodes
 
-https://confluence.oci.oraclecorp.com/display/PGI/Dev+Environment+and+Tools+Setup
+Checking cluster details
 
-https://confluence.oci.oraclecorp.com/display/IODOCS/Artifactory+-+Maven+Repositories
+	kubectl cluster-info
+    kubectl describe node
 
-##Secret Service Integration
+Get app/service/deployment info
 
-Secret Service is an internal secret management product offered to internal Oracle services. If you need to consume any secrets in your service like private keys, passwords etc. 
-You need integrate with the Secret Service. To learn more [SSV2 Onboarding Guide](https://confluence.oci.oraclecorp.com/x/lBokKQ)
-and [SSV2 Troubleshooting FAQ](https://confluence.oci.oraclecorp.com/x/uBokKQ)
+	kubectl get deployments
+	kubectl get pods -l app=<app_name> -o wide
+	kubectl describe deployment <deployment_name>
+	kubectl get service <service_name>
 
-This project already comes with the plumbing to read Secrets from the Secret Service (during development from the local file system)
-```
-//first inject SecretRetriever to your class
-@Inject
-public LvvService(... , SecretRetriever secretRetriever) {
-   // then use retrieveSecret method to read secret at ang given path 
-   byte[] secretBytes = secretRetriever.retrieveSecret("mySecret/latest");
-   String secretValue = new String(secretBytes, Charset.defaultCharset());
-}
-```
+Debug host session
 
-#Deploy with Shepherd
-```lvv-service-config```contains Shepherd configs to deploy the service. Check https://confluence.oci.oraclecorp.com/display/SHEP/Shepherd+Onboarding for shepherd onboarding.
+	kubectl get pods
+	kubectl debug <pod_name> -it --image=busybox
+	□	Creates an interactive host session on a public, managed pod
 
-# Creating an operations Dashboard
-We provide a basic starting operational dashboard in dashboard.json. Use the following steps to setup the dashboard in Grafana.
-1. Navigate to the OCI Grafana instance: https://grafana.oci.oraclecorp.com
-1. Click on the `Home` icon in bar at the top.
-1. Click on the `Import Dashboard` button.
-1. Copy the contents of `dashboard.json` file and paste it into the input box titled `or Paste JSON`.
-1. Click the `Load` button.
+Deploy a "helm chart"
 
-## Code Style
-Please see style.md
+	kubectl apply -f <yaml file>
+    □	A helm chart is effectively a deployment yaml that describes components and metadata describing them using the kubectl client
 
-## Dependency Management
-This template relies on both [dropwizard-service-bom](https://confluence.oci.oraclecorp.com/x/8IF2Gg) and [oci-internal-bom](https://confluence.oci.oraclecorp.com/x/BeAPGQ) for dependency management. 
+Delete previously deployed app/service
 
-These boms include the most commonly used dropwizard-related and OCI internal dependency versions so that 
-you can spend less time maintaining and updating individual dependency versions.
+	kubectl delete -f <same yaml file>
 
-Every time you build this solution you will be notified of the latest updates to both boms in the 
-file `bom-dependency-versions.txt`. The SFW team strongly recommends that you stay up to date with the latest versions 
-of both boms so that your dependencies are up to date. This way you spend less time in the future 
-addressing security vulnerabilities, etc.
+Verify deployment of a service
 
-## Contacting ServiceGeneration Team
-This service was generated using [ServiceGeneration Tool](https://devops.oci.oraclecorp.com/t/4GHmGJ). 
-Please follow [contact us](https://confluence.oci.oraclecorp.com/display/lvv-service/Contact+us) to reach out to us for questions, feature request or bug reporting etc.  
+	kubectl get services
+	□	For public, should be an externally-exposed IP in there
+	□	This is the IP you'd use in the browser for, say, the UI
+
+
+## Using kubectl node shell to create an SSH session
+
+Start a root shell in the node's host OS running
+
+https://github.com/kvaps/kubectl-node-shell
+
+	# Get standard bash shell
+	kubectl node-shell <node>
+
+# Use X-mode (mount /host, and do not enter host namespace)
+	kubectl node-shell -x <node>
+
+Execute custom command
+
+	kubectl node-shell <node> -- echo 123
+
+Use stdin
+
+	cat /etc/passwd | kubectl node-shell <node> -- sh -c 'cat > /tmp/passwd'
+
+Run oneliner script
+
+	kubectl node-shell <node> -- sh -c 'cat /tmp/passwd; rm -f /tmp/passwd'
 
 ## Contacting lvv-service Team
 [lvv-service team](https://devops.oci.oraclecorp.com/phonebook/network-automation) owns this service. Please reach out to them for any questions or concerns. 

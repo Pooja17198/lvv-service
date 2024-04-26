@@ -16,6 +16,7 @@ import com.oracle.bmc.monitoring.MonitoringClient;
 import com.oracle.pic.commons.metrics.naming.FilteringNamingStrategy;
 import com.oracle.pic.commons.metrics.naming.SimpleMetricsNamingStrategy;
 import com.oracle.pic.commons.ssl.DynamicSslContextProviderConfig;
+import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.identity.auth.AuthMetricsConstants;
 import com.oracle.pic.identity.auth.AuthMetricsFactory;
 import com.oracle.pic.identity.authentication.AuthServiceAuthenticationClient;
@@ -30,6 +31,7 @@ import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
 import com.oracle.pic.networking.lvv.service.auth.PassThruAuthHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.MockNcpClients;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
@@ -57,10 +59,12 @@ public class LvvServiceApiModule extends AbstractModule {
 
     private static final int REFRESH_AUTH_TOKEN_BEFORE_SECONDS_TO_EXPIRE = 5;
     private static final String LOCAL = "dummyEndpoint";
+    private final Region region;
 
     private final LvvServiceApiConfiguration config;
 
     public LvvServiceApiModule(LvvServiceApiConfiguration config) {
+        this.region = config.getAvailabilityDomain().getRegion();
         this.config = config;
     }
 
@@ -250,6 +254,9 @@ public class LvvServiceApiModule extends AbstractModule {
             NcpServiceConfiguration ncpServiceConfiguration,
             IdentityConfiguration identityConfiguration)
             throws IOException {
+        if (region.equals(Region.DEV)) {
+            return MockNcpClients.getMockJobsClient();
+        }
         S2SAuthenticationDetailsProvider authProvider =
                 S2SAuthenticationClientHelper.getS2SAuthProvider(identityConfiguration);
         ClientConfigurator additionalClientConfig =

@@ -22,6 +22,10 @@ input_ocibuild/
 output_ocibuild_compilesource/
 output_ocibuild_dockerize_api/
 output_ocibuild_dockerize_worker/
+lvv-service-api/src/main/resources/jira-sd-test-password
+lvv-service-api/src/main/resources/jira-sd-test-username
+lvv-service-python-client/lvv_service_client.egg-info/
+lvv-service-python-client/build/
 
 **/.terraform
 **/*.tfstate

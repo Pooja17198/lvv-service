@@ -43,48 +43,70 @@ Before moving your application to testing and ultimately production, address the
 - [ ] Update default healthcheck (TODO: Documentation link)
 
 
-# How to test Identity Integration locally with instance principals
-For desktop development, we recommend turning auth off, however if you are making changes that effects how auth works, you may want to test changes locally. This document explains how.
-
-This only applies to *Overlay/Customer enclave* users
+# How to test locally with Kiev
+Follow the following steps for testing the service locally using Kiev-in-a-box
 
 ## Steps for local setup
 
 1. Setup a tunnel to your overlay host from your local machine (we recommend using a beta/integ env host)
 
-    Why? 
-    
-    This is what will allow you to access instance principal certs locally and test auth functionality.
-    You could also cat out the certs and use the files but this is much easier and will work over time
-    as the certs rotate every 2 hours.
-    
-    How?
-    
-    The instance principal is unavailable locally but available on every instance in the cloud and can be obtained from the metadata service of the host. (Ref:  https://docs.cloud.oracle.com/en-us/iaas/Content/Compute/Tasks/gettingmetadata.htm)
-    With the below ssh tunnel, the requests to localhost:8000 are forwarded to the metadata service (169.254.169.254:80):
-    
-    `ssh -L 8000:169.254.169.254:80 your_user@<ip_of_your_integ_env_host>`
-    
-    More about ssh tunneling:  https://www.ssh.com/ssh/tunneling/example
+   Why?
 
-2. Run the code using desktop.conf
+   This is what will allow you to access instance principal certs locally and test auth functionality.
+   You could also cat out the certs and use the files but this is much easier and will work over time
+   as the certs rotate every 2 hours.
 
-    Why?
-    
-    Only desktop specifies an override of the metadata endpoint, all other configs are null.
-    
-    How?
-    
-    Update desktop.conf 
-    ```
-    authConfig {
-      authorizationEnabled: true
-      tenantId: {your_tenant_id}
-      authServiceEndpoint: "https://auth.us-{the_region_your_host_lives}-1.oraclecloud.com"
-      instancePrincipalUrl: "http://localhost:8000/"
-      defaultTrustStorePath: "/etc/oci-pki/ca-bundle.pem"
-    }
-    ```
+   How?
+
+   The instance principal is unavailable locally but available on every instance in the cloud and can be obtained from the metadata service of the host. (Ref:  https://docs.cloud.oracle.com/en-us/iaas/Content/Compute/Tasks/gettingmetadata.htm)
+   With the below ssh tunnel, the requests to localhost:8000 are forwarded to the metadata service (169.254.169.254:80):
+
+   `ssh -L 8000:169.254.169.254:80 your_user@<ip_of_your_integ_env_host>`
+
+   More about ssh tunneling:  https://www.ssh.com/ssh/tunneling/example
+
+2. Setup Kiev in a box:
+
+   Setup Kiev-in-a-box by following: https://bitbucket.oci.oraclecorp.com/projects/KIEV/repos/kiab-cli/browse
+   
+   During the *Install Kiev* step execute the following:
+
+   `kiab kiev create -u lvvproject -p lvvproject123456`
+
+   Verify the kiev database is working by connecting through kqt as mentioned in the Kiev-in-a-box README
+3. Perform the following command to build the service and the clients:
+
+   `mvn clean install`
+4. In IntelliJ edit configuration for *LvvServiceApi*:
+
+   ```
+    VM options:-Djavax.net.ssl.trustStore=/etc/pki/java/cacerts
+
+    Program arguments: server /Users/mdnhossa/Desktop/projects/lvv-service/lvv-service-api/config/desktop.conf (Location of desktop.conf)
+
+    Working Directory: /Users/mdnhossa/Desktop/projects/lvv-service (Root directory)
+   ```
+5. Run *LvvServiceApi*
+
+6. You should be able to hit the following 3 endpoints from swagger UI or Postman:
+   1. Create projects using PUT by providing the projectId and json body:
+      
+      `http://localhost:25000/lvv/:111` and body
+      ```
+      {  
+         "project": {
+             "vendorName": "vendor1",
+             "building": "111",
+             "block": "029",
+             "type": "cabling"
+         }
+      }
+      ```
+      1. Get project using GET by providing the project Id
+      2. Get project list for specific vendor using GET by providing the vendorName:
+         `http://localhost:25000/lvv/projects?vendorName=vendor1`
+   
+      
 # How to test Jira related functions on local desktop
 1. Follow https://dyn.slack.com/archives/GAJ2G1U56/p1709777583665419 to setup OSSH. Here is the full version of the guideline:  
    https://confluence.oci.oraclecorp.com/display/SS/OSSH+%28OCI+SSH%29+User+Guide

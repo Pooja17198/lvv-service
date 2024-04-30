@@ -7,6 +7,7 @@ import com.google.common.base.Preconditions;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.google.inject.TypeLiteral;
 import com.google.inject.name.Named;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
@@ -26,6 +27,11 @@ import com.oracle.pic.identity.authentication.entities.X509FederationRequest;
 import com.oracle.pic.identity.authentication.supplier.InstancePrincipalCertificateSupplier;
 import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationClient;
+import com.oracle.pic.kiev.DataStoreConfig;
+import com.oracle.pic.kiev.DirectDbStoreConfig;
+import com.oracle.pic.kiev.mapping.MappedDataStore;
+import com.oracle.pic.kiev.mapping.MappedHashBucket;
+import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
 import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
 import com.oracle.pic.networking.lvv.service.auth.PassThruAuthHelper;
@@ -37,6 +43,12 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfigur
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
 import com.oracle.pic.networking.lvv.service.identity.S2SAuthenticationClientHelper;
+import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
+import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
+import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
+import com.oracle.pic.networking.lvv.service.kiev.KievHashBucketProvider;
+import com.oracle.pic.networking.lvv.service.kiev.KievManager;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
@@ -91,6 +103,7 @@ public class LvvServiceApiModule extends AbstractModule {
             bind(c).in(Singleton.class);
         }
         bind(LvvServiceApiDeepCheck.class).in(Singleton.class);
+        bind(MappedDataStore.class).toProvider(DataStoreProvider.class);
         this.binder().requireExplicitBindings();
         install(
                 new MetricsModules.Builder()
@@ -101,6 +114,24 @@ public class LvvServiceApiModule extends AbstractModule {
                         .monitoringClient(getMonitoringClient())
                         .shouldOverrideMetricKeys(false)
                         .build());
+
+        bindProjectBucket();
+        bind(ProjectService.class).in(Singleton.class);
+        bind(KievManager.class).in(Singleton.class);
+    }
+
+    private void bindProjectBucket() {
+        KievHashBucketProvider<String, ProjectItem> kievHashBucketProvider =
+                new KievHashBucketProvider<>(
+                        "projectListBucket",
+                        "Bucket which stores all project list",
+                        String.class,
+                        ProjectItem.class);
+        bind(new TypeLiteral<MappedHashBucket<String, ProjectItem>>() {})
+                .toProvider(kievHashBucketProvider);
+
+        bind(new TypeLiteral<ConfigurationStore<String, ProjectItem>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, ProjectItem>>() {});
     }
 
     @Provides
@@ -274,5 +305,25 @@ public class LvvServiceApiModule extends AbstractModule {
     @Singleton
     public NcpService createNcpService(@Named("NcpJobsClient") JobsClient jobsClient) {
         return new NcpService(jobsClient);
+    }
+
+    @Provides
+    @Singleton
+    public DataStoreConfig getKievConfig() throws IOException {
+        log.info("Connecting to Kiev in KaaS Mode");
+        DataStoreConfig dsc =
+                new DirectDbStoreConfig(
+                        "pdbdev",
+                        "lvv-service",
+                        "jdbc:oracle:thin:@//localhost:1521/pdbdev",
+                        "lvvproject",
+                        "lvvproject123456");
+        return dsc;
+    }
+
+    @Provides
+    @Singleton
+    public PaginationTokenSerializer getPaginationTokenSerializer(MappedDataStore dataStore) {
+        return new PaginationTokenSerializer(dataStore);
     }
 }

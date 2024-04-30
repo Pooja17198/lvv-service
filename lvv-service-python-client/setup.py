@@ -1,42 +1,49 @@
-# coding: utf-8
-# Copyright (c) 2016, 2018 Oracle and/or its affiliates. All rights reserved.
+from setuptools import setup
 
-import io
-import os
-import re
-from setuptools import setup, find_packages
+MAJOR = 1
+MINOR = 0
 
 
-def open_relative(*path):
-    """
-    Opens files in read-only with a fixed utf-8 encoding.
-
-    All locations are relative to this setup.py file.
-    """
-    here = os.path.abspath(os.path.dirname(__file__))
-    filename = os.path.join(here, *path)
-    return io.open(filename, mode="r", encoding="utf-8")
-
-
-with open_relative("src", "lvv_service_python_client", "version.py") as fd:
-    version = re.search(
-        r"^__version__\s*=\s*['\"]([^'\"]*)['\"]",
-        fd.read(), re.MULTILINE).group(1)
-    if not version:
-        raise RuntimeError("Cannot find version information")
+PACKAGE_DIR = {
+    "lvv_service_client": "target/lvv_service_client",  # noqa: E501
+    "lvv_service_client.lvv_service_spec": "target/lvv_service_client/lvv_service_spec",  # noqa: E501
+    "lvv_service_client.lvv_service_spec.models": "target/lvv_service_client/lvv_service_spec/models",  # noqa: E501
+}
 
 
 requires = [
-    'oci==2.6.5'
+    "oci",
 ]
 
 setup(
-    name="lvv-service-python-client",
-    version=version,
-    description="Enter a description for your package here",
-    author="Oracle",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
-    include_package_data=True,
+    name="lvv-service-client",
+    oci_version=(MAJOR, MINOR),
+    write_version_module="target/lvv_service_client",
+    description="LVV Service Python Client",
+    author_email="opc_nwcp_dev_us_grp@oracle.com",
+    packages=list(PACKAGE_DIR.keys()),  # swagger_client packaging.py expects list
+    package_dir=PACKAGE_DIR,
     install_requires=requires,
+    extras_require={
+        "dev": [
+            "mock",
+            "pytest",
+        ],
+        "lint": [
+            "black",
+            "flake8",
+            "isort",
+        ],
+        "yubi": [
+            "nwauto-python-commons",  # nwcommons Not used in tests but useful for dev testing
+            "yubi-utils",
+        ],
+    },
+    zip_safe=False,
+    swagger_model_packages={
+        "lvv_service_client.lvv_service_spec.models": PACKAGE_DIR[
+            "lvv_service_client.lvv_service_spec.models"
+        ]
+    },
+    package_data={"lvv_service_client": ["py.typed", "api.yaml"]},
 )

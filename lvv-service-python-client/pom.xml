@@ -41,13 +41,13 @@
         The directory where code generated modules will be placed. This should be of the form
         src/<your package name>
     -->
-    <codegen.module.outputdir>${project.basedir}/src/lvv_service_python_client</codegen.module.outputdir>
+    <codegen.module.outputdir>${project.build.directory}/lvv_service_client</codegen.module.outputdir>
 
     <!--
         This will be used as the name of the code generated module. On disk, the generated code
         will be placed in ${codegen.module.outputdir}/${codegen.base.package.name}
     -->
-    <codegen.base.package.name>lvv_service</codegen.base.package.name>
+    <codegen.base.package.name>lvv_service_spec</codegen.base.package.name>
     <!--
           'INTERNAL' means 'generate everything'. Probably don't have to change this.
           This is related to the 'x-obmcs-internal-only' and 'x-obmcs-preview-only' flags,
@@ -73,6 +73,27 @@
   </properties>
 
   <build>
+    <!-- To get around __init__ missing to write version / py.typed to support type checking for package -->
+    <resources>
+      <resource>
+        <filtering>true</filtering>
+        <directory>${project.basedir}/src/lvv_service_client</directory><!-- from -->
+        <targetPath>${project.build.directory}/lvv_service_client</targetPath><!-- to -->
+        <includes>
+          <include>*.py</include>
+          <include>py.typed</include>
+        </includes>
+      </resource>
+      <!-- Moved spec file to the correct location -->
+      <resource>
+        <filtering>true</filtering>
+        <directory>${project.build.directory}/specs/client</directory><!-- from -->
+        <targetPath>${project.build.directory}/lvv_service_client</targetPath><!-- to -->
+        <includes>
+          <include>api.yaml</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

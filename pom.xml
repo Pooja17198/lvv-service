@@ -351,6 +351,9 @@
 
                   <ignoredUsedUndeclaredDependencies>
                     <ignoredUsedUndeclaredDependency>jakarta.ws.rs</ignoredUsedUndeclaredDependency>
+                    <ignoredUsedUndeclaredDependency>com.oracle.pic.kiev</ignoredUsedUndeclaredDependency>
+                    <ignoredUsedUndeclaredDependency>javax.inject</ignoredUsedUndeclaredDependency>
+                    <ignoredUsedUndeclaredDependency>io.dropwizard:dropwizard-servlets</ignoredUsedUndeclaredDependency>
                     <ignoredUsedUndeclaredDependency>jakarta.servlet</ignoredUsedUndeclaredDependency>
                     <ignoredUsedUndeclaredDependency>jakarta.validation</ignoredUsedUndeclaredDependency>
                     <ignoredUsedUndeclaredDependency>org.glassfish.hk2.external</ignoredUsedUndeclaredDependency>
@@ -451,7 +454,7 @@
           <plugin>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-maven-plugin</artifactId>
-            <version>4.7.3.0</version>
+            <version>4.2.2</version>
             <configuration>
               <effort>Max</effort>
               <xmlOutput>true</xmlOutput>

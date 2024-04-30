@@ -23,7 +23,7 @@ basePath: /lvv
 produces:
   - application/json
 
-host: localhost:25000
+host: localhost:21000
 # Enable SDK Retries by default
 # Details: https://confluence.oci.oraclecorp.com/display/DEX/API+Consistency+Guidelines#APIConsistencyGuidelines-DefaultRetriesintheSDKs
 x-obmcs-client-retries-enabled: true
@@ -35,7 +35,31 @@ x-obmcs-endpoint-template: 'https://lvv-service.{region}.oci.{secondLevelDomain}
 # Paths
 # =============================================================================
 paths:
-  /projects/{project-id}:
+
+  /projects:
+    get:
+      tags: ['projects']
+      operationId: GetProjectList
+      summary: Get Project List
+      description: Gets a list of projects by specific vendors
+      parameters:
+        - $ref: '#/parameters/VendorQueryParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Retrieves the list projectIds of a given vendor
+          schema:
+            type: array
+            items:
+              type: string
+        404:
+          description: The vendorName could not be found
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          $ref: '#/responses/Error'
+
+  /projects/{projectId}:
     get:
       tags: ['projects']
       operationId: GetProject
@@ -160,6 +184,8 @@ definitions:
     type: object
     required:
       - vendorName
+      - building
+      - block
       - type
     properties:
       vendorName:
@@ -167,6 +193,16 @@ definitions:
         description: Name of the vendor the project is assigned to
         minLength: 1
         maxLength: 100
+      building:
+        type: string
+        description: building number
+        minLength: 1
+        maxLength: 50
+      block:
+        type: string
+        description: block number
+        minLength: 1
+        maxLength: 50
       type:
         type: string
         description: Project type
@@ -265,6 +301,11 @@ parameters:
     type: string
     in: query
     description: Serial number for a rack
+  VendorQueryParam:
+    name: vendorName
+    type: string
+    in: query
+    description: Unique name for vendor
     minLength: 1
     maxLength: 50
   CablingTaskIdentifierPathParam:

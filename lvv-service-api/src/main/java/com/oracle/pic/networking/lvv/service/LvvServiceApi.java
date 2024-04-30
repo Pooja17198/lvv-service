@@ -14,7 +14,6 @@ import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
 import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
-import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
@@ -132,7 +131,6 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
             registerHealthChecks(environment);
             registerAuth(environment, config, injector);
             registerAuditFilter(config, environment);
-            environment.admin().addTask(injector.getInstance(LvvServiceApiDeepCheck.class));
             log.info("{} initialization completed", SERVICE_NAME);
         } catch (Throwable t) {
             log.error("{} failed to start", SERVICE_NAME, t);

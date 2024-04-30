@@ -4,10 +4,14 @@ import com.google.inject.Inject;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractProjectsResource;
-import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.PutProjectRequest;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.lvv.service.utils.PaginationToken;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
 import lombok.AccessLevel;
@@ -35,7 +39,6 @@ public class ProjectResource extends AbstractProjectsResource {
     private static final String SORT_BY_ENUM_DISPLAYNAME = "displayName";
     private static final int DEFAULT_PAGE_SIZE = 100;
 
-    private final AuthHelper authorizationHelper;
     private final ProjectService projectService;
 
     @Context
@@ -43,8 +46,7 @@ public class ProjectResource extends AbstractProjectsResource {
     private HttpServletResponse httpServletResponse;
 
     @Inject
-    protected ProjectResource(AuthHelper authorizationHelper, ProjectService projectService) {
-        this.authorizationHelper = authorizationHelper;
+    protected ProjectResource(ProjectService projectService) {
         this.projectService = projectService;
     }
 
@@ -55,7 +57,20 @@ public class ProjectResource extends AbstractProjectsResource {
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
-        return null;
+
+        ProjectItem projectItem =
+                projectService.createUpdateProject(
+                        projectId,
+                        value.getProject().getVendorName(),
+                        value.getProject().getBuilding(),
+                        value.getProject().getBlock(),
+                        value.getProject().getType());
+        return Project.builder()
+                .type(projectItem.getType())
+                .vendorName(projectItem.getVendorName())
+                .building(projectItem.getBuilding())
+                .block(projectItem.getBlock())
+                .build();
     }
 
     @Override
@@ -71,6 +86,35 @@ public class ProjectResource extends AbstractProjectsResource {
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
-        return null;
+        ProjectItem projectItem = projectService.getProject(projectId);
+        return Project.builder()
+                .type(projectItem.getType())
+                .vendorName(projectItem.getVendorName())
+                .building(projectItem.getBuilding())
+                .block(projectItem.getBlock())
+                .build();
+    }
+
+    @Override
+    public List<String> getProjectList(
+            String vendorName,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+
+        String page = null;
+        PaginationToken paginationToken = new PaginationToken();
+        paginationToken.setToken(Optional.ofNullable(page));
+        List<ProjectItem> projectItems =
+                projectService.getProjectListByVendor(paginationToken, vendorName);
+
+        List<String> result = new ArrayList<>();
+
+        projectItems.forEach(
+                (item) -> {
+                    result.add(item.getProjectId());
+                });
+
+        return result;
     }
 }

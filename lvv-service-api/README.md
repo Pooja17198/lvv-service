@@ -48,7 +48,9 @@ Follow the following steps for testing the service locally using Kiev-in-a-box
 
 ## Steps for local setup
 
-1. Setup a tunnel to your overlay host from your local machine (we recommend using a beta/integ env host)
+1. Setup using a tunnel 
+  
+   Setup a tunnel to your overlay host from your local machine (we recommend using a beta/integ env host)
 
    Why?
 
@@ -65,46 +67,37 @@ Follow the following steps for testing the service locally using Kiev-in-a-box
 
    More about ssh tunneling:  https://www.ssh.com/ssh/tunneling/example
 
+
 2. Setup Kiev in a box:
 
-   Setup Kiev-in-a-box by following: https://bitbucket.oci.oraclecorp.com/projects/KIEV/repos/kiab-cli/browse
-   
+   **Prerequisite:** Colima, Docker and Wget Setup Kiev-in-a-box by following: https://bitbucket.oci.oraclecorp.com/projects/KIEV/repos/kiab-cli/browse
+
    During the *Install Kiev* step execute the following:
 
    `kiab kiev create -u lvvproject -p lvvproject123456`
 
    Verify the kiev database is working by connecting through kqt as mentioned in the Kiev-in-a-box README
-3. Perform the following command to build the service and the clients:
+   1. Perform the following command to build the service and the clients:
 
-   `mvn clean install`
-4. In IntelliJ edit configuration for *LvvServiceApi*:
+      `mvn clean install`
+   2. Execute _./run.sh_ inside lvv-service-api
 
-   ```
-    VM options:-Djavax.net.ssl.trustStore=/etc/pki/java/cacerts
-
-    Program arguments: server /Users/mdnhossa/Desktop/projects/lvv-service/lvv-service-api/config/desktop.conf (Location of desktop.conf)
-
-    Working Directory: /Users/mdnhossa/Desktop/projects/lvv-service (Root directory)
-   ```
-5. Run *LvvServiceApi*
-
-6. You should be able to hit the following 3 endpoints from swagger UI or Postman:
-   1. Create projects using PUT by providing the projectId and json body:
+   3. You should be able to hit the following 3 endpoints from swagger UI or Postman or Curl:
+      1. Create projects using PUT by providing the projectId and json body:
       
-      `http://localhost:25000/lvv/:111` and body
-      ```
-      {  
-         "project": {
-             "vendorName": "vendor1",
-             "building": "111",
-             "block": "029",
-             "type": "cabling"
-         }
-      }
-      ```
-      1. Get project using GET by providing the project Id
-      2. Get project list for specific vendor using GET by providing the vendorName:
-         `http://localhost:25000/lvv/projects?vendorName=vendor1`
+         ```
+         curl --header "Content-Type: application/json"   --request PUT --data '{"project": { "vendorName": "vendor2", "building": "112", "block": "029", "type": "cabling"}}' http://localhost:21000/lvv/projects/DO116
+         ```
+      2. Get project using GET by providing the project Id:
+      
+         ```
+         curl --header "Content-Type: application/json" http://localhost:21000/lvv/projects/DO116
+         ```
+      3. Get project list for specific vendor using GET by providing the vendorName:
+
+         ```
+         curl --header "Content-Type: application/json" http://localhost:21000/lvv/projects?vendorName=vendor2
+         ```
    
       
 # How to test Jira related functions on local desktop

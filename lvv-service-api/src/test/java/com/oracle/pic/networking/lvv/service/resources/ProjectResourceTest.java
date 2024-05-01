@@ -77,7 +77,7 @@ public class ProjectResourceTest {
 
     @Test
     public void createProjectTest() {
-        Project project = new Project("vendor1", "building1", "block1", "cabling");
+        Project project = new Project("project1", "vendor1", "building1", "block1", "cabling");
         Project result =
                 resource.createProject(
                         "project1",
@@ -98,7 +98,7 @@ public class ProjectResourceTest {
 
     @Test
     public void listProjectTest() {
-        List<String> result =
+        List<Project> result =
                 resource.getProjectList(
                         "vendor1",
                         this.opcRequestId,

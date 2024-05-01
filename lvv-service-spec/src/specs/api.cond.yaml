@@ -47,11 +47,11 @@ paths:
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: Retrieves the list projectIds of a given vendor
+          description: Get list of projects for a specific vendor
           schema:
             type: array
             items:
-              type: string
+              $ref: '#/definitions/Project'
         404:
           description: The vendorName could not be found
           schema:
@@ -183,11 +183,17 @@ definitions:
     description: A project object represents the information of a specific project.
     type: object
     required:
+      - projectId
       - vendorName
       - building
       - block
       - type
     properties:
+      projectId:
+        type: string
+        description: Unique Identifier of a project
+        minLength: 1
+        maxLength: 50
       vendorName:
         type: string
         description: Name of the vendor the project is assigned to

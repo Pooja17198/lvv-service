@@ -66,6 +66,7 @@ public class ProjectResource extends AbstractProjectsResource {
                         value.getProject().getBlock(),
                         value.getProject().getType());
         return Project.builder()
+                .projectId(projectItem.getProjectId())
                 .type(projectItem.getType())
                 .vendorName(projectItem.getVendorName())
                 .building(projectItem.getBuilding())
@@ -88,6 +89,7 @@ public class ProjectResource extends AbstractProjectsResource {
             AuthorizationRequest authorizationRequest) {
         ProjectItem projectItem = projectService.getProject(projectId);
         return Project.builder()
+                .projectId(projectItem.getProjectId())
                 .type(projectItem.getType())
                 .vendorName(projectItem.getVendorName())
                 .building(projectItem.getBuilding())
@@ -96,7 +98,7 @@ public class ProjectResource extends AbstractProjectsResource {
     }
 
     @Override
-    public List<String> getProjectList(
+    public List<Project> getProjectList(
             String vendorName,
             String opcRequestId,
             Principal principal,
@@ -108,11 +110,19 @@ public class ProjectResource extends AbstractProjectsResource {
         List<ProjectItem> projectItems =
                 projectService.getProjectListByVendor(paginationToken, vendorName);
 
-        List<String> result = new ArrayList<>();
+        List<Project> result = new ArrayList<>();
 
         projectItems.forEach(
                 (item) -> {
-                    result.add(item.getProjectId());
+                    Project project =
+                            Project.builder()
+                                    .projectId(item.getProjectId())
+                                    .block(item.getBlock())
+                                    .building(item.getBuilding())
+                                    .type(item.getType())
+                                    .vendorName(item.getType())
+                                    .build();
+                    result.add(project);
                 });
 
         return result;

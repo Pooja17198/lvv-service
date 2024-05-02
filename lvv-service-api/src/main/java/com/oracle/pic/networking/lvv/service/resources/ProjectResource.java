@@ -120,7 +120,7 @@ public class ProjectResource extends AbstractProjectsResource {
                                     .block(item.getBlock())
                                     .building(item.getBuilding())
                                     .type(item.getType())
-                                    .vendorName(item.getType())
+                                    .vendorName(item.getVendorName())
                                     .build();
                     result.add(project);
                 });

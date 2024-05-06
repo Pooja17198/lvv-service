@@ -1,6 +1,15 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.CreateProject;
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.CreateProjectFailure;
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.GetProject;
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.GetProjectFailure;
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.GetProjectList;
+import static com.oracle.pic.networking.lvv.service.resources.ProjectResource.Metrics.GetProjectListFailure;
+
 import com.google.inject.Inject;
+import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.commons.metrics.metrictypes.Timer;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractProjectsResource;
@@ -37,9 +46,19 @@ public class ProjectResource extends AbstractProjectsResource {
 
     private static final String SORT_BY_ENUM_TIMECREATED = "timeCreated";
     private static final String SORT_BY_ENUM_DISPLAYNAME = "displayName";
+    private static final String METRIC_SCOPE_NAME = "ServiceApi";
     private static final int DEFAULT_PAGE_SIZE = 100;
 
     private final ProjectService projectService;
+
+    enum Metrics {
+        CreateProject,
+        CreateProjectFailure,
+        GetProject,
+        GetProjectFailure,
+        GetProjectList,
+        GetProjectListFailure
+    }
 
     @Context
     @Getter(AccessLevel.PRIVATE)
@@ -58,20 +77,34 @@ public class ProjectResource extends AbstractProjectsResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        ProjectItem projectItem =
-                projectService.createUpdateProject(
-                        projectId,
-                        value.getProject().getVendorName(),
-                        value.getProject().getBuilding(),
-                        value.getProject().getBlock(),
-                        value.getProject().getType());
-        return Project.builder()
-                .projectId(projectItem.getProjectId())
-                .type(projectItem.getType())
-                .vendorName(projectItem.getVendorName())
-                .building(projectItem.getBuilding())
-                .block(projectItem.getBlock())
-                .build();
+        try (MetricsScope scope = MetricsScope.create(METRIC_SCOPE_NAME)) {
+            Timer timer = scope.timerStart("createProjectStartMillis");
+            try {
+                ProjectItem projectItem =
+                        projectService.createUpdateProject(
+                                projectId,
+                                value.getProject().getVendorName(),
+                                value.getProject().getBuilding(),
+                                value.getProject().getBlock(),
+                                value.getProject().getType());
+                Project project =
+                        Project.builder()
+                                .projectId(projectItem.getProjectId())
+                                .type(projectItem.getType())
+                                .vendorName(projectItem.getVendorName())
+                                .building(projectItem.getBuilding())
+                                .block(projectItem.getBlock())
+                                .build();
+                scope.emit(CreateProject, 1);
+                scope.recordSuccess();
+                return project;
+            } catch (Exception ex) {
+                scope.emit(CreateProjectFailure, 1);
+                throw ex;
+            } finally {
+                scope.timerStop(timer);
+            }
+        }
     }
 
     @Override
@@ -87,14 +120,29 @@ public class ProjectResource extends AbstractProjectsResource {
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
-        ProjectItem projectItem = projectService.getProject(projectId);
-        return Project.builder()
-                .projectId(projectItem.getProjectId())
-                .type(projectItem.getType())
-                .vendorName(projectItem.getVendorName())
-                .building(projectItem.getBuilding())
-                .block(projectItem.getBlock())
-                .build();
+
+        try (MetricsScope scope = MetricsScope.create(METRIC_SCOPE_NAME)) {
+            Timer timer = scope.timerStart("getProjectStartMillis");
+            try {
+                ProjectItem projectItem = projectService.getProject(projectId);
+                Project project =
+                        Project.builder()
+                                .projectId(projectItem.getProjectId())
+                                .type(projectItem.getType())
+                                .vendorName(projectItem.getVendorName())
+                                .building(projectItem.getBuilding())
+                                .block(projectItem.getBlock())
+                                .build();
+                scope.emit(GetProject, 1);
+                scope.recordSuccess();
+                return project;
+            } catch (Exception ex) {
+                scope.emit(GetProjectFailure, 1);
+                throw ex;
+            } finally {
+                scope.timerStop(timer);
+            }
+        }
     }
 
     @Override
@@ -104,27 +152,38 @@ public class ProjectResource extends AbstractProjectsResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        String page = null;
-        PaginationToken paginationToken = new PaginationToken();
-        paginationToken.setToken(Optional.ofNullable(page));
-        List<ProjectItem> projectItems =
-                projectService.getProjectListByVendor(paginationToken, vendorName);
+        try (MetricsScope scope = MetricsScope.create(METRIC_SCOPE_NAME)) {
+            Timer timer = scope.timerStart("getProjectListStartMillis");
+            try {
+                String page = null;
+                PaginationToken paginationToken = new PaginationToken();
+                paginationToken.setToken(Optional.ofNullable(page));
+                List<ProjectItem> projectItems =
+                        projectService.getProjectListByVendor(paginationToken, vendorName);
 
-        List<Project> result = new ArrayList<>();
+                List<Project> result = new ArrayList<>();
 
-        projectItems.forEach(
-                (item) -> {
-                    Project project =
-                            Project.builder()
-                                    .projectId(item.getProjectId())
-                                    .block(item.getBlock())
-                                    .building(item.getBuilding())
-                                    .type(item.getType())
-                                    .vendorName(item.getVendorName())
-                                    .build();
-                    result.add(project);
-                });
-
-        return result;
+                projectItems.forEach(
+                        (item) -> {
+                            Project project =
+                                    Project.builder()
+                                            .projectId(item.getProjectId())
+                                            .block(item.getBlock())
+                                            .building(item.getBuilding())
+                                            .type(item.getType())
+                                            .vendorName(item.getType())
+                                            .build();
+                            result.add(project);
+                        });
+                scope.emit(GetProjectList, result.size());
+                scope.recordSuccess();
+                return result;
+            } catch (Exception ex) {
+                scope.emit(GetProjectListFailure, 1);
+                throw ex;
+            } finally {
+                scope.timerStop(timer);
+            }
+        }
     }
 }

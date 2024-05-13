@@ -3,8 +3,41 @@
 #
 # API Consistency Guidelines: https://confluence.oci.oraclecorp.com/x/n5Sf
 # Review the API checklist: https://confluence.oci.oraclecorp.com/x/dAZY
+
 swagger: '2.0'
 x-oracle-package: com.oracle.pic.networking.lvv.service
+x-obmcs-splat:
+  version: '1.0'
+  services:
+    lvvportal:
+      # This enables Audit automation through SPLAT. SPLAT automatically emits following:
+      #  a) an event corresponding to sync api call.
+      #  b) a begin event for async api calls. Service team has to emit end events corresponding to success/failure of async call.
+      #  Reference-app emits end events in respective workflow. See AuditEventEmitter for details.
+      #
+      # Omitting audit implies you don't want Splat to audit operations for this service (ocdn-control-plane-api)
+      #
+      # More details about audit automation can be found at https://confluence.oci.oraclecorp.com/x/vg5jCg and https://confluence.oci.oraclecorp.com/x/UQ9jCg
+      audit:
+        # defaultMode can be either none/verification/automated.
+        # verification: can be used for verification. Random percentage(< 1%) of requests will be audited by Splat
+        # automated: means Splat will perform audit and add "oci-splat-audited" header to requests proxied downstream
+        defaultMode: automated
+        eventSource: lvvportal
+        requestParameterRules: [ { resources: ".*", actions: ".*", values: ".*" } ]
+        requestHeaderRules:    [ { resources: ".*", actions: ".*", values: ".*" } ]
+        responseHeaderRules:   [ { resources: ".*", actions: ".*", values: ".*" } ]
+      # allows unreviewed entity types in splat
+      # Entity types are already onboarded to identity.
+      # But splat-swagger-maven-plugin version which includes them is not yet released.
+      # This flag need to be removed when splat-swagger-maven-plugin update is available.
+      allowingUnreviewedEntityType: true
+    lvvportal-dev:
+      prototype: lvvportal
+      skipServiceOverridesValidation: true
+      serviceOverrides:
+        lvvportal: lvvportal-dev
+
 info:
   title: LvvService API
   description: A description of the LvvService API.
@@ -30,6 +63,24 @@ x-obmcs-client-retries-enabled: true
 
 x-obmcs-endpoint-template: 'https://lvv-service.{region}.oci.{secondLevelDomain}'
 
+# =============================================================================
+# Anchors used to reference common headers, properties, ...etc...
+# =============================================================================
+x-anchors:
+  # This is being included in the 'x-anchors:' section.
+  # For that reason, it is important that x-headers and x-properties are indented
+  # exactly two spaces.
+
+  # =============================================================================
+  # Anchors used to reference common headers, properties, ...etc...
+  # =============================================================================
+  x-headers:
+    opc-request-id: &ref-opc-request-id
+      description: |
+        Unique Oracle-assigned identifier for the request. If you need to contact
+        Oracle about a particular request, please provide the request ID.
+      type: string
+
 
 # =============================================================================
 # Paths
@@ -39,6 +90,25 @@ paths:
   /projects:
     get:
       tags: ['projects']
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: GET
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: GetProjectList
       summary: Get Project List
       description: Gets a list of projects by specific vendors
@@ -48,12 +118,16 @@ paths:
       responses:
         200:
           description: Get list of projects for a specific vendor
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             type: array
             items:
               $ref: '#/definitions/Project'
         404:
           description: The vendorName could not be found
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/Error'
         default:
@@ -62,6 +136,25 @@ paths:
   /projects/{projectId}:
     get:
       tags: ['projects']
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: GET
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: GetProject
       summary: Get Project
       description: Gets a project by identifier
@@ -71,10 +164,14 @@ paths:
       responses:
         200:
           description: Retrieves the project with the given id
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/Project'
         404:
           description: The project with the given projectId could not be found
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/Error'
         default:
@@ -82,6 +179,25 @@ paths:
 
     put:
       tags: ['projects']
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: PUT
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: CreateProject
       summary: Creates a new project
       description: Create a new project with the provided identifier
@@ -92,10 +208,14 @@ paths:
       responses:
         200:
           description: Newly created project
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/Project'
         400:
           description: The project Id is not valid
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/Error'
         default:
@@ -103,6 +223,25 @@ paths:
 
     delete:
       tags: ['projects']
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: DELETE
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: DeleteProject
       description: Deletes an existing project
       parameters:
@@ -111,12 +250,33 @@ paths:
       responses:
         204:
           description: The project was successfully deleted.
+          headers:
+            opc-request-id: *ref-opc-request-id
         default:
           $ref: '#/responses/Error'
 
   /cablingTasks:
     get:
       tags: [ 'cablingTasks' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: GET
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: GetCablingTasks
       summary: Get cabling tasks
       description: Get cabling tasks based on query parameters
@@ -128,6 +288,8 @@ paths:
       responses:
         200:
           description: Retrieves the cabling tasks with the given query parameters
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             $ref: '#/definitions/CablingTaskCollection'
         default:
@@ -136,6 +298,25 @@ paths:
   /cablingTasks/{cablingTaskId}/actions/getCableValidationFailureTask:
     get:
       tags: [ 'cablingTasks' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: GET
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: GetCableValidationFailureTask
       summary: Get cabling tasks
       description: Get details of cabling task based on cablingTaskId
@@ -144,6 +325,8 @@ paths:
       responses:
         200:
           description: Retrieves the detailed JSON object for a cabling task with the given query parameters 'cablingTaskId'
+          headers:
+            opc-request-id: *ref-opc-request-id
           schema:
             type: string
         default:
@@ -152,6 +335,25 @@ paths:
   /cablingTasks/{cablingTaskId}/actions/resolveValidationFailureTask:
     post:
       tags: [ 'cablingTasks' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: POST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
       operationId: ResolveValidationFailureTask
       summary: Resolve a cable validation failure task
       description: Resolve a cable validation failure task
@@ -160,6 +362,8 @@ paths:
       responses:
         200:
           description: The cabling task has been resolved.
+          headers:
+            opc-request-id: *ref-opc-request-id
         default:
           $ref: '#/responses/Error'
 
@@ -323,8 +527,11 @@ parameters:
   OpcRequestId:
     name: opc-request-id
     in: header
+    required: false
     type: string
-    description: The client request ID for tracing
+    description: |
+      Unique Oracle-assigned identifier for the request. If you need to contact Oracle about
+      a particular request, please provide the request ID.
 
 
 #==========[ Responses ]================================================================================================

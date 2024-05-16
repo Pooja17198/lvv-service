@@ -364,6 +364,8 @@ paths:
           description: The cabling task has been resolved.
           headers:
             opc-request-id: *ref-opc-request-id
+          schema:
+            $ref: '#/definitions/ResolveValidationFailureTaskResponse'
         default:
           $ref: '#/responses/Error'
 
@@ -450,6 +452,9 @@ definitions:
       block:
         type: string
         description: Block ID.
+      rackLocation:
+        type: string
+        description: Rack location.
       rackSerialNumber:
         type: string
         description: Rack serial number.
@@ -466,13 +471,68 @@ definitions:
       block:
         type: string
         description: Block ID.
+      rackLocation:
+        type: string
+        description: Rack location.
       rackSerialNumber:
         type: string
         description: Rack serial number.
       failureReason:
         type: string
         description: JSON of why cable validation fails.
-
+  CableValidationFailureTasks:
+    description: Details of CableValidationFailureTasks.
+    type: object
+    properties:
+      lldpFailures:
+        description: An array of lldp failures.
+        type: array
+        items:
+          $ref: '#/definitions/LldpFailure'
+      opticsFailures:
+        description: An array of optic Failures.
+        type: array
+        items:
+          $ref: '#/definitions/OpticsFailure'
+  LldpFailure:
+    description: Details for each lldp failure.
+    type: object
+    properties:
+      currentOrigin:
+        type: string
+        description: current origin.
+      currentDestination:
+        type: string
+        description: current destination.
+      expectedDestination:
+        type: string
+        description: expected destination.
+  OpticsFailure:
+    description: Details for each optic failure.
+    type: object
+    properties:
+      device:
+        type: string
+        description: device.
+      intfName:
+        type: string
+        description: intf name.
+      inputPower:
+        type: string
+        description: input power.
+      outputPower:
+        type: string
+        description: output power.
+      devicePhys:
+        type: string
+        description: device phys.
+  ResolveValidationFailureTaskResponse:
+    description: ResolveValidationFailureTaskResponse.
+    type: object
+    properties:
+      cablingTaskId:
+        type: string
+        description: cablingTaskId.
 
 #==========[ Parameters ]================================================================================================
 parameters:

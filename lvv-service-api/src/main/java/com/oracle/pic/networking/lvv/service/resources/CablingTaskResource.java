@@ -14,6 +14,7 @@ import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractCablingTasksResource;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
+import com.oracle.pic.networking.lvv.service.model.ResolveValidationFailureTaskResponse;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
@@ -70,7 +71,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
     }
 
     @Override
-    public void resolveValidationFailureTask(
+    public ResolveValidationFailureTaskResponse resolveValidationFailureTask(
             String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope = MetricsScope.create(METRIC_SCOPE_NAME)) {
             Timer timer = scope.timerStart("resolveValidationFailureTaskStartMillis");
@@ -78,6 +79,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
                 this.cablingTaskService.resolveValidationFailureTask(cablingTaskId);
                 scope.emit(ResolveValidationFailureTask, 1);
                 scope.recordSuccess();
+                return new ResolveValidationFailureTaskResponse(cablingTaskId);
             } catch (Exception ex) {
                 scope.emit(ResolveValidationFailureTaskFailure, 1);
                 throw ex;
@@ -93,6 +95,9 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
         try (MetricsScope scope = MetricsScope.create(METRIC_SCOPE_NAME)) {
             Timer timer = scope.timerStart("createProjectStartMillis");
             try {
+                // TODO: Need to return CableValidationFailureTasks instead of String. API specs are
+                // already
+                // prepared
                 String result =
                         this.cablingTaskService.getCableValidationFailureTask(cablingTaskId);
                 scope.emit(GetCableValidationFailureTask, 1);

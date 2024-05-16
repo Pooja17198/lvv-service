@@ -86,6 +86,13 @@ public class CablingTaskService {
         for (Issue issue : cableValidationTickets.getIssues()) {
             // Populate rack serial number for search requests without rack serial number
             String ticketRackSerialNumber = rackSerialNumber;
+            String rackLocation = null;
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Rack Location")) {
+                    rackLocation = issueField.getValue().toString();
+                    break;
+                }
+            }
             if (ticketRackSerialNumber == null) {
                 for (IssueField issueField : issue.getFields()) {
                     if (issueField.getName().equals("Serial Number")) {
@@ -99,6 +106,7 @@ public class CablingTaskService {
                             issue.getKey(),
                             building,
                             block,
+                            rackLocation,
                             ticketRackSerialNumber,
                             issue.getDescription());
             validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
@@ -109,9 +117,16 @@ public class CablingTaskService {
         SearchResult initialCablingTickets =
                 this.searchInitialCablingTickets(building, block, rackSerialNumber);
         for (Issue issue : initialCablingTickets.getIssues()) {
+            String rackLocation = null;
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Rack Location")) {
+                    rackLocation = issueField.getValue().toString();
+                    break;
+                }
+            }
             InitialCablingTaskDetails initialCablingTaskDetails =
                     new InitialCablingTaskDetails(
-                            issue.getKey(), building, block, rackSerialNumber);
+                            issue.getKey(), building, block, rackLocation, rackSerialNumber);
             initialCablingTaskDetailsList.add(initialCablingTaskDetails);
         }
 

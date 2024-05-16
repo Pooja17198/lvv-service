@@ -93,7 +93,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: GET
+        operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.
@@ -182,7 +182,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: PUT
+        operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.
@@ -226,7 +226,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: DELETE
+        operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.
@@ -261,7 +261,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: GET
+        operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.
@@ -301,7 +301,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: GET
+        operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.
@@ -338,7 +338,7 @@ paths:
       x-obmcs-splat:
         authorization:
           mode: none  # TODO: tiwatso this might need to be automated
-        operationType: POST
+        operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
         # Any non-5xx response ends the attempts.

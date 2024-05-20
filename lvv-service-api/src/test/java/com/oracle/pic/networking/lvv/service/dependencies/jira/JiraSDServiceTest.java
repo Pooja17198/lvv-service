@@ -12,6 +12,7 @@ import com.atlassian.jira.rest.client.api.SearchRestClient;
 import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.atlassian.jira.rest.client.api.domain.Transition;
+import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import io.atlassian.util.concurrent.Promise;
 import java.util.LinkedList;
@@ -75,7 +76,9 @@ public class JiraSDServiceTest {
         when(this.mockedIssueRestClient.transition(eq(issueMock), any(TransitionInput.class)))
                 .thenReturn(voidPromise);
 
-        this.jiraSDService.resolveTicket(TEST_ISSUE_ID, TEST_RESOLUTION, TEST_COMMENT);
+        List<FieldInput> fieldInputList = new LinkedList<>();
+
+        this.jiraSDService.resolveTicket(TEST_ISSUE_ID, TEST_COMMENT, fieldInputList);
 
         verify(this.mockedIssueRestClient).getIssue(TEST_ISSUE_ID);
         verify(this.mockedIssueRestClient).getTransitions(issueMock);

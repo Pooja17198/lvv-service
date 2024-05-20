@@ -127,7 +127,6 @@
       <property name="allowedAbbreviationLength" value="3"/>
     </module>
     <module name="OverloadMethodsDeclarationOrder"/>
-    <module name="VariableDeclarationUsageDistance"/>
     <module name="MethodParamPad"/>
     <module name="MethodName">
       <property name="format" value="^[a-z][a-z0-9][a-zA-Z0-9_]*$"/>

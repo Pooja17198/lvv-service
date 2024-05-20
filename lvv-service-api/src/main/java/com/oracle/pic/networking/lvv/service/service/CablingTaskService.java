@@ -2,7 +2,10 @@ package com.oracle.pic.networking.lvv.service.service;
 
 import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.IssueField;
+import com.atlassian.jira.rest.client.api.domain.IssueFieldId;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
+import com.atlassian.jira.rest.client.api.domain.input.ComplexIssueInputFieldValue;
+import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.oracle.bmc.model.BmcException;
@@ -139,7 +142,46 @@ public class CablingTaskService {
     public void resolveValidationFailureTask(String cablingTaskId) {
         String resolution = "Fixed";
         String comment = "Vendor has resolved the issue through Low-voltage Vendor Portal";
-        this.jiraSDService.resolveTicket(cablingTaskId, resolution, comment);
+
+        // Required fields during resolve tickets
+        Issue issue = this.jiraSDService.getIssue(cablingTaskId);
+        List<FieldInput> fieldInputList = new LinkedList<>();
+
+        FieldInput resolutionFieldInput =
+                new FieldInput(
+                        IssueFieldId.RESOLUTION_FIELD,
+                        ComplexIssueInputFieldValue.with("name", resolution));
+        fieldInputList.add(resolutionFieldInput);
+
+        String rmaFieldId = null;
+        String rootCauseCategorizationId = null;
+        String serviceTypeId = null;
+        for (IssueField issueField : issue.getFields()) {
+            if (issueField.getName().equals("RMA")) {
+                rmaFieldId = issueField.getId();
+            }
+            if (issueField.getName().equals("Root Cause Categorization")) {
+                rootCauseCategorizationId = issueField.getId();
+            }
+            if (issueField.getName().equals("Service Type")) {
+                serviceTypeId = issueField.getId();
+            }
+        }
+
+        FieldInput rmaFieldInput =
+                new FieldInput(rmaFieldId, ComplexIssueInputFieldValue.with("value", "No"));
+        fieldInputList.add(rmaFieldInput);
+
+        FieldInput rootCauseCategorizationFieldInput =
+                new FieldInput(
+                        rootCauseCategorizationId,
+                        ComplexIssueInputFieldValue.with("value", "Vendor"));
+        fieldInputList.add(rootCauseCategorizationFieldInput);
+
+        FieldInput serviceTypeFieldInput = new FieldInput(serviceTypeId, "Rack Install");
+        fieldInputList.add(serviceTypeFieldInput);
+
+        this.jiraSDService.resolveTicket(cablingTaskId, comment, fieldInputList);
     }
 
     public String getCableValidationFailureTask(String cablingTaskId) {

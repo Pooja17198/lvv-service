@@ -5,14 +5,11 @@ import com.atlassian.jira.rest.client.api.JiraRestClient;
 import com.atlassian.jira.rest.client.api.SearchRestClient;
 import com.atlassian.jira.rest.client.api.domain.Comment;
 import com.atlassian.jira.rest.client.api.domain.Issue;
-import com.atlassian.jira.rest.client.api.domain.IssueFieldId;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.atlassian.jira.rest.client.api.domain.Transition;
-import com.atlassian.jira.rest.client.api.domain.input.ComplexIssueInputFieldValue;
 import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
-import java.util.LinkedList;
 import java.util.List;
 
 public class JiraSDService {
@@ -33,7 +30,7 @@ public class JiraSDService {
         return searchResult;
     }
 
-    public void resolveTicket(String issueId, String resolution, String comment) {
+    public void resolveTicket(String issueId, String comment, List<FieldInput> fieldInputList) {
         Issue issue = this.getIssue(issueId);
         Iterable<Transition> transitions = this.issueRestClient.getTransitions(issue).claim();
         int transitionId = -1;
@@ -44,13 +41,6 @@ public class JiraSDService {
                 break;
             }
         }
-
-        FieldInput resolutionFieldInput =
-                new FieldInput(
-                        IssueFieldId.RESOLUTION_FIELD,
-                        ComplexIssueInputFieldValue.with("name", resolution));
-        List<FieldInput> fieldInputList = new LinkedList<>();
-        fieldInputList.add(resolutionFieldInput);
 
         TransitionInput transitionInput =
                 new TransitionInput(transitionId, fieldInputList, Comment.valueOf(comment));

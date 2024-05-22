@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Singleton
 public class KievManager {
+    private static final int DEFAULT_PAGE_SIZE = 50;
     private final ConfigurationStore<String, ProjectItem> projectItemStore;
     private PaginationTokenSerializer serializer;
 
@@ -36,8 +37,9 @@ public class KievManager {
         ProjectItem projectItem;
 
         try (Transaction txn = projectItemStore.beginTransaction(item.getProjectId());
-                MetricsScope scope = MetricsScope.create("AddConfigTypeItem")) {
+                MetricsScope scope = MetricsScope.create("KievAddProjectItem")) {
 
+            scope.emit("volume", 1.0);
             // Try to get the item if it already exists
             try {
                 existingItem = projectItemStore.getItem(item.getProjectId());
@@ -69,12 +71,16 @@ public class KievManager {
 
     public ProjectItem getProjectItem(@NonNull String projectId) throws Exception {
 
-        try {
-            ProjectItem existingItem = projectItemStore.getItem(projectId);
-            return existingItem;
-        } catch (Exception exception) {
-            log.info("Item does Not Exist {}", projectId);
-            throw exception;
+        try (MetricsScope scope = MetricsScope.create("KievGetProjectItem")) {
+            scope.emit("volume", 1.0);
+            try {
+                ProjectItem existingItem = projectItemStore.getItem(projectId);
+                scope.recordSuccess();
+                return existingItem;
+            } catch (Exception exception) {
+                log.info("Item does Not Exist {}", projectId);
+                throw exception;
+            }
         }
     }
 
@@ -85,8 +91,11 @@ public class KievManager {
             Optional<com.oracle.pic.kiev.mapping.PaginationToken> pt =
                     getPaginationToken(paginationToken.getToken());
             ScanResult<ProjectItem> projectItemScanResult =
-                    projectItemStore.scanBucket(
-                            50, pt, Bucket.Direction.ASCENDING, PaginationDirection.FORWARD);
+                    this.scanBucket(
+                            DEFAULT_PAGE_SIZE,
+                            pt,
+                            Bucket.Direction.ASCENDING,
+                            PaginationDirection.FORWARD);
 
             List<ProjectItem> result = new ArrayList<>();
 
@@ -118,5 +127,19 @@ public class KievManager {
             return Optional.of(serializer.deserialize(token.get()));
         }
         return Optional.empty();
+    }
+
+    private ScanResult<ProjectItem> scanBucket(
+            int pageSize,
+            Optional<com.oracle.pic.kiev.mapping.PaginationToken> pt,
+            Bucket.Direction bucketDirection,
+            PaginationDirection pageDirection) {
+        try (MetricsScope scope = MetricsScope.create("KievScanBucket")) {
+            scope.emit("volume", 1.0);
+            ScanResult<ProjectItem> projectItemScanResult =
+                    projectItemStore.scanBucket(pageSize, pt, bucketDirection, pageDirection);
+            scope.recordSuccess();
+            return projectItemScanResult;
+        }
     }
 }

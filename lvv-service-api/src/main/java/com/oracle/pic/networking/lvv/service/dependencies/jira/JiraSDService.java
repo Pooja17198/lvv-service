@@ -10,6 +10,7 @@ import com.atlassian.jira.rest.client.api.domain.Transition;
 import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
+import com.oracle.pic.commons.metrics.MetricsScope;
 import java.util.List;
 
 public class JiraSDService {
@@ -26,13 +27,17 @@ public class JiraSDService {
     }
 
     public SearchResult searchJiraSD(String jql) {
-        SearchResult searchResult = this.searchRestClient.searchJql(jql).claim();
-        return searchResult;
+        try (MetricsScope scope = MetricsScope.create("searchJiraSD")) {
+            scope.emit("volume", 1.0);
+            SearchResult searchResult = this.searchRestClient.searchJql(jql).claim();
+            scope.recordSuccess();
+            return searchResult;
+        }
     }
 
     public void resolveTicket(String issueId, String comment, List<FieldInput> fieldInputList) {
         Issue issue = this.getIssue(issueId);
-        Iterable<Transition> transitions = this.issueRestClient.getTransitions(issue).claim();
+        Iterable<Transition> transitions = this.getTransitions(issue);
         int transitionId = -1;
         for (Transition transition : transitions) {
             String transitionName = transition.getName();
@@ -44,10 +49,32 @@ public class JiraSDService {
 
         TransitionInput transitionInput =
                 new TransitionInput(transitionId, fieldInputList, Comment.valueOf(comment));
-        this.issueRestClient.transition(issue, transitionInput).claim();
+        this.transition(issue, transitionInput);
     }
 
     public Issue getIssue(String issueKey) {
-        return this.issueRestClient.getIssue(issueKey).claim();
+        try (MetricsScope scope = MetricsScope.create("JiraGetIssue")) {
+            scope.emit("volume", 1.0);
+            Issue issue = this.issueRestClient.getIssue(issueKey).claim();
+            scope.recordSuccess();
+            return issue;
+        }
+    }
+
+    private Iterable<Transition> getTransitions(Issue issue) {
+        try (MetricsScope scope = MetricsScope.create("JiraGetTransitions")) {
+            scope.emit("volume", 1.0);
+            Iterable<Transition> transitions = this.issueRestClient.getTransitions(issue).claim();
+            scope.recordSuccess();
+            return transitions;
+        }
+    }
+
+    private void transition(Issue issue, TransitionInput transitionInput) {
+        try (MetricsScope scope = MetricsScope.create("JiraTransition")) {
+            scope.emit("volume", 1.0);
+            this.issueRestClient.transition(issue, transitionInput).claim();
+            scope.recordSuccess();
+        }
     }
 }

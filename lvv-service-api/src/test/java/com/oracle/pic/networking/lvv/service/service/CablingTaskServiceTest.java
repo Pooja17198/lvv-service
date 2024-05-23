@@ -1,8 +1,10 @@
 package com.oracle.pic.networking.lvv.service.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -87,19 +89,29 @@ public class CablingTaskServiceTest {
                 cablingTaskCollection.getValidationFailureTasks().get(0).getFailureReason());
     }
 
-    /*
-    // TODO: unit test for this function
     @Test
     public void shouldResolveValidationFailureTask() {
         Issue issueMock = mock();
         when(this.mockedJiraSDService.getIssue(eq(TASK_ID))).thenReturn(issueMock);
+
+        IssueField issueFieldRma = new IssueField("rmaFieldId", "RMA", "type", null);
+        IssueField issueFieldRootCauseCategorization =
+                new IssueField(
+                        "rootCauseCategorizationId", "Root Cause Categorization", "type", null);
+        IssueField issueFieldServiceType =
+                new IssueField("serviceTypeFieldId", "Service Type", "type", null);
+        List<IssueField> issueFields = new LinkedList<>();
+        issueFields.add(issueFieldRma);
+        issueFields.add(issueFieldRootCauseCategorization);
+        issueFields.add(issueFieldServiceType);
+        when(issueMock.getFields()).thenReturn(issueFields);
+
         doNothing()
                 .when(this.mockedJiraSDService)
-                .resolveTicket(eq(TASK_ID), anyString(), anyString(), anyList());
+                .resolveTicket(eq(TASK_ID), anyString(), anyList());
         this.cablingTaskService.resolveValidationFailureTask(TASK_ID);
-        verify(this.mockedJiraSDService).resolveTicket(eq(TASK_ID), anyString(), anyString(), anyList());
+        verify(this.mockedJiraSDService).resolveTicket(eq(TASK_ID), anyString(), anyList());
     }
-     */
 
     @Test
     public void shouldGetCableValidationFailureTask() {

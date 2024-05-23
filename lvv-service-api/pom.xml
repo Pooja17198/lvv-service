@@ -617,6 +617,8 @@
             <exclude>com/oracle/pic/networking/lvv/service/common/**/*</exclude>
             <!-- ignore identity for testing -->
             <exclude>com/oracle/pic/networking/lvv/service/identity/**/*</exclude>
+            <!-- ignore MockNcpClients for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/dependencies/ncp/Mock*.class</exclude>
           </excludes>
         </configuration>
         <executions>
@@ -648,7 +650,7 @@
                       <counter>INSTRUCTION</counter>
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
-                      <minimum>0</minimum>
+                      <minimum>0.6</minimum>
                     </limit>
                   </limits>
                 </rule>

@@ -276,7 +276,7 @@
                       <counter>COMPLEXITY</counter>
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
-                      <minimum>0</minimum>
+                      <minimum>0.8</minimum>
                     </limit>
                   </limits>
                 </rule>

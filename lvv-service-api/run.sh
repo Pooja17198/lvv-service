@@ -124,6 +124,11 @@ REALM=""
 REGION=""
 STAGE="dev"
 if [[ $ODO_DEPLOYED == true ]]; then
+  if [[ $ODO_APPLICATION_ALIAS =~ .*"-test" ]]; then
+    STAGE="beta"
+  else
+    STAGE="prod"
+  fi
   REALM=$(echo $(cat "$REALM_FILE") | tr '[:upper:]' '[:lower:]')
   REGION=$(echo $(cat "$REGION_FILE") | tr '[:upper:]' '[:lower:]')
   AVAILABILITY_DOMAIN=$(echo $(cat "$AD_FILE") | tr '[:upper:]' '[:lower:]')
@@ -131,8 +136,8 @@ if [[ $ODO_DEPLOYED == true ]]; then
   info "Found realm:  $REALM "
   info "Found region:  $REGION "
   info "Found availability domain: $AVAILABILITY_DOMAIN "
-
-  STAGE="prod"
+  info "Found STAGE: $STAGE "
+  REGION="$REGION-$STAGE"
   LOCATION=$(echo "$REGION-$AVAILABILITY_DOMAIN")
 else
   # Not in a Docker container. Assumed to be running on a developers desktop.

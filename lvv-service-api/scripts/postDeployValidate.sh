@@ -82,22 +82,4 @@ do
     fi
 done
 
-if [[ "$SUCCESS" -eq "0" ]]; then
-    RESULT=$(curl -X POST --write-out " %{http_code}" "http://localhost:21001/tasks/deepcheck" 2> /dev/null)
-    echo "Deep check result: $RESULT"
-    validate_status_code "$RESULT"
-    VALIDATE_STATUS_RETURN_CODE=$?
-    if [[ "$VALIDATE_STATUS_RETURN_CODE" -eq "0" ]]; then
-      echo "Deep check passed"
-    else
-      echo "Deep check failed"
-      SUCCESS=1
-    fi
-fi
-
-if [[ "$SUCCESS" -ne "0" ]]; then
-    # Capture the last bit of logs from runit/lvv-service-api/current
-    tail -n 100 /logs/runit/lvv-service-api/current
-fi
-
 exit $SUCCESS

@@ -170,8 +170,7 @@ class SecretRetrieverTest {
     private static void testRetrieveSecret(
             SecretRetriever secretRetriever, String path, String expected)
             throws SecretRetrieverException {
-        byte[] secretBytes = secretRetriever.retrieveSecret(path);
-        String secretValue = new String(secretBytes, StandardCharsets.UTF_8);
+        String secretValue = secretRetriever.retrieveSecret(path);
         assertEquals(expected, secretValue);
     }
 

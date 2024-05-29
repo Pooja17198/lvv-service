@@ -1,11 +1,18 @@
 package com.oracle.pic.networking.lvv.service.secret;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.model.BmcException;
 import com.oracle.pic.vault.VaultClient;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
 
+@Slf4j
 /** Retrieves secrets from Secret Service. */
 public class SecretServiceBasedSecretRetriever implements SecretRetriever {
 
@@ -19,6 +26,8 @@ public class SecretServiceBasedSecretRetriever implements SecretRetriever {
             "Secret map should contain only one entry, however there are ";
     static final String UNKNOWN_ERROR = "Error occurred while retrieving secrets";
 
+    private static final String PASSWORD_KEY_NAME = "password";
+
     private final VaultClient vaultClient;
 
     /**
@@ -31,28 +40,54 @@ public class SecretServiceBasedSecretRetriever implements SecretRetriever {
     }
 
     @Override
-    public byte[] retrieveSecret(String path) throws SecretRetrieverException {
+    public String retrieveSecret(String secretName) throws SecretRetrieverException {
+        return getSecretValueFromPath(secretName);
+    }
+
+    public String getSecretValueFromPath(@NonNull String secretPath)
+            throws SecretRetrieverException {
+        // Secret path is always converted to lowercase by SMS
+        String decodedSecret = getSecretFromPath(secretPath);
+        return getSecretFromJsonIfApplicable(secretPath, decodedSecret);
+    }
+
+    private String getSecretFromPath(String secretPath) throws SecretRetrieverException {
         try {
-            Map<String, String> rawSecret = vaultClient.getSecret(path).getData();
-            // vault client's getSecret returns a map of key-value pairs
-            // however, in practice there is only one key which is 'secret'
-            if (rawSecret.size() != 1) {
-                throw new RuntimeException(TOO_MANY_ENTRIES + rawSecret.size());
-            } else if (!rawSecret.containsKey(VAULT_SECRET_KEY)) {
+            Map<String, String> rawSecrets = vaultClient.getSecret(secretPath).getData();
+            if (rawSecrets.size() != 1) {
+                throw new RuntimeException(TOO_MANY_ENTRIES + rawSecrets.size());
+            } else if (!rawSecrets.containsKey(VAULT_SECRET_KEY)) {
                 throw new RuntimeException(MISSING_KEY_ERROR);
             }
+            String secretValue = rawSecrets.get(VAULT_SECRET_KEY);
+            log.info("Found secret with path: {} from SMSV2", secretPath);
 
-            return Base64.getDecoder().decode(rawSecret.get(VAULT_SECRET_KEY));
+            // The secrets are always Base64 encoded string
+            String decodedSecret =
+                    new String(Base64.getDecoder().decode(secretValue), StandardCharsets.UTF_8);
+            return decodedSecret;
         } catch (final BmcException ex) {
             final int httpCode = ex.getStatusCode();
             if (httpCode == HttpStatus.SC_NOT_FOUND) {
                 throw new SecretRetrieverException(
-                        path, SecretRetrieverException.ErrorCode.NotFound, ex);
+                        secretPath, SecretRetrieverException.ErrorCode.NotFound, ex);
             } else if (httpCode == HttpStatus.SC_FORBIDDEN) {
                 throw new SecretRetrieverException(
-                        path, SecretRetrieverException.ErrorCode.Forbidden, ex);
+                        secretPath, SecretRetrieverException.ErrorCode.Forbidden, ex);
             }
             throw new RuntimeException(UNKNOWN_ERROR, ex);
+        }
+    }
+
+    private String getSecretFromJsonIfApplicable(String secretPath, String decodedSecret) {
+        ObjectMapper mapper = new ObjectMapper();
+        TypeReference<Map<String, String>> typeRef = new TypeReference<Map<String, String>>() {};
+        try {
+            Map<String, String> secretJson = mapper.readValue(decodedSecret, typeRef);
+            return secretJson.get(PASSWORD_KEY_NAME);
+        } catch (IOException io) {
+            log.info("failed to parse json for secret path: {}", secretPath);
+            return decodedSecret;
         }
     }
 }

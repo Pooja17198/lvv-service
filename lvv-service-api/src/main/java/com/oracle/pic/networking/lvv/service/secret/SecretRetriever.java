@@ -9,5 +9,5 @@ public interface SecretRetriever {
      * @param path of the secret
      * @return byte array representing the secret
      */
-    byte[] retrieveSecret(String path) throws SecretRetrieverException;
+    String retrieveSecret(String path) throws SecretRetrieverException;
 }

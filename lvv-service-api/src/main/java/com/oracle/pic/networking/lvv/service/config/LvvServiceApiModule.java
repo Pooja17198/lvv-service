@@ -11,8 +11,6 @@ import com.google.inject.TypeLiteral;
 import com.google.inject.name.Named;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
-import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
-import com.oracle.bmc.http.ClientConfigurator;
 import com.oracle.bmc.monitoring.MonitoringClient;
 import com.oracle.pic.commons.metrics.naming.FilteringNamingStrategy;
 import com.oracle.pic.commons.metrics.naming.SimpleMetricsNamingStrategy;
@@ -21,20 +19,18 @@ import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.identity.auth.AuthMetricsConstants;
 import com.oracle.pic.identity.auth.AuthMetricsFactory;
 import com.oracle.pic.identity.authentication.AuthServiceAuthenticationClient;
-import com.oracle.pic.identity.authentication.AuthenticatorClient;
 import com.oracle.pic.identity.authentication.ServiceAuthenticationClient;
 import com.oracle.pic.identity.authentication.entities.X509FederationRequest;
 import com.oracle.pic.identity.authentication.supplier.InstancePrincipalCertificateSupplier;
-import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationClient;
 import com.oracle.pic.kiev.DataStoreConfig;
 import com.oracle.pic.kiev.DirectDbStoreConfig;
+import com.oracle.pic.kiev.KaasStoreConfig;
 import com.oracle.pic.kiev.mapping.MappedDataStore;
 import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
+import com.oracle.pic.kiev.registry.data.ClientRegistryLocality;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
-import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
-import com.oracle.pic.networking.lvv.service.auth.PassThruAuthHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.MockNcpClients;
@@ -42,7 +38,6 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
 import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
-import com.oracle.pic.networking.lvv.service.identity.S2SAuthenticationClientHelper;
 import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
 import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
@@ -62,7 +57,6 @@ import com.oracle.pic.vault.VaultClient;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -214,29 +208,8 @@ public class LvvServiceApiModule extends AbstractModule {
 
     @Provides
     @Singleton
-    public AuthenticatorClient getAuthenticatorClient(
-            ServiceAuthenticationClient serviceAuthenticationClient) {
-        return new AuthenticatorClient.Builder()
-                .keyServiceUrl(URI.create(config.getAuthConfig().getAuthServiceEndpoint()))
-                .serviceAuthenticationClient(serviceAuthenticationClient)
-                .rootCertPath(config.getAuthConfig().getDefaultTrustStorePath())
-                .authMetrics(AuthMetricsFactory.getInstance(AuthMetricsConstants.TELEMETRY_LIB))
-                // You can use AuthMetricsConstants.COMMONS_LIB for commons
-                .build();
-    }
-
-    @Provides
-    @Singleton
-    public AuthContextRequestFilter getAuthContextRequestFilter(
-            AuthenticatorClient authenticatorClient, AuthorizationClient authorizationClient) {
-
-        return new AuthContextRequestFilter(authenticatorClient, authorizationClient);
-    }
-
-    @Provides
-    @Singleton
     public SecretRetriever getSecretRetriever() {
-        if (config.getStage().equals("DEVELOPMENT")) {
+        if (config.getRegion() == Region.DEV) {
             return new FileBasedSecretRetriever();
         } else {
             VaultClient vaultClient =
@@ -249,27 +222,22 @@ public class LvvServiceApiModule extends AbstractModule {
 
     @Provides
     @Singleton
-    public AuthHelper getAuthHelper(AuthorizationClient authorizationClient) {
-        if (config.getAuthConfig().getAuthorizationEnabled()) {
-            return new AuthHelper(authorizationClient);
-        } else {
-            return new PassThruAuthHelper(authorizationClient);
-        }
-    }
-
-    @Provides
-    @Singleton
     public JiraSDService getJiraSDService(SecretRetriever secretRetriever)
             throws URISyntaxException, SecretRetrieverException {
         JiraSDConfig jiraSDConfig = this.config.getJiraSDConfig();
-        String usernameSecretPath = jiraSDConfig.getUsernameSecretPath();
-        String passwordSecretPath = jiraSDConfig.getPasswordSecretPath();
-        String username =
-                new String(
-                        secretRetriever.retrieveSecret(usernameSecretPath), StandardCharsets.UTF_8);
-        String password =
-                new String(
-                        secretRetriever.retrieveSecret(passwordSecretPath), StandardCharsets.UTF_8);
+        String username = "";
+        String password = "";
+        if (config.getRegion() == Region.DEV) {
+            String usernameSecretPath = jiraSDConfig.getUsernameSecretPath();
+            String passwordSecretPath = jiraSDConfig.getPasswordSecretPath();
+            username = secretRetriever.retrieveSecret(usernameSecretPath);
+            password = secretRetriever.retrieveSecret(passwordSecretPath);
+        } else {
+            username = "jirasd-lvv-service-us-phoenix-1";
+            password =
+                    secretRetriever.retrieveSecret(
+                            "/secret/lvv-service-dev/jira_admin_user/latest");
+        }
         JiraRestClientFactory clientFactory = new AsynchronousJiraRestClientFactory();
         JiraRestClient jiraRestClient =
                 clientFactory.createWithBasicHttpAuthentication(
@@ -285,19 +253,21 @@ public class LvvServiceApiModule extends AbstractModule {
             NcpServiceConfiguration ncpServiceConfiguration,
             IdentityConfiguration identityConfiguration)
             throws IOException {
-        if (region.equals(Region.DEV)) {
-            return MockNcpClients.getMockJobsClient();
-        }
-        S2SAuthenticationDetailsProvider authProvider =
-                S2SAuthenticationClientHelper.getS2SAuthProvider(identityConfiguration);
-        ClientConfigurator additionalClientConfig =
-                S2SAuthenticationClientHelper.getRootCaConfigurator(identityConfiguration);
-        JobsClient jobsClient =
-                JobsClient.builder()
-                        .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
-                        .clientConfigurator(additionalClientConfig)
-                        .build(authProvider);
-        return jobsClient;
+        return MockNcpClients.getMockJobsClient();
+        //        if (region.equals(Region.DEV)) {
+        //            return MockNcpClients.getMockJobsClient();
+        //        }
+        //        S2SAuthenticationDetailsProvider authProvider =
+        //                S2SAuthenticationClientHelper.getS2SAuthProvider(identityConfiguration);
+        //        ClientConfigurator additionalClientConfig =
+        //
+        // S2SAuthenticationClientHelper.getRootCaConfigurator(identityConfiguration);
+        //        JobsClient jobsClient =
+        //                JobsClient.builder()
+        //                        .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
+        //                        .clientConfigurator(additionalClientConfig)
+        //                        .build(authProvider);
+        //        return jobsClient;
     }
 
     @Named("NcpServiceClient")
@@ -311,14 +281,36 @@ public class LvvServiceApiModule extends AbstractModule {
     @Singleton
     public DataStoreConfig getKievConfig() throws IOException {
         log.info("Connecting to Kiev in KaaS Mode");
-        DataStoreConfig dsc =
-                new DirectDbStoreConfig(
-                        "pdbdev",
-                        "lvv-service",
-                        "jdbc:oracle:thin:@//localhost:1521/pdbdev",
-                        "lvvproject",
-                        "lvvproject123456");
-        return dsc;
+
+        if (config.getRegion() == Region.DEV) {
+            DataStoreConfig dsc =
+                    new DirectDbStoreConfig(
+                            "pdbdev",
+                            "lvv-service",
+                            "jdbc:oracle:thin:@//localhost:1521/pdbdev",
+                            "lvvproject",
+                            "lvvproject123456");
+            return dsc;
+        } else {
+            KaasStoreConfig kaasStoreConfig =
+                    new KaasStoreConfig(
+                            config.getKaasStoreConfig().getStoreName(),
+                            config.getKaasStoreConfig().getAppName());
+            kaasStoreConfig.setAuthEndpoint(config.getKaasStoreConfig().getAuthEndpoint());
+            kaasStoreConfig.setFrontendEndpoint(config.getKaasStoreConfig().getFrontendEndpoint());
+            kaasStoreConfig.setCompartmentId(config.getKaasStoreConfig().getCompartmentId());
+            kaasStoreConfig.setTenantId(config.getKaasStoreConfig().getTenantId());
+            kaasStoreConfig.setRootCertPemPath(config.getKaasStoreConfig().getRootCertPemPath());
+            kaasStoreConfig.setDynamicSslContextProviderConfig(
+                    new DynamicSslContextProviderConfig(
+                            null, null, null, config.getKaasStoreConfig().getRootCertPemPath()));
+            kaasStoreConfig.setLocality(ClientRegistryLocality.REGIONAL);
+            log.info("Found data store config: {}", kaasStoreConfig);
+            log.info(
+                    "Using KaaS Data Store endpoint: {}",
+                    config.getKaasStoreConfig().getFrontendEndpoint());
+            return kaasStoreConfig;
+        }
     }
 
     @Provides

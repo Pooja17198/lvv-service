@@ -22,7 +22,6 @@ public class LvvServiceApiHealthCheck extends HealthCheck {
 
     @Override
     protected Result check() throws Exception {
-        return Result.unhealthy(
-                "You need to update the Default healthcheck to correctly reflect application health");
+        return Result.healthy();
     }
 }

@@ -1,6 +1,7 @@
 package com.oracle.pic.networking.lvv.service.secret;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
@@ -8,9 +9,9 @@ import java.nio.file.Paths;
 public class FileBasedSecretRetriever implements SecretRetriever {
 
     @Override
-    public byte[] retrieveSecret(String path) throws SecretRetrieverException {
+    public String retrieveSecret(String path) throws SecretRetrieverException {
         try {
-            return getFileContent(path);
+            return new String(getFileContent(path), StandardCharsets.UTF_8);
         } catch (final IOException ex) {
             throw new SecretRetrieverException(
                     path, SecretRetrieverException.ErrorCode.NotFound, ex);

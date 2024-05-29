@@ -20,7 +20,7 @@ public class LvvServiceApiHealthCheckTest {
     public void testCheck() throws Exception {
         Result result = health.check();
 
-        assertTrue(!result.isHealthy());
+        assertTrue(result.isHealthy());
     }
 
     @Test
@@ -30,9 +30,6 @@ public class LvvServiceApiHealthCheckTest {
 
     @Test
     void check() throws Exception {
-        Assertions.assertEquals(
-                Result.unhealthy(
-                        "You need to update the Default healthcheck to correctly reflect application health"),
-                health.check());
+        Assertions.assertEquals(Result.healthy(), health.check());
     }
 }

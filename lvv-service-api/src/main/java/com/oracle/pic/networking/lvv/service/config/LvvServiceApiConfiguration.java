@@ -7,6 +7,7 @@ import com.oracle.pic.commons.service.metrics.jersey.MetricsConfiguration;
 import com.oracle.pic.commons.util.AvailabilityDomain;
 import com.oracle.pic.commons.util.Realm;
 import com.oracle.pic.commons.util.Region;
+import com.oracle.pic.kiev.KaasStoreConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
 import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
@@ -65,6 +66,8 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
 
     @Getter(AccessLevel.NONE)
     private LocationOverride locationOverride;
+
+    @Getter @Setter private KaasStoreConfig kaasStoreConfig;
 
     @NotNull private AssetsConfiguration assets;
 

@@ -31,42 +31,40 @@
     <!-- Treat any resources/sources as UTF-8 -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <!--
-        Versions for libraries used in build.
-
-        Also go to java client pom file and keep the bmc-sdk-java-client-parent version in sync with the
-        oci-java-sdk-version defined in oci-internal-bom
-    -->
-    <oci-internal-bom-version>2.0.186</oci-internal-bom-version>
-    <!-- also update dw-service-bom-version in java & python client -->
-    <dropwizard-service-bom-version>2.1.46</dropwizard-service-bom-version>
+    <nwauto-core-bom-version>0.1.65</nwauto-core-bom-version>
 
     <formatter-goal>apply</formatter-goal>
     <maven-toolchains-plugin-version>3.0.0</maven-toolchains-plugin-version>
   </properties>
 
+  <!--
+Note: we need to mention repositories to look up as there is a bug in maven where it does not look at all places if parent bom and parent's parent bom has different locations.
+Slack thread: https://dyn.slack.com/archives/CACSG1M4Z/p1633120108307300
+Maven ticket: https://issues.apache.org/jira/browse/MNG-4148
+-->
+  <repositories>
+    <repository>
+      <id>_my_central_commons</id>
+      <name>libs-release_commons</name>
+      <url>https://artifactory.oci.oraclecorp.com/libs-release</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>_my_snapshot_commons</id>
+      <name>libs-snapshot_commons</name>
+      <url>https://artifactory.oci.oraclecorp.com/libs-snapshot</url>
+    </repository>
+  </repositories>
+
   <dependencyManagement>
     <dependencies>
-      <!-- Dropwizard BOM -->
-      <!-- This BOM file tracks all of the common third party dropwizard related dependencies' versions
-           For more information see: https://confluence.oci.oraclecorp.com/x/8IF2Gg -->
-
+      <!-- NA Internal BOM containing dropwizard and oci internal bom -->
       <dependency>
-        <groupId>com.oracle.pic.commons</groupId>
-        <artifactId>dropwizard-service-bom</artifactId>
-        <version>${dropwizard-service-bom-version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-
-      <!-- OCI Internal Dependencies BOM -->
-      <!-- This BOM file tracks all of the common OCI internal dependencies' versions, such as
-           Commons, Identity, Kiev, Service Frameworks, etc.
-           For more information see: https://confluence.oci.oraclecorp.com/x/BeAPGQ -->
-      <dependency>
-        <groupId>com.oracle.pic.sfw</groupId>
-        <artifactId>oci-internal-bom</artifactId>
-        <version>${oci-internal-bom-version}</version>
+        <groupId>com.oracle.pic.networking.commons</groupId>
+        <artifactId>nwauto-core-bom</artifactId>
+        <version>${nwauto-core-bom-version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

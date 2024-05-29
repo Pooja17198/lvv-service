@@ -33,12 +33,4 @@
         <Class name="com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule" />
         <Method name="&lt;init&gt;"/>
     </Match>
-    <Match>
-        <Class name="com.oracle.pic.networking.lvv.service.identity.CertificateChainSupplier" />
-        <Bug pattern="EI_EXPOSE_REP2" />
-    </Match>
-    <Match>
-        <Class name="com.oracle.pic.networking.lvv.service.identity.S2SAuthenticationClientHelper" />
-        <Bug pattern="BC_IMPOSSIBLE_CAST" />
-    </Match>
 </FindBugsFilter>

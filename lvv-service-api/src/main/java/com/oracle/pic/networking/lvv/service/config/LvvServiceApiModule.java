@@ -37,7 +37,6 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.MockNcpClients;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
-import com.oracle.pic.networking.lvv.service.identity.IdentityConfiguration;
 import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
 import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
@@ -80,19 +79,10 @@ public class LvvServiceApiModule extends AbstractModule {
 
         bind(NcpService.class).in(Singleton.class);
         bind(NcpServiceConfiguration.class).toInstance(config.getNcpServiceConfiguration());
-        bind(IdentityConfiguration.class).toInstance(config.getIdentityConfig());
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
-        try {
-            JobsClient jobsClient =
-                    this.provideNcpJobsClient(
-                            config.getNcpServiceConfiguration(), config.getIdentityConfig());
-            bind(JobsClient.class).toInstance(jobsClient);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
             bind(c).in(Singleton.class);
         }
@@ -246,28 +236,47 @@ public class LvvServiceApiModule extends AbstractModule {
         return jiraProxy;
     }
 
+    @Provides
+    @Singleton
+    public BasicAuthenticationDetailsProvider getAuthProvider() {
+        //        config.setStage("DEVELOPMENT_WITH_INST_PRINCIPAL");
+        switch (config.getStage()) {
+            case "DEVELOPMENT":
+                return new MockAuthenticationDetailsProvider();
+            case "DEVELOPMENT_WITH_INST_PRINCIPAL":
+                /*
+                 * Apply below command for using instance principal in local
+                 * ssh -L 8000:169.254.169.254:80 <guid>@<instance-ip-in-beta-region>
+                 */
+                return InstancePrincipalsAuthenticationDetailsProvider.builder()
+                        .metadataBaseUrl("http://localhost:15001/")
+                        .build();
+            default:
+                return InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+        }
+    }
+
     @Named("NcpJobsClient")
     @Provides
     @Singleton
     public JobsClient provideNcpJobsClient(
-            NcpServiceConfiguration ncpServiceConfiguration,
-            IdentityConfiguration identityConfiguration)
-            throws IOException {
-        return MockNcpClients.getMockJobsClient();
-        //        if (region.equals(Region.DEV)) {
-        //            return MockNcpClients.getMockJobsClient();
-        //        }
-        //        S2SAuthenticationDetailsProvider authProvider =
-        //                S2SAuthenticationClientHelper.getS2SAuthProvider(identityConfiguration);
-        //        ClientConfigurator additionalClientConfig =
-        //
-        // S2SAuthenticationClientHelper.getRootCaConfigurator(identityConfiguration);
-        //        JobsClient jobsClient =
-        //                JobsClient.builder()
-        //                        .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
-        //                        .clientConfigurator(additionalClientConfig)
-        //                        .build(authProvider);
-        //        return jobsClient;
+            BasicAuthenticationDetailsProvider basicAuthenticationDetailsProvider) {
+        JobsClient jobsClient;
+        //        config.setStage("DEVELOPMENT_WITH_INST_PRINCIPAL");
+        switch (config.getStage()) {
+            case "DEVELOPMENT":
+                return MockNcpClients.getMockJobsClient();
+            default:
+                /*
+                 * Apply below command for using instance principal in local
+                 * ssh -L 8000:169.254.169.254:80 <guid>@<instance-ip-in-beta-region>
+                 */
+                jobsClient =
+                        JobsClient.builder()
+                                .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
+                                .build(basicAuthenticationDetailsProvider);
+                return jobsClient;
+        }
     }
 
     @Named("NcpServiceClient")

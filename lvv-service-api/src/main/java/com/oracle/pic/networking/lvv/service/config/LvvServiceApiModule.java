@@ -226,7 +226,7 @@ public class LvvServiceApiModule extends AbstractModule {
             username = "jirasd-lvv-service-us-phoenix-1";
             password =
                     secretRetriever.retrieveSecret(
-                            "/secret/lvv-service-dev/jira_admin_user/latest");
+                            "/secret/lvv-service-beta/jira_admin_user/latest");
         }
         JiraRestClientFactory clientFactory = new AsynchronousJiraRestClientFactory();
         JiraRestClient jiraRestClient =

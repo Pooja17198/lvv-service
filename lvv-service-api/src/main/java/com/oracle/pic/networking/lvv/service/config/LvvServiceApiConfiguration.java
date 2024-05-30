@@ -41,16 +41,6 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
 
     @NotNull private JiraSDConfig jiraSDConfig;
 
-    // string used to construct regional endpoint, such as value "ap-tokyo-1" for
-    // "ext-proxy.svc.${regionDnsName}"
-    // to generate "ext-proxy.svc.ap-tokyo-1"
-    @NotNull private String regionDnsName;
-
-    // string used to construct AD endpoint, such as value "ad1" for
-    // "authservice.svc.${adDnsName}.${regionDnsName}"
-    // to generate "authservice.svc.ad1.ap-tokyo-1"
-    @NotNull private String adDnsName;
-
     @NotNull private NcpServiceConfiguration ncpServiceConfiguration;
 
     public void validateAdAndRegionConfiguration() {

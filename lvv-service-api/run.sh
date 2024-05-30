@@ -124,7 +124,7 @@ REALM=""
 REGION=""
 STAGE="dev"
 if [[ $ODO_DEPLOYED == true ]]; then
-  if [[ $ODO_APPLICATION_ALIAS =~ .*"-test" ]]; then
+  if [[ $ODO_APPLICATION_ALIAS =~ .*"-beta" ]]; then
     STAGE="beta"
   else
     STAGE="prod"

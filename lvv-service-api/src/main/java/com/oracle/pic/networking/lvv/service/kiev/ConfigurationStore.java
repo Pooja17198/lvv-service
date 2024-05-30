@@ -21,36 +21,9 @@ public interface ConfigurationStore<H, V> {
 
     V updateItem(@NonNull Transaction txn, @NonNull V entity);
 
-    boolean deleteItem(@NonNull Transaction txn, @NonNull H key);
-
     V getItem(@NonNull H key) throws Exception;
 
-    V getItem(@NonNull Transaction txn, @NonNull H key) throws Exception;
-
     ScanResult<V> scanBucket(
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection);
-
-    ScanResult<V> scanBucketByIndex(
-            String indexName,
-            String indexValue,
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection);
-
-    ScanResult<V> scanBucketByIndex(
-            String indexName,
-            Long indexValue,
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection);
-
-    ScanResult<V> prefixScanBucket(
-            H key,
             int pageSize,
             Optional<PaginationToken> paginationToken,
             Bucket.Direction bucketDirection,

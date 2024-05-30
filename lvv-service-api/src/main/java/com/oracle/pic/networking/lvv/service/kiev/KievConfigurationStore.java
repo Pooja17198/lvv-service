@@ -3,7 +3,6 @@ package com.oracle.pic.networking.lvv.service.kiev;
 import com.google.inject.Inject;
 import com.oracle.pic.kiev.Bucket;
 import com.oracle.pic.kiev.Transaction;
-import com.oracle.pic.kiev.mapping.Index;
 import com.oracle.pic.kiev.mapping.MappedDataStore;
 import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.PaginationDirection;
@@ -68,24 +67,6 @@ public class KievConfigurationStore<K, V> implements ConfigurationStore<K, V> {
     }
 
     @Override
-    public boolean deleteItem(@NonNull Transaction txn, @NonNull K key) {
-        Optional<V> item = bucket.get(txn, key);
-        return item.map(
-                        (v) -> {
-                            bucket.delete(txn, key);
-                            return true;
-                        })
-                .orElse(false);
-    }
-
-    @Override
-    public V getItem(@NonNull Transaction txn, @NonNull K key) throws Exception {
-        Optional<V> item = bucket.get(txn, key);
-        return item.map(v -> item.get())
-                .orElseThrow(() -> new Exception("Failed to retrieve item " + key.toString()));
-    }
-
-    @Override
     public V getItem(@NonNull K key) throws Exception {
         Optional<V> item = bucket.get(key);
         return item.map(v -> item.get())
@@ -105,77 +86,6 @@ public class KievConfigurationStore<K, V> implements ConfigurationStore<K, V> {
             scanPage = bucket.scan(paginationToken.get(), pageSize);
         } else {
             scanPage = bucket.beginScan(pageSize, bucketDirection, pageDirection);
-        }
-
-        scanResult = getScanResult(scanPage);
-
-        return scanResult;
-    }
-
-    @Override
-    public ScanResult<V> prefixScanBucket(
-            @NonNull K key,
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection) {
-        ScanPage<V> scanPage;
-        ScanResult<V> scanResult;
-
-        if (paginationToken.isPresent()) {
-            scanPage = bucket.scan(paginationToken.get(), pageSize);
-        } else {
-            scanPage = bucket.beginPrefixScan(key, pageSize, bucketDirection, pageDirection);
-        }
-
-        scanResult = getScanResult(scanPage);
-
-        return scanResult;
-    }
-
-    @Override
-    public ScanResult<V> scanBucketByIndex(
-            String indexName,
-            String indexValue,
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection) {
-
-        Index<String, V> index = bucket.getIndex(indexName, String.class);
-
-        ScanPage<V> scanPage;
-        ScanResult<V> scanResult;
-
-        if (paginationToken.isPresent()) {
-            scanPage = index.scan(paginationToken.get(), pageSize);
-        } else {
-            scanPage = index.beginPrefixScan(indexValue, pageSize, bucketDirection, pageDirection);
-        }
-
-        scanResult = getScanResult(scanPage);
-
-        return scanResult;
-    }
-
-    @Override
-    public ScanResult<V> scanBucketByIndex(
-            String indexName,
-            Long indexValue,
-            int pageSize,
-            Optional<PaginationToken> paginationToken,
-            Bucket.Direction bucketDirection,
-            PaginationDirection pageDirection) {
-
-        Index<Long, V> index = bucket.getIndex(indexName, Long.class);
-
-        ScanPage<V> scanPage;
-        ScanResult<V> scanResult;
-
-        if (paginationToken.isPresent()) {
-            scanPage = index.scan(paginationToken.get(), pageSize);
-        } else {
-            scanPage = index.beginPrefixScan(indexValue, pageSize, bucketDirection, pageDirection);
         }
 
         scanResult = getScanResult(scanPage);

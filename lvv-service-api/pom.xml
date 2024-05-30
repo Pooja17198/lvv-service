@@ -619,6 +619,11 @@
             <exclude>com/oracle/pic/networking/lvv/service/identity/**/*</exclude>
             <!-- ignore MockNcpClients for testing -->
             <exclude>com/oracle/pic/networking/lvv/service/dependencies/ncp/Mock*.class</exclude>
+            <!-- ignore Kiev Helper class for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/kiev/DataStoreProvider.class</exclude>
+            <exclude>com/oracle/pic/networking/lvv/service/kiev/KievHashBucketProvider.class</exclude>
+            <!-- ignore helper class for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/etag/*</exclude>
           </excludes>
         </configuration>
         <executions>
@@ -650,7 +655,7 @@
                       <counter>INSTRUCTION</counter>
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
-                      <minimum>0.6</minimum>
+                      <minimum>0.8</minimum>
                     </limit>
                   </limits>
                 </rule>

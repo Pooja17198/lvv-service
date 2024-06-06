@@ -1,7 +1,8 @@
 package com.oracle.pic.networking.lvv.service.canary.executers;
 
 import com.google.inject.Inject;
-import com.oracle.pic.networking.lvv.service.canary.client.ExampleClientProvider;
+import com.google.inject.name.Named;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.pic.networking.lvv.service.canary.config.LvvServiceCanaryConfiguration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -12,36 +13,22 @@ import lombok.extern.slf4j.Slf4j;
 /** CanaryTaskExecutor is responsible to execute canary task asynchronously */
 public class CanaryTaskExecutor {
 
-    private final ExampleClientProvider exampleClientProvider;
-    private final String canaryTestCompartmentId;
-    private final String endpoint;
     private final ExecutorService executorService;
+    private final LvvServiceCanaryConfiguration config;
+    private final BasicAuthenticationDetailsProvider authenticationDetailsProvider;
 
     @Inject
     public CanaryTaskExecutor(
-            ExampleClientProvider exampleClientProvider, LvvServiceCanaryConfiguration config) {
-        this.exampleClientProvider = exampleClientProvider;
-        this.canaryTestCompartmentId = config.getCanaryTestCompartmentId();
-        this.endpoint = config.getLvvServiceEndpoint();
+            LvvServiceCanaryConfiguration config,
+            @Named("user1") BasicAuthenticationDetailsProvider authProvider) {
         executorService = Executors.newCachedThreadPool();
+        this.config = config;
+        this.authenticationDetailsProvider = authProvider;
     }
 
     public void execute() throws Exception {
-        executorService.submit(
-                new CreateResourceTestTask(
-                        exampleClientProvider, canaryTestCompartmentId, endpoint));
-        executorService.submit(
-                new GetResourceTestTask(exampleClientProvider, canaryTestCompartmentId, endpoint));
-        executorService.submit(
-                new UpdateResourceTestTask(
-                        exampleClientProvider, canaryTestCompartmentId, endpoint));
-        executorService.submit(
-                new ListResourceTestTask(exampleClientProvider, canaryTestCompartmentId, endpoint));
-        executorService.submit(
-                new DeleteResourceTestTask(
-                        exampleClientProvider, canaryTestCompartmentId, endpoint));
-        executorService.submit(
-                new StaleResourceCleaner(exampleClientProvider, canaryTestCompartmentId, endpoint));
+        log.info("Beginning canary test");
+        // TODO: Add tests.
     }
 
     public void shutdown() {

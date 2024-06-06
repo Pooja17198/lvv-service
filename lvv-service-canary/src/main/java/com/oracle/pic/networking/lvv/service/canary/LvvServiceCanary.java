@@ -12,7 +12,7 @@ import com.oracle.pic.commons.service.environment.ServiceConfigurator;
 import com.oracle.pic.networking.lvv.service.canary.config.LvvServiceCanaryConfiguration;
 import com.oracle.pic.networking.lvv.service.canary.config.LvvServiceCanaryModule;
 import com.oracle.pic.networking.lvv.service.canary.health.LvvServiceCanaryHealthCheck;
-import com.oracle.pic.networking.lvv.service.canary.schedulers.CanaryScheduler;
+// import com.oracle.pic.networking.lvv.service.canary.schedulers.CanaryScheduler;
 import io.dropwizard.Application;
 import io.dropwizard.lifecycle.Managed;
 import io.dropwizard.setup.Bootstrap;
@@ -74,8 +74,8 @@ public class LvvServiceCanary extends Application<LvvServiceCanaryConfiguration>
 
             // Register resources and health checks
             registerHealthChecks(environment);
-
-            manage(environment, injector, CanaryScheduler.class);
+            // Commenting for a fast follow up once a working canary is established.
+            // manage(environment, injector, CanaryScheduler.class);
 
             log.info("LvvServiceCanary initialization completed");
         } catch (Throwable t) {

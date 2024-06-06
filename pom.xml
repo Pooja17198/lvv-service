@@ -24,7 +24,7 @@
     <module>lvv-service-java-client</module>
     <module>lvv-service-python-client</module>
     <module>lvv-service-api</module>
-<!--    <module>lvv-service-canary</module>-->
+    <module>lvv-service-canary</module>
   </modules>
 
   <properties>

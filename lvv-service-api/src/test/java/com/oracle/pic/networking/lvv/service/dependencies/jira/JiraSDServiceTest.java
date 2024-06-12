@@ -47,7 +47,7 @@ public class JiraSDServiceTest {
     public void shouldSearchJiraTickets() {
         String jql =
                 String.format(
-                        "project = \"DO\" AND summary ~ FinalRackValidation AND status = Open AND Building = %s AND Block ~ %s",
+                        "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = %s AND Block ~ %s",
                         "PHX1", "21");
         Promise<SearchResult> searchResultPromiseMock = mock();
         SearchResult searchResult = mock();

@@ -82,39 +82,18 @@ public class CablingTaskService {
                 building,
                 block,
                 rackSerialNumber);
+
         SearchResult cableValidationTickets =
                 this.searchCableValidationTickets(building, block, rackSerialNumber);
         List<ValidationFailureTaskDetails> validationFailureTaskDetailsLinkedList =
-                new LinkedList<>();
-        for (Issue issue : cableValidationTickets.getIssues()) {
-            // Populate rack serial number for search requests without rack serial number
-            String ticketRackSerialNumber = rackSerialNumber;
-            String rackLocation = null;
-            for (IssueField issueField : issue.getFields()) {
-                if (issueField.getName().equals("Rack Location")) {
-                    rackLocation = issueField.getValue().toString();
-                    break;
-                }
-            }
-            if (ticketRackSerialNumber == null) {
-                for (IssueField issueField : issue.getFields()) {
-                    if (issueField.getName().equals("Serial Number")) {
-                        ticketRackSerialNumber = issueField.getValue().toString();
-                        break;
-                    }
-                }
-            }
-            ValidationFailureTaskDetails validationFailureTaskDetails =
-                    new ValidationFailureTaskDetails(
-                            issue.getKey(),
-                            building,
-                            block,
-                            rackLocation,
-                            ticketRackSerialNumber,
-                            issue.getDescription());
-            validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
-        }
+                getValidationFailureTaskDetails(
+                        cableValidationTickets, building, block, rackSerialNumber);
 
+        SearchResult cableGpuValidationTickets =
+                this.searchGpuCableValidationTickets(building, block, rackSerialNumber);
+        validationFailureTaskDetailsLinkedList.addAll(
+                getValidationFailureTaskDetails(
+                        cableGpuValidationTickets, building, block, rackSerialNumber));
         // Search the tickets with initial cabling task
         List<InitialCablingTaskDetails> initialCablingTaskDetailsList = new LinkedList<>();
         SearchResult initialCablingTickets =
@@ -137,6 +116,52 @@ public class CablingTaskService {
                 new CablingTaskCollection(
                         initialCablingTaskDetailsList, validationFailureTaskDetailsLinkedList);
         return cablingTaskCollection;
+    }
+
+    private List<ValidationFailureTaskDetails> getValidationFailureTaskDetails(
+            SearchResult cableValidationTickets,
+            String building,
+            String block,
+            String rackSerialNumber) {
+        List<ValidationFailureTaskDetails> validationFailureTaskDetailsLinkedList =
+                new LinkedList<>();
+        for (Issue issue : cableValidationTickets.getIssues()) {
+            // Populate rack serial number for search requests without rack serial number
+            String ticketRackSerialNumber = rackSerialNumber;
+            String rackLocation = null;
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Rack Location")) {
+                    rackLocation = issueField.getValue().toString();
+                    break;
+                }
+            }
+            if (ticketRackSerialNumber == null) {
+                for (IssueField issueField : issue.getFields()) {
+                    if (issueField.getName().equals("Serial Number")) {
+                        ticketRackSerialNumber = issueField.getValue().toString();
+                        break;
+                    }
+                }
+            }
+            if (ticketRackSerialNumber == null) {
+                for (IssueField issueField : issue.getFields()) {
+                    if (issueField.getName().equals("Asset ID")) {
+                        ticketRackSerialNumber = issueField.getValue().toString();
+                        break;
+                    }
+                }
+            }
+            ValidationFailureTaskDetails validationFailureTaskDetails =
+                    new ValidationFailureTaskDetails(
+                            issue.getKey(),
+                            building,
+                            block,
+                            rackLocation,
+                            ticketRackSerialNumber,
+                            issue.getDescription());
+            validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
+        }
+        return validationFailureTaskDetailsLinkedList;
     }
 
     public void resolveValidationFailureTask(String cablingTaskId) {
@@ -193,15 +218,28 @@ public class CablingTaskService {
             String building, String block, String rackSerialNumber) {
         String cableValidationJql =
                 String.format(
-                        "project = \"DO\" AND summary ~ FinalRackValidation AND status = Open AND Building = %s AND Block ~ %s",
+                        "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = %s AND Block ~ %s",
                         building, block);
         if (rackSerialNumber != null) {
             cableValidationJql =
                     cableValidationJql
                             + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
         }
-        SearchResult searchResult = this.jiraSDService.searchJiraSD(cableValidationJql);
-        return searchResult;
+        return this.jiraSDService.searchJiraSD(cableValidationJql);
+    }
+
+    private SearchResult searchGpuCableValidationTickets(
+            String building, String block, String rackSerialNumber) {
+        String cableValidationJql =
+                String.format(
+                        "project = \"DO\" AND summary ~ \"NA Cable Validation Failure\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = %s AND Block ~ %s",
+                        building, block);
+        if (rackSerialNumber != null) {
+            cableValidationJql =
+                    cableValidationJql
+                            + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
+        }
+        return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchInitialCablingTickets(
@@ -215,7 +253,6 @@ public class CablingTaskService {
                     initialCablingJql
                             + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
         }
-        SearchResult searchResult = this.jiraSDService.searchJiraSD(initialCablingJql);
-        return searchResult;
+        return this.jiraSDService.searchJiraSD(initialCablingJql);
     }
 }

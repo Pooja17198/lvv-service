@@ -55,7 +55,7 @@ public class CablingTaskServiceTest {
     public void shouldGetCableValidationTasks() {
         // Setup cable validation search results
         String cableValidationJql =
-                "project = \"DO\" AND summary ~ FinalRackValidation AND status = Open AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
         List<Issue> cableValidationTickets = new LinkedList<>();
         Issue cableValidationTicket = mock();
         when(cableValidationTicket.getDescription())
@@ -69,6 +69,14 @@ public class CablingTaskServiceTest {
                 new SearchResult(0, 1, 1, cableValidationTickets);
         when(this.mockedJiraSDService.searchJiraSD(eq(cableValidationJql)))
                 .thenReturn(cableValidationSearchResult);
+
+        String gpuCableValidationJql =
+                "project = \"DO\" AND summary ~ \"NA Cable Validation Failure\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+        List<Issue> gpuCableValidationTickets = new LinkedList<>();
+        SearchResult gpuCableValidationSearchResult =
+                new SearchResult(0, 0, 0, gpuCableValidationTickets);
+        when(this.mockedJiraSDService.searchJiraSD(gpuCableValidationJql))
+                .thenReturn(gpuCableValidationSearchResult);
 
         // Setup initial cabling search results
         String initialCablingJql =
@@ -135,7 +143,7 @@ public class CablingTaskServiceTest {
     @Test
     public void shouldGetValidationFailureTasks() {
         String cableValidationJql =
-                "project = \"DO\" AND summary ~ FinalRackValidation AND status = Open AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
         List<Issue> cableValidationTickets = new LinkedList<>();
         Issue cableValidationTicket = mock(Issue.class);
         when(cableValidationTicket.getDescription())

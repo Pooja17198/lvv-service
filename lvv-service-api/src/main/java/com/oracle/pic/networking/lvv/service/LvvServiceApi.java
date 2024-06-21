@@ -9,6 +9,7 @@ import com.oracle.pic.commons.configuration.TypeSafeReader;
 import com.oracle.pic.commons.crypto.JCEProviders;
 import com.oracle.pic.commons.service.configuration.ServiceCoreModule;
 import com.oracle.pic.commons.service.configuration.TypesafeConfigProvider;
+import com.oracle.pic.commons.service.connectors.DynamicHttpsWithCertsProviderConnectorFactory;
 import com.oracle.pic.commons.service.environment.ServiceConfigurator;
 import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
 import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
@@ -17,6 +18,8 @@ import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
+import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
+import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.sfw.internal.GeneratedApplicationHeartbeater;
 import com.oracle.pic.sherlock.collector.dropwizard.AuditFilterInstaller;
 import io.dropwizard.Application;
@@ -25,6 +28,7 @@ import io.dropwizard.jersey.setup.JerseyEnvironment;
 import io.dropwizard.lifecycle.Managed;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -130,6 +134,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
             registerResources(environment, injector);
             registerHealthChecks(environment);
             registerAuth(environment, config, injector);
+            registerCertsProvider(injector);
             registerAuditFilter(config, environment);
             log.info("{} initialization completed", SERVICE_NAME);
         } catch (Throwable t) {
@@ -170,6 +175,22 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                             + "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         }
         environment.jersey().register(new AuthContextBinder());
+    }
+
+    private void registerCertsProvider(Injector injector) {
+        DynamicHttpsWithCertsProviderConnectorFactory.setProvider(
+                (path) -> {
+                    log.info("Attempting to retrieve secret at path {}", path);
+                    final SecretRetriever secretRetriever =
+                            injector.getInstance(SecretRetriever.class);
+                    try {
+                        return secretRetriever
+                                .retrieveSecret(path)
+                                .getBytes(StandardCharsets.UTF_8);
+                    } catch (SecretRetrieverException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
     /**

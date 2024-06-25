@@ -296,6 +296,14 @@
           <artifactId>atlassian-core</artifactId>
         </exclusion>
         <exclusion>
+          <groupId>jakarta.mail</groupId>
+          <artifactId>jakarta.mail-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.antlr</groupId>
+          <artifactId>antlr4-runtime</artifactId>
+        </exclusion>
+        <exclusion>
           <groupId>org.apache.velocity</groupId>
           <artifactId>velocity</artifactId>
         </exclusion>

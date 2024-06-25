@@ -1,6 +1,6 @@
 # Odo base image: https://confluence.oci.oraclecorp.com/x/7KbfFQ
-FROM ocr-docker-remote.artifactory.oci.oraclecorp.com/os/oraclelinux:7-slim
-COPY --from=odo-docker-signed-local.artifactory.oci.oraclecorp.com/base-image-support/ol7:1.20 / /
+FROM ocr-docker-remote.artifactory.oci.oraclecorp.com/os/oraclelinux:8
+COPY --from=odo-docker-signed-local.artifactory.oci.oraclecorp.com/base-image-support/ol8:1.34 / /
 ENTRYPOINT ["/sbin/simple_init.py"]
 
 ## TESTING ON YOUR DESKTOP
@@ -38,6 +38,8 @@ RUN yum -y install less \
     openssl \
     vim-minimal \
     && yum clean all
+
+RUN dnf -y update && dnf clean all
 
 # =============================================================================
 # Executables

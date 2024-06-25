@@ -215,23 +215,23 @@ public class LvvServiceApiModule extends AbstractModule {
     public JiraSDService getJiraSDService(SecretRetriever secretRetriever)
             throws URISyntaxException, SecretRetrieverException {
         JiraSDConfig jiraSDConfig = this.config.getJiraSDConfig();
-        String username = "";
-        String password = "";
+        String jiraUsername = null;
+        String jiraAccessPass = null;
         if (config.getRegion() == Region.DEV) {
             String usernameSecretPath = jiraSDConfig.getUsernameSecretPath();
             String passwordSecretPath = jiraSDConfig.getPasswordSecretPath();
-            username = secretRetriever.retrieveSecret(usernameSecretPath);
-            password = secretRetriever.retrieveSecret(passwordSecretPath);
+            jiraUsername = secretRetriever.retrieveSecret(usernameSecretPath);
+            jiraAccessPass = secretRetriever.retrieveSecret(passwordSecretPath);
         } else {
-            username = "jirasd-lvv-service-us-phoenix-1";
-            password =
+            jiraUsername = "jirasd-lvv-service-us-phoenix-1";
+            jiraAccessPass =
                     secretRetriever.retrieveSecret(
                             "/secret/lvv-service-beta/jira_admin_user/latest");
         }
         JiraRestClientFactory clientFactory = new AsynchronousJiraRestClientFactory();
         JiraRestClient jiraRestClient =
                 clientFactory.createWithBasicHttpAuthentication(
-                        new URI(jiraSDConfig.getJiraSDEndpoint()), username, password);
+                        new URI(jiraSDConfig.getJiraSDEndpoint()), jiraUsername, jiraAccessPass);
         JiraSDService jiraProxy = new JiraSDService(jiraRestClient);
         return jiraProxy;
     }

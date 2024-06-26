@@ -23,6 +23,8 @@ public interface ConfigurationStore<H, V> {
 
     V getItem(@NonNull H key) throws Exception;
 
+    boolean deleteItem(@NonNull Transaction txn, @NonNull H key);
+
     ScanResult<V> scanBucket(
             int pageSize,
             Optional<PaginationToken> paginationToken,

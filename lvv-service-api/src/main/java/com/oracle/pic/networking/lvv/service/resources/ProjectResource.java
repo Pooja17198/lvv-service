@@ -86,7 +86,13 @@ public class ProjectResource extends AbstractProjectsResource {
             String projectId,
             String opcRequestId,
             Principal principal,
-            AuthorizationRequest authorizationRequest) {}
+            AuthorizationRequest authorizationRequest) {
+        try (MetricsScope scope = MetricsScope.create("deleteProject")) {
+            scope.emit("volume", 1.0);
+            projectService.deleteProject(projectId);
+            scope.recordSuccess();
+        }
+    }
 
     @Override
     public Project getProject(

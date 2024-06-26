@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Singleton
 public class KievManager {
-    private static final int DEFAULT_PAGE_SIZE = 50;
+    private static final int DEFAULT_PAGE_SIZE = 1000;
     private final ConfigurationStore<String, ProjectItem> projectItemStore;
     private PaginationTokenSerializer serializer;
 
@@ -80,6 +80,29 @@ public class KievManager {
             } catch (Exception exception) {
                 log.info("Item does Not Exist {}", projectId);
                 throw exception;
+            }
+        }
+    }
+
+    public void deleteProjectItem(@NonNull String projectId) throws Exception {
+
+        try (Transaction txn = projectItemStore.beginTransaction(projectId);
+                MetricsScope scope = MetricsScope.create("KievDeleteProjectItem")) {
+
+            scope.emit("volume", 1.0);
+            // Try to get the item if it already exists
+            try {
+                this.projectItemStore.deleteItem(txn, projectId);
+            } catch (Exception exception) {
+                log.info("Item does not exist. Failed to delete item with key {}", projectId);
+            }
+            try {
+                txn.commit();
+                scope.recordSuccess();
+            } catch (CommitConflictException exception) {
+                String message = "Failed to delete projectType item " + projectId;
+                handleException(txn, exception, message);
+                throw new Exception(message, exception);
             }
         }
     }

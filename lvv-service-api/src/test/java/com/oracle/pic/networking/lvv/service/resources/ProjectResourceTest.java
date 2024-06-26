@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.oracle.pic.identity.authentication.Principal;
@@ -23,16 +25,10 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 public class ProjectResourceTest {
-    private final String compartmentId =
-            "ocid1.compartment.oc1..aaaaaaaa26mceal7cypzsefhbm2l73xtb3yreplacemereplacemereplaceme";
-    private final String displayName = "projectTest";
-    private final String projectId = "projectId";
-    private final String ifMatch = "projectId";
     private ProjectResource resource;
     private ProjectService projectService;
     private String opcRequestId = "opcRequestId";
 
-    @Mock private AuthorizationRequest authorizationRequest;
     @Mock private AuthHelper mockAuthorizationHelper;
     @Mock private Principal mockPrincipal;
 
@@ -131,5 +127,15 @@ public class ProjectResourceTest {
                         this.mockPrincipal,
                         this.mockAuthorizationRequest);
         assertEquals(project, result);
+    }
+
+    @Test
+    public void deleteProject() {
+        ProjectService mockProjectService = mock(ProjectService.class);
+        doNothing().when(mockProjectService).deleteProject("project1");
+        ProjectResource projectResource = new ProjectResource(mockProjectService);
+        projectResource.deleteProject(
+                "project1", this.opcRequestId, this.mockPrincipal, this.mockAuthorizationRequest);
+        verify(mockProjectService).deleteProject("project1");
     }
 }

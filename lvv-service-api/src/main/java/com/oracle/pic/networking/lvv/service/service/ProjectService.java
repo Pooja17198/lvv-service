@@ -53,6 +53,17 @@ public class ProjectService {
         }
     }
 
+    public void deleteProject(String projectId) {
+        try {
+            kievManager.deleteProjectItem(projectId);
+        } catch (Exception exception) {
+            log.error("Error occurred. Message is {}", exception.getMessage());
+            log.error("Stack Trace: {}", ExceptionUtils.getStackTrace(exception));
+            throw new RenderableException(
+                    ErrorCode.NotAuthorizedOrNotFound, "Failed to delete ProjectId " + projectId);
+        }
+    }
+
     public List<ProjectItem> getProjectListByVendor(PaginationToken page, String vendorName) {
         try {
             return kievManager.getAllProjectItem(page, vendorName);

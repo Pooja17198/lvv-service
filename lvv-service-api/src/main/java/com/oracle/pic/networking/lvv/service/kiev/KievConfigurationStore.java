@@ -74,6 +74,17 @@ public class KievConfigurationStore<K, V> implements ConfigurationStore<K, V> {
     }
 
     @Override
+    public boolean deleteItem(@NonNull Transaction txn, @NonNull K key) {
+        Optional<V> item = bucket.get(txn, key);
+        return item.map(
+                        (v) -> {
+                            bucket.delete(txn, key);
+                            return true;
+                        })
+                .orElse(false);
+    }
+
+    @Override
     public ScanResult<V> scanBucket(
             int pageSize,
             Optional<PaginationToken> paginationToken,

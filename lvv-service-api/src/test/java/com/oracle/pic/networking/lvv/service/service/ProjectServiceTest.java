@@ -2,6 +2,7 @@ package com.oracle.pic.networking.lvv.service.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.oracle.pic.commons.exceptions.server.RenderableException;
@@ -38,6 +39,13 @@ public class ProjectServiceTest {
                 () ->
                         this.projectService.createUpdateProject(
                                 PROJECT_ID, VENDOR_NAME, BUILDING, BLOCK, TYPE));
+    }
+
+    @Test
+    public void deleteProjectShouldThrowException() throws Exception {
+        doThrow(new Exception()).when(this.mockedKievManager).deleteProjectItem(any());
+        assertThrows(
+                RenderableException.class, () -> this.projectService.deleteProject(PROJECT_ID));
     }
 
     @Test

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
@@ -68,7 +69,7 @@ public class KievManagerTest {
         when(mockProjectItemStore.createItem(mockTransaction, projectItem2))
                 .thenReturn(projectItem2);
 
-        when(mockProjectItemStore.scanBucket(eq(50), any(), any(), any())).thenReturn(scanResult);
+        when(mockProjectItemStore.scanBucket(eq(1000), any(), any(), any())).thenReturn(scanResult);
     }
 
     @Test
@@ -83,6 +84,13 @@ public class KievManagerTest {
     public void getProjectItemTest() throws Exception {
         ProjectItem result = kievManager.getProjectItem(projectItem1.getProjectId());
         compareProject(projectItem1, result);
+    }
+
+    @Test
+    public void deleteProjectItemTest() throws Exception {
+        when(mockProjectItemStore.deleteItem(mockTransaction, "project1")).thenReturn(true);
+        kievManager.deleteProjectItem("project1");
+        verify(mockProjectItemStore).deleteItem(mockTransaction, "project1");
     }
 
     @Test

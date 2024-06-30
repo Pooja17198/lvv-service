@@ -222,11 +222,20 @@ public class LvvServiceApiModule extends AbstractModule {
             String passwordSecretPath = jiraSDConfig.getPasswordSecretPath();
             jiraUsername = secretRetriever.retrieveSecret(usernameSecretPath);
             jiraAccessPass = secretRetriever.retrieveSecret(passwordSecretPath);
-        } else {
+        }
+        // Beta phx and prod phx shares the same secret, as Jira team only allows one account per
+        // region
+        // https://jira-sd.mc1.oracleiaas.com/browse/JADMIN-5313
+        else if (config.getRegion() == Region.PHX) {
             jiraUsername = "jirasd-lvv-service-us-phoenix-1";
             jiraAccessPass =
                     secretRetriever.retrieveSecret(
                             "/secret/lvv-service-beta/jira_admin_user/latest");
+        } else {
+            jiraUsername = "jirasd-lvv-service-" + config.getRegion().getPublicRegionName();
+            jiraAccessPass =
+                    secretRetriever.retrieveSecret(
+                            "/secret/lvv-service-prod/jira_admin_user/latest");
         }
         JiraRestClientFactory clientFactory = new AsynchronousJiraRestClientFactory();
         JiraRestClient jiraRestClient =

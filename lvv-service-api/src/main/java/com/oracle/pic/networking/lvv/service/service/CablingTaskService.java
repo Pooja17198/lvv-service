@@ -11,14 +11,19 @@ import com.google.inject.name.Named;
 import com.oracle.bmc.model.BmcException;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.InitialCablingTaskDetails;
+import com.oracle.pic.networking.lvv.service.model.LldpFailure;
+import com.oracle.pic.networking.lvv.service.model.OpticsFailure;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
 import com.oracle.pic.networking.ncp.model.Job;
+import java.io.StringReader;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -209,9 +214,98 @@ public class CablingTaskService {
         this.jiraSDService.resolveTicket(cablingTaskId, comment, fieldInputList);
     }
 
-    public String getCableValidationFailureTask(String cablingTaskId) {
+    public CableValidationFailureTasks getCableValidationFailureTask(String cablingTaskId) {
         Issue issue = this.jiraSDService.getIssue(cablingTaskId);
-        return getResultFromIssueField(issue);
+        // TODO: Get result from NCP
+        // return getResultFromIssueField(issue);
+        return getResultFromIssueDescription(issue);
+    }
+
+    private CableValidationFailureTasks getResultFromIssueDescription(Issue issue) {
+        List<LldpFailure> lldpFailureList = new LinkedList<>();
+        List<OpticsFailure> opticsFailureList = new LinkedList<>();
+        String description = issue.getDescription();
+        Scanner scanner = new Scanner(new StringReader(description));
+        while (scanner.hasNext()) {
+            String line = scanner.nextLine();
+            if (line.contains("LLDP Failures")) {
+                lldpFailureList.addAll(this.getLldpFailureList(line));
+            }
+            if (line.contains("*Failed:* test_optics")) {
+                line = scanner.nextLine();
+                opticsFailureList.addAll(this.getOpticsFailureList(line));
+            }
+        }
+        CableValidationFailureTasks cableValidationFailureTasks =
+                new CableValidationFailureTasks(lldpFailureList, opticsFailureList);
+        return cableValidationFailureTasks;
+    }
+
+    private List<LldpFailure> getLldpFailureList(String line) {
+        List<LldpFailure> lldpFailureList = new LinkedList<>();
+        String currentOriginString = "current_origin\": \"";
+        int startIndex = line.indexOf(currentOriginString);
+        while (startIndex != -1) {
+            int endIndex = line.indexOf("\"", startIndex + currentOriginString.length());
+            String currentOrigin =
+                    line.substring(startIndex + currentOriginString.length(), endIndex);
+
+            String currentDestinationString = "current_destination\": \"";
+            startIndex = line.indexOf(currentDestinationString, endIndex + 1);
+            endIndex = line.indexOf("\"", startIndex + currentDestinationString.length());
+            String currentDestination =
+                    line.substring(startIndex + currentDestinationString.length(), endIndex);
+
+            String expectedDestinationString = "expected_destination\": \"";
+            startIndex = line.indexOf(expectedDestinationString, endIndex + 1);
+            endIndex = line.indexOf("\"", startIndex + expectedDestinationString.length());
+            String expectedDestination =
+                    line.substring(startIndex + expectedDestinationString.length(), endIndex);
+
+            LldpFailure lldpFailure =
+                    new LldpFailure(currentOrigin, currentDestination, expectedDestination);
+            lldpFailureList.add(lldpFailure);
+
+            startIndex = line.indexOf(currentOriginString, endIndex + 1);
+        }
+        return lldpFailureList;
+    }
+
+    private List<OpticsFailure> getOpticsFailureList(String line) {
+        List<OpticsFailure> opticsFailureList = new LinkedList<>();
+        String deviceString = "device':'";
+        int startIndex = line.indexOf(deviceString);
+        while (startIndex != -1) {
+            int endIndex = line.indexOf("'", startIndex + deviceString.length());
+            String device = line.substring(startIndex + deviceString.length(), endIndex);
+
+            String intfNameString = "intf_name':'";
+            startIndex = line.indexOf(intfNameString, endIndex + 1);
+            endIndex = line.indexOf("'", startIndex + intfNameString.length());
+            String intfName = line.substring(startIndex + intfNameString.length(), endIndex);
+
+            String inputPowerString = "input_power':'";
+            startIndex = line.indexOf(inputPowerString, endIndex + 1);
+            endIndex = line.indexOf("'", startIndex + inputPowerString.length());
+            String inputPower = line.substring(startIndex + inputPowerString.length(), endIndex);
+
+            String outputPowerString = "output_power':'";
+            startIndex = line.indexOf(outputPowerString, endIndex + 1);
+            endIndex = line.indexOf("'", startIndex + outputPowerString.length());
+            String outputPower = line.substring(startIndex + outputPowerString.length(), endIndex);
+
+            String devicePhysString = "device_phys':'";
+            startIndex = line.indexOf(devicePhysString, endIndex + 1);
+            endIndex = line.indexOf("'", startIndex + devicePhysString.length());
+            String devicePhys = line.substring(startIndex + devicePhysString.length(), endIndex);
+
+            OpticsFailure opticsFailure =
+                    new OpticsFailure(device, intfName, inputPower, outputPower, devicePhys);
+            opticsFailureList.add(opticsFailure);
+
+            startIndex = line.indexOf(deviceString, endIndex + 1);
+        }
+        return opticsFailureList;
     }
 
     private SearchResult searchCableValidationTickets(

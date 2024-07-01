@@ -328,7 +328,7 @@ paths:
           headers:
             opc-request-id: *ref-opc-request-id
           schema:
-            type: string
+            $ref: '#/definitions/CableValidationFailureTasks'
         default:
           $ref: '#/responses/Error'
 

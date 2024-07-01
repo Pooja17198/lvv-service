@@ -16,13 +16,12 @@ import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.oracle.bmc.model.BmcException;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.ncp.model.Job;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -41,6 +40,48 @@ public class CablingTaskServiceTest {
     private static final String CABLE_VALIDATION_TICKET_DESCRIPTION = "Ticket Description";
     private static final String TASK_ID = "DO-1191815";
     private static final String NCPJOB_ID = "e760441d-4dd7-4925-b3b4-3f90fa40283e";
+
+    private static final String TICKET_DESCRIPTION =
+            "One or more of the validation tests have failures.\n"
+                    + "Please resolve issue then close ticket to retry rack validation.\n"
+                    + "If the validation results are empty, message us on #oci_nw_automation.\n"
+                    + "Validation Progress: completed\n"
+                    + "Validation Status: Failure\n"
+                    + "Validation Results: \n"
+                    + "{panel:title=phx1-c1-b8-t0-r26-u1}\n"
+                    + "{color:green}*Status: Success*{color}\n"
+                    + "==== Test Results ====\n"
+                    + "{color:green}*Passed:* test_snmp_reachability, test_lldp, test_power, test_fans, test_optics, test_firmware_version{color}\n"
+                    + "{panel}\n"
+                    + "{panel:title=phx1-c1-b8-t0-r26}\n"
+                    + "{color:red}*Status: Failure*{color}\n"
+                    + "==== Test Results ====\n"
+                    + "{color:red}*Failed:* test_lldp{color}\n"
+                    + "{noformat}Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 4\", \"errors_object\": [{\"current_origin\": \"phx1-c1-b8-t0-r26:Ethernet1/13:phx1:10641:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"phx1-c1-b8-t1-r5:Ethernet20/1:phx1:1753:14\"}, {\"current_origin\": \"phx1-c1-b8-t0-r26:Ethernet1/14:phx1:10641:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"phx1-c1-b8-t1-r6:Ethernet20/1:phx1:1753:15\"}, {\"current_origin\": \"phx1-c1-b8-t0-r26:Ethernet1/15:phx1:10641:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"phx1-c1-b8-t1-r7:Ethernet20/1:phx1:1753:16\"}, {\"current_origin\": \"phx1-c1-b8-t0-r26:Ethernet1/16:phx1:10641:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"phx1-c1-b8-t1-r8:Ethernet20/1:phx1:1753:17\"}]}{noformat}\n"
+                    + "{color:red}*Failed:* test_optics{color}\n"
+                    + "{noformat}Failed: Optics have 4.0 < channel power < -6.0    Please reseat the cable or replace the bad cable here: [\"'device':'phx1-c1-b8-t0-r26', 'intf_name':'Ethernet1/13', 'input_power':'-100.0', 'output_power':'2.16', 'device_phys':'phx1:10641:42'\",  \"'device':'phx1-c1-b8-t0-r26', 'intf_name':'Ethernet1/14', 'input_power':'-30.0', 'output_power':'2.65', 'device_phys':'phx1:10641:42'\",  \"'device':'phx1-c1-b8-t0-r26', 'intf_name':'Ethernet1/15', 'input_power':'-30.0', 'output_power':'2.82', 'device_phys':'phx1:10641:42'\",  \"'device':'phx1-c1-b8-t0-r26', 'intf_name':'Ethernet1/16', 'input_power':'-100.0', 'output_power':'2.04', 'device_phys':'phx1:10641:42'\"]{noformat}\n"
+                    + "{color:red}*Failed:* test_interfaces{color}\n"
+                    + "{noformat}Failed: Device phx1-c1-b8-t0-r26 interfaces are not enabled or up: ['Ethernet1/13', 'Ethernet1/14', 'Ethernet1/15', 'Ethernet1/16']{noformat}\n"
+                    + "{color:green}*Passed:* test_snmp_reachability, test_power, test_fans, test_firmware_version, test_bgp{color}\n"
+                    + "{panel}\n"
+                    + "Workflow Definition: rack_validation_workflow v5.11\n"
+                    + "Workflow GUID: 450176c8-e246-4cf0-a633-a61382a2f454 \n"
+                    + "        ----\n"
+                    + "\n"
+                    + "        ||Serial|2409XL8010|\n"
+                    + "        ||Building|phx9|\n"
+                    + "        ||Rack|10641|\n"
+                    + "        ||Rack Type|COM_NVME_E4-2C_ORT_9336_RACK.01|\n"
+                    + "        ||*Links*| [*Atlas*|https://atlas.oci.oraclecorp.com/assets/sk-cb813531-f469-4e03-9dcb-6077c349fb4b] - [*History*|https://jira-sd.mc1.oracleiaas.com/issues/?jql=project%20%3D%20%22DO%22%20AND%20text%20~%202409XL8010%20ORDER%20BY%20created%20DESC]|\n"
+                    + "\n"
+                    + "        \n"
+                    + "        ----\n"
+                    + "\n"
+                    + "        ||Serial|2409XL801L|\n"
+                    + "        ||Building|phx1|\n"
+                    + "        ||Rack|4107|\n"
+                    + "        ||Rack Type|COM_NVME_E4-2C_ORT_9336_RACK.01|\n"
+                    + "        ||*Links*| [*Atlas*|https://atlas.oci.oraclecorp.com/assets/sk-11a40a4b-4e73-430e-876a-392b4a3166e7] - [*History*|https://jira-sd.mc1.oracleiaas.com/issues/?jql=project%20%3D%20%22DO%22%20AND%20text%20~%202409XL801L%20ORDER%20BY%20created%20DESC]|\n";
 
     private CablingTaskService cablingTaskService;
 
@@ -123,6 +164,19 @@ public class CablingTaskServiceTest {
 
     @Test
     public void shouldGetCableValidationFailureTask() {
+        Issue mockIssue = mock();
+        when(this.mockedJiraSDService.getIssue(TASK_ID)).thenReturn(mockIssue);
+        when(mockIssue.getDescription()).thenReturn(TICKET_DESCRIPTION);
+        CableValidationFailureTasks cableValidationFailureTasks =
+                this.cablingTaskService.getCableValidationFailureTask(TASK_ID);
+        assertEquals(4, cableValidationFailureTasks.getLldpFailures().size());
+        assertEquals(4, cableValidationFailureTasks.getOpticsFailures().size());
+    }
+
+    // TODO: Uncomment when LVV can get job results from NCP
+    /*
+    @Test
+    public void shouldGetCableValidationFailureTask() {
         String expectedDetails = "details";
         Set<String> labels = new HashSet<>();
         labels.add("NCP_JOB_ID:" + NCPJOB_ID);
@@ -139,6 +193,7 @@ public class CablingTaskServiceTest {
         verify(this.mockedNcpService, times(1)).getNcpJob(anyString());
         assertEquals(expectedDetails, actualIssueDetails);
     }
+     */
 
     @Test
     public void shouldGetValidationFailureTasks() {

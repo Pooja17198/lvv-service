@@ -5,6 +5,7 @@ import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractCablingTasksResource;
+import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.ResolveValidationFailureTaskResponse;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
@@ -56,15 +57,13 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
     }
 
     @Override
-    public String getCableValidationFailureTask(
+    public CableValidationFailureTasks getCableValidationFailureTask(
             String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope = MetricsScope.create("getCableValidationFailureTask")) {
             scope.emit("volume", 1.0);
 
-            // TODO: Need to return CableValidationFailureTasks instead of String. API specs are
-            // already
-            // prepared
-            String result = this.cablingTaskService.getCableValidationFailureTask(cablingTaskId);
+            CableValidationFailureTasks result =
+                    this.cablingTaskService.getCableValidationFailureTask(cablingTaskId);
             scope.recordSuccess();
             return result;
         }

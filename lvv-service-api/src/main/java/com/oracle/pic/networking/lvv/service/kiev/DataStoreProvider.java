@@ -20,6 +20,8 @@ public class DataStoreProvider implements Closeable, Provider<MappedDataStore> {
     @Inject
     public DataStoreProvider(DataStoreConfig storeConfig) throws Exception {
         storeConfig.initialize();
+        String storeName = storeConfig.getStoreName();
+        log.info("Kiev store name {}", storeName);
 
         this.mappedDataStore = new MappedDataStore(storeConfig.connect());
     }

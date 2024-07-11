@@ -38,6 +38,7 @@ public class CablingTaskServiceTest {
     private static final String BLOCK = "15";
     private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
     private static final String CABLE_VALIDATION_TICKET_DESCRIPTION = "Ticket Description";
+    private static final String GPU_CABLE_VALIDATION_TICKET_DESCRIPTION = "GPU Ticket Description";
     private static final String TASK_ID = "DO-1191815";
     private static final String NCPJOB_ID = "e760441d-4dd7-4925-b3b4-3f90fa40283e";
 
@@ -83,6 +84,24 @@ public class CablingTaskServiceTest {
                     + "        ||Rack Type|COM_NVME_E4-2C_ORT_9336_RACK.01|\n"
                     + "        ||*Links*| [*Atlas*|https://atlas.oci.oraclecorp.com/assets/sk-11a40a4b-4e73-430e-876a-392b4a3166e7] - [*History*|https://jira-sd.mc1.oracleiaas.com/issues/?jql=project%20%3D%20%22DO%22%20AND%20text%20~%202409XL801L%20ORDER%20BY%20created%20DESC]|\n";
 
+    private static final String GPU_TICKET_DESCRIPTION =
+            "Links that seems wrongly cabled:\n"
+                    + "\n"
+                    + "mlx5_14 bd:00.0\n"
+                    + "Rack:5818 IOB slot:14 Port 1 Cable Serial Number: 24042A110549 needs to be connected to Rack:5810 Switch iad32-q2-b18-t0-r6 Elevation:33 Port Ethernet32/1\n"
+                    + "Currently connected to Rack:5810 Switch iad32-q2-b18-t0-r6 Elevation:33 Port Ethernet32/5\n"
+                    + "\n"
+                    + "mlx5_15 bd:00.1\n"
+                    + "Rack:5818 IOB slot:14 Port 2 Cable Serial Number: 24042A110548 needs to be connected to Rack:5810 Switch iad32-q2-b18-t0-r6 Elevation:33 Port Ethernet32/5\n"
+                    + "Currently connected to Rack:5810 Switch iad32-q2-b18-t0-r6 Elevation:33 Port Ethernet32/1\n"
+                    + "CHS/DO is authorized by Compute to work on this host in the allocated state in the holding pool with the CPV instance.\n"
+                    + "This is a non-terminating repair.\n"
+                    + "{panel:title=Compute Product Validation|borderStyle=hidden|titleBGColor=#8ebbfa|bgColor=#a8ccff}\n"
+                    + "*Job ID:* 3a9026bc-45d0-4db0-a8d4-1dd76b63f945\n"
+                    + "*Test Name:* cable_validation\n"
+                    + "*Asset ID:* 2350XLG0C3\n"
+                    + "*Need help?:* Submit a ticket to the HPC queue\n"
+                    + "{panel}";
     private CablingTaskService cablingTaskService;
 
     @BeforeEach
@@ -114,9 +133,17 @@ public class CablingTaskServiceTest {
         String gpuCableValidationJql =
                 "project = \"DO\" AND summary ~ \"NA Cable Validation Failure\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
         List<Issue> gpuCableValidationTickets = new LinkedList<>();
+        Issue gpuCableValidationTicket = mock();
+        when(gpuCableValidationTicket.getDescription())
+                .thenReturn(GPU_CABLE_VALIDATION_TICKET_DESCRIPTION);
+        IssueField gpuIssueField = new IssueField("id", "name", "type", RACK_SERIAL_NUMBER);
+        List<IssueField> gpuIssueFields = new LinkedList<>();
+        gpuIssueFields.add(gpuIssueField);
+        when(gpuCableValidationTicket.getFields()).thenReturn(gpuIssueFields);
+        gpuCableValidationTickets.add(gpuCableValidationTicket);
         SearchResult gpuCableValidationSearchResult =
-                new SearchResult(0, 0, 0, gpuCableValidationTickets);
-        when(this.mockedJiraSDService.searchJiraSD(gpuCableValidationJql))
+                new SearchResult(0, 1, 1, gpuCableValidationTickets);
+        when(this.mockedJiraSDService.searchJiraSD(eq(gpuCableValidationJql)))
                 .thenReturn(gpuCableValidationSearchResult);
 
         // Setup initial cabling search results
@@ -132,10 +159,14 @@ public class CablingTaskServiceTest {
 
         verify(this.mockedJiraSDService, times(1)).searchJiraSD(cableValidationJql);
         verify(this.mockedJiraSDService, times(1)).searchJiraSD(initialCablingJql);
+        verify(this.mockedJiraSDService, times(1)).searchJiraSD(gpuCableValidationJql);
         assertEquals(0, cablingTaskCollection.getInitialCablingTasks().size());
         assertEquals(
                 CABLE_VALIDATION_TICKET_DESCRIPTION,
                 cablingTaskCollection.getValidationFailureTasks().get(0).getFailureReason());
+        assertEquals(
+                GPU_CABLE_VALIDATION_TICKET_DESCRIPTION,
+                cablingTaskCollection.getValidationFailureTasks().get(1).getFailureReason());
     }
 
     @Test
@@ -171,6 +202,16 @@ public class CablingTaskServiceTest {
                 this.cablingTaskService.getCableValidationFailureTask(TASK_ID);
         assertEquals(4, cableValidationFailureTasks.getLldpFailures().size());
         assertEquals(4, cableValidationFailureTasks.getOpticsFailures().size());
+    }
+
+    @Test
+    public void shouldGetGpuCableValidationFailureTask() {
+        Issue mockIssue = mock();
+        when(this.mockedJiraSDService.getIssue(TASK_ID)).thenReturn(mockIssue);
+        when(mockIssue.getDescription()).thenReturn(GPU_TICKET_DESCRIPTION);
+        CableValidationFailureTasks cableValidationFailureTasks =
+                this.cablingTaskService.getCableValidationFailureTask(TASK_ID);
+        assertEquals(2, cableValidationFailureTasks.getGpuLldpFailures().size());
     }
 
     // TODO: Uncomment when LVV can get job results from NCP

@@ -13,6 +13,7 @@ import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
+import com.oracle.pic.networking.lvv.service.model.GpuLldpFailure;
 import com.oracle.pic.networking.lvv.service.model.InitialCablingTaskDetails;
 import com.oracle.pic.networking.lvv.service.model.LldpFailure;
 import com.oracle.pic.networking.lvv.service.model.OpticsFailure;
@@ -224,6 +225,7 @@ public class CablingTaskService {
     private CableValidationFailureTasks getResultFromIssueDescription(Issue issue) {
         List<LldpFailure> lldpFailureList = new LinkedList<>();
         List<OpticsFailure> opticsFailureList = new LinkedList<>();
+        List<GpuLldpFailure> gpuLldpFailureList = new LinkedList<>();
         String description = issue.getDescription();
         Scanner scanner = new Scanner(new StringReader(description));
         while (scanner.hasNext()) {
@@ -235,9 +237,16 @@ public class CablingTaskService {
                 line = scanner.nextLine();
                 opticsFailureList.addAll(this.getOpticsFailureList(line));
             }
+            if (line.contains("needs to be connected to")) {
+                gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
+            }
         }
         CableValidationFailureTasks cableValidationFailureTasks =
-                new CableValidationFailureTasks(lldpFailureList, opticsFailureList);
+                CableValidationFailureTasks.builder()
+                        .lldpFailures(lldpFailureList)
+                        .opticsFailures(opticsFailureList)
+                        .gpuLldpFailures(gpuLldpFailureList)
+                        .build();
         return cableValidationFailureTasks;
     }
 
@@ -269,6 +278,24 @@ public class CablingTaskService {
             startIndex = line.indexOf(currentOriginString, endIndex + 1);
         }
         return lldpFailureList;
+    }
+
+    private List<GpuLldpFailure> getGpuLldpFailureList(String line1, String line2) {
+        List<GpuLldpFailure> gpuLldpFailures = new LinkedList<>();
+        String connectString1 = "needs to be connected to";
+        String connectString2 = "Currently connected to";
+        String source = line1.substring(0, line1.indexOf(connectString1) - 1);
+        String expectedDestination =
+                line1.substring(line1.indexOf(connectString1) + connectString1.length() + 1);
+        String currentDestination = line2.substring(connectString2.length() + 1);
+        GpuLldpFailure gpuLldpFailure =
+                GpuLldpFailure.builder()
+                        .currentOrigin(source)
+                        .expectedDestination(expectedDestination)
+                        .currentDestination(currentDestination)
+                        .build();
+        gpuLldpFailures.add(gpuLldpFailure);
+        return gpuLldpFailures;
     }
 
     private List<OpticsFailure> getOpticsFailureList(String line) {

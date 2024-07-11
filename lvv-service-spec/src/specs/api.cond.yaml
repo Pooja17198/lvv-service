@@ -494,8 +494,26 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/OpticsFailure'
+      gpuLldpFailures:
+        description: An array of gpu lldp failures.
+        type: array
+        items:
+          $ref: '#/definitions/GpuLldpFailure'
   LldpFailure:
     description: Details for each lldp failure.
+    type: object
+    properties:
+      currentOrigin:
+        type: string
+        description: current origin.
+      currentDestination:
+        type: string
+        description: current destination.
+      expectedDestination:
+        type: string
+        description: expected destination.
+  GpuLldpFailure:
+    description: Details for each gpu lldp failure.
     type: object
     properties:
       currentOrigin:

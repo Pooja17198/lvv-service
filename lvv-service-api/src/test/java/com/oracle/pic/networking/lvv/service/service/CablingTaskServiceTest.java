@@ -115,7 +115,13 @@ public class CablingTaskServiceTest {
     public void shouldGetCableValidationTasks() {
         // Setup cable validation search results
         String cableValidationJql =
-                "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                String.format(
+                        cablingTaskService.JQL
+                                + cablingTaskService.FINAL_VALIDATION
+                                + cablingTaskService.SERIAL_NUMBER,
+                        BUILDING,
+                        BLOCK,
+                        RACK_SERIAL_NUMBER);
         List<Issue> cableValidationTickets = new LinkedList<>();
         Issue cableValidationTicket = mock();
         when(cableValidationTicket.getDescription())
@@ -131,7 +137,13 @@ public class CablingTaskServiceTest {
                 .thenReturn(cableValidationSearchResult);
 
         String gpuCableValidationJql =
-                "project = \"DO\" AND summary ~ \"NA Cable Validation Failure\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                String.format(
+                        cablingTaskService.JQL
+                                + cablingTaskService.GPU_VALIDATION
+                                + cablingTaskService.SERIAL_NUMBER,
+                        BUILDING,
+                        BLOCK,
+                        RACK_SERIAL_NUMBER);
         List<Issue> gpuCableValidationTickets = new LinkedList<>();
         Issue gpuCableValidationTicket = mock();
         when(gpuCableValidationTicket.getDescription())
@@ -148,7 +160,13 @@ public class CablingTaskServiceTest {
 
         // Setup initial cabling search results
         String initialCablingJql =
-                "project = \"DO\" AND summary ~ \"Rack Deployment\" AND status = Open AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                String.format(
+                        cablingTaskService.JQL
+                                + cablingTaskService.RACK_DEPLOYMENT
+                                + cablingTaskService.SERIAL_NUMBER,
+                        BUILDING,
+                        BLOCK,
+                        RACK_SERIAL_NUMBER);
         List<Issue> initialCablingTickets = new LinkedList<>();
         SearchResult initialCablingSearchResult = new SearchResult(0, 0, 0, initialCablingTickets);
         when(this.mockedJiraSDService.searchJiraSD(initialCablingJql))
@@ -238,8 +256,15 @@ public class CablingTaskServiceTest {
 
     @Test
     public void shouldGetValidationFailureTasks() {
+        System.out.println("123" + this.cablingTaskService.JQL);
         String cableValidationJql =
-                "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                String.format(
+                        cablingTaskService.JQL
+                                + cablingTaskService.FINAL_VALIDATION
+                                + cablingTaskService.SERIAL_NUMBER,
+                        BUILDING,
+                        BLOCK,
+                        RACK_SERIAL_NUMBER);
         List<Issue> cableValidationTickets = new LinkedList<>();
         Issue cableValidationTicket = mock(Issue.class);
         when(cableValidationTicket.getDescription())
@@ -255,7 +280,13 @@ public class CablingTaskServiceTest {
                 .thenReturn(cableValidationSearchResult);
 
         String initialCablingJql =
-                "project = \"DO\" AND summary ~ \"Rack Deployment\" AND status = Open AND Building = PHX1 AND Block ~ 15 AND \"Serial Number\" ~ 1S7D9XCTO1WWJ102GBN7";
+                String.format(
+                        cablingTaskService.JQL
+                                + cablingTaskService.RACK_DEPLOYMENT
+                                + cablingTaskService.SERIAL_NUMBER,
+                        BUILDING,
+                        BLOCK,
+                        RACK_SERIAL_NUMBER);
         List<Issue> initialCablingTickets = new LinkedList<>();
         SearchResult initialCablingSearchResult = new SearchResult(0, 0, 0, initialCablingTickets);
         when(this.mockedJiraSDService.searchJiraSD(initialCablingJql))

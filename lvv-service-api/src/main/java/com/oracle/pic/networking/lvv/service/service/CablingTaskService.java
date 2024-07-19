@@ -35,6 +35,13 @@ public class CablingTaskService {
     private JiraSDService jiraSDService;
     private NcpService ncpService;
 
+    public static final String JQL =
+            "project = \"DO\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = %s AND Block ~ %s";
+    public static final String FINAL_VALIDATION = " AND summary ~ FinalRackValidation";
+    public static final String GPU_VALIDATION = " AND summary ~ \"NA Cable Validation Failure\"";
+    public static final String RACK_DEPLOYMENT = " AND summary ~ \"Rack Deployment\"";
+    public static final String SERIAL_NUMBER = " AND \"Serial Number\" ~ %s";
+
     @Inject
     public CablingTaskService(
             JiraSDService jiraSDService, @Named("NcpServiceClient") NcpService ncpService) {
@@ -188,14 +195,18 @@ public class CablingTaskService {
         String rootCauseCategorizationId = null;
         String serviceTypeId = null;
         for (IssueField issueField : issue.getFields()) {
-            if (issueField.getName().equals("RMA")) {
-                rmaFieldId = issueField.getId();
-            }
-            if (issueField.getName().equals("Root Cause Categorization")) {
-                rootCauseCategorizationId = issueField.getId();
-            }
-            if (issueField.getName().equals("Service Type")) {
-                serviceTypeId = issueField.getId();
+            switch (issueField.getName()) {
+                case "RMA":
+                    rmaFieldId = issueField.getId();
+                    break;
+                case "Root Cause Categorization":
+                    rootCauseCategorizationId = issueField.getId();
+                    break;
+                case "Service Type":
+                    serviceTypeId = issueField.getId();
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -337,42 +348,29 @@ public class CablingTaskService {
 
     private SearchResult searchCableValidationTickets(
             String building, String block, String rackSerialNumber) {
-        String cableValidationJql =
-                String.format(
-                        "project = \"DO\" AND summary ~ FinalRackValidation AND status in (\"In Progress\", Open, Pending, Reopened) AND Building = %s AND Block ~ %s",
-                        building, block);
+        String cableValidationJql = String.format(JQL + FINAL_VALIDATION, building, block);
         if (rackSerialNumber != null) {
             cableValidationJql =
-                    cableValidationJql
-                            + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
+                    cableValidationJql + String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchGpuCableValidationTickets(
             String building, String block, String rackSerialNumber) {
-        String cableValidationJql =
-                String.format(
-                        "project = \"DO\" AND summary ~ \"NA Cable Validation Failure\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = %s AND Block ~ %s",
-                        building, block);
+        String cableValidationJql = String.format(JQL + GPU_VALIDATION, building, block);
         if (rackSerialNumber != null) {
             cableValidationJql =
-                    cableValidationJql
-                            + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
+                    cableValidationJql + String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchInitialCablingTickets(
             String building, String block, String rackSerialNumber) {
-        String initialCablingJql =
-                String.format(
-                        "project = \"DO\" AND summary ~ \"Rack Deployment\" AND status = Open AND Building = %s AND Block ~ %s",
-                        building, block);
+        String initialCablingJql = String.format(JQL + RACK_DEPLOYMENT, building, block);
         if (rackSerialNumber != null) {
-            initialCablingJql =
-                    initialCablingJql
-                            + String.format(" AND \"Serial Number\" ~ %s", rackSerialNumber);
+            initialCablingJql = initialCablingJql + String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }

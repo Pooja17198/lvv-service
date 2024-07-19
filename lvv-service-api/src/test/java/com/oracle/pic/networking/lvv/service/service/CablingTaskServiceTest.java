@@ -212,6 +212,22 @@ public class CablingTaskServiceTest {
     }
 
     @Test
+    public void shouldGetCablingTasks() {
+        Issue mockIssue = Mockito.mock(Issue.class);
+        List<Issue> mockIssues = new LinkedList<>();
+        mockIssues.add(mockIssue);
+
+        SearchResult mockResult = new SearchResult(0, 1, 1, mockIssues);
+        when(this.mockedJiraSDService.searchJiraSD(anyString())).thenReturn(mockResult);
+
+        CablingTaskCollection cablingTaskCollection =
+                this.cablingTaskService.getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
+
+        assertEquals(1, cablingTaskCollection.getInitialCablingTasks().size());
+        assertEquals(2, cablingTaskCollection.getValidationFailureTasks().size());
+    }
+
+    @Test
     public void shouldGetCableValidationFailureTask() {
         Issue mockIssue = mock();
         when(this.mockedJiraSDService.getIssue(TASK_ID)).thenReturn(mockIssue);
@@ -256,7 +272,6 @@ public class CablingTaskServiceTest {
 
     @Test
     public void shouldGetValidationFailureTasks() {
-        System.out.println("123" + this.cablingTaskService.JQL);
         String cableValidationJql =
                 String.format(
                         cablingTaskService.JQL

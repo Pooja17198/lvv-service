@@ -69,9 +69,8 @@ public class CablingTaskService {
                         .findFirst();
         if (ncpField.isPresent()) {
             return getResultFromNcpJob(ncpField.get(), issue.getDescription());
-        } else {
-            return issue.getDescription();
         }
+        return issue.getDescription();
     }
 
     public String getResultFromNcpJob(String jobId, String fallbackResult) {
@@ -209,7 +208,6 @@ public class CablingTaskService {
                     break;
             }
         }
-
         FieldInput rmaFieldInput =
                 new FieldInput(rmaFieldId, ComplexIssueInputFieldValue.with("value", "No"));
         fieldInputList.add(rmaFieldInput);
@@ -350,8 +348,7 @@ public class CablingTaskService {
             String building, String block, String rackSerialNumber) {
         String cableValidationJql = String.format(JQL + FINAL_VALIDATION, building, block);
         if (rackSerialNumber != null) {
-            cableValidationJql =
-                    cableValidationJql + String.format(SERIAL_NUMBER, rackSerialNumber);
+            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
@@ -360,8 +357,7 @@ public class CablingTaskService {
             String building, String block, String rackSerialNumber) {
         String cableValidationJql = String.format(JQL + GPU_VALIDATION, building, block);
         if (rackSerialNumber != null) {
-            cableValidationJql =
-                    cableValidationJql + String.format(SERIAL_NUMBER, rackSerialNumber);
+            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
@@ -370,7 +366,7 @@ public class CablingTaskService {
             String building, String block, String rackSerialNumber) {
         String initialCablingJql = String.format(JQL + RACK_DEPLOYMENT, building, block);
         if (rackSerialNumber != null) {
-            initialCablingJql = initialCablingJql + String.format(SERIAL_NUMBER, rackSerialNumber);
+            initialCablingJql += String.format(SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }

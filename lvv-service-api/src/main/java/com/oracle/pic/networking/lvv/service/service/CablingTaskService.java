@@ -118,6 +118,14 @@ public class CablingTaskService {
                     break;
                 }
             }
+            if (rackSerialNumber == null) {
+                for (IssueField issueField : issue.getFields()) {
+                    if (issueField.getName().equals("Serial Number")) {
+                        rackSerialNumber = issueField.getValue().toString();
+                        break;
+                    }
+                }
+            }
             InitialCablingTaskDetails initialCablingTaskDetails =
                     new InitialCablingTaskDetails(
                             issue.getKey(), building, block, rackLocation, rackSerialNumber);

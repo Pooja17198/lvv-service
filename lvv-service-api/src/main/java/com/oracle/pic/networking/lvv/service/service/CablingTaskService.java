@@ -317,30 +317,30 @@ public class CablingTaskService {
 
     private List<OpticsFailure> getOpticsFailureList(String line) {
         List<OpticsFailure> opticsFailureList = new LinkedList<>();
-        String deviceString = "device':'";
+        String deviceString = "device\": \"";
         int startIndex = line.indexOf(deviceString);
         while (startIndex != -1) {
-            int endIndex = line.indexOf("'", startIndex + deviceString.length());
+            int endIndex = line.indexOf("\"", startIndex + deviceString.length());
             String device = line.substring(startIndex + deviceString.length(), endIndex);
 
-            String intfNameString = "intf_name':'";
+            String intfNameString = "intf_name\": \"";
             startIndex = line.indexOf(intfNameString, endIndex + 1);
-            endIndex = line.indexOf("'", startIndex + intfNameString.length());
+            endIndex = line.indexOf("\"", startIndex + intfNameString.length());
             String intfName = line.substring(startIndex + intfNameString.length(), endIndex);
 
-            String inputPowerString = "input_power':'";
+            String inputPowerString = "input_power\": \"";
             startIndex = line.indexOf(inputPowerString, endIndex + 1);
-            endIndex = line.indexOf("'", startIndex + inputPowerString.length());
+            endIndex = line.indexOf("\"", startIndex + inputPowerString.length());
             String inputPower = line.substring(startIndex + inputPowerString.length(), endIndex);
 
-            String outputPowerString = "output_power':'";
+            String outputPowerString = "output_power\": \"";
             startIndex = line.indexOf(outputPowerString, endIndex + 1);
-            endIndex = line.indexOf("'", startIndex + outputPowerString.length());
+            endIndex = line.indexOf("\"", startIndex + outputPowerString.length());
             String outputPower = line.substring(startIndex + outputPowerString.length(), endIndex);
 
-            String devicePhysString = "device_phys':'";
+            String devicePhysString = "device_phys\": \"";
             startIndex = line.indexOf(devicePhysString, endIndex + 1);
-            endIndex = line.indexOf("'", startIndex + devicePhysString.length());
+            endIndex = line.indexOf("\"", startIndex + devicePhysString.length());
             String devicePhys = line.substring(startIndex + devicePhysString.length(), endIndex);
 
             OpticsFailure opticsFailure =

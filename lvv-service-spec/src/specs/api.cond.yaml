@@ -502,6 +502,11 @@ definitions:
       deviceUnreachableFailures:
         description: Show Devices that are unreachable Failures.
         type: string
+      invalidTransceiverFailures:
+        description: An array of invalid transceiver Failures.
+        type: array
+        items:
+          $ref: '#/definitions/InvalidTransceiverFailure'
   LldpFailure:
     description: Details for each lldp failure.
     type: object

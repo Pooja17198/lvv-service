@@ -15,6 +15,7 @@ import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.GpuLldpFailure;
 import com.oracle.pic.networking.lvv.service.model.InitialCablingTaskDetails;
+import com.oracle.pic.networking.lvv.service.model.InvalidTransceiverFailure;
 import com.oracle.pic.networking.lvv.service.model.LldpFailure;
 import com.oracle.pic.networking.lvv.service.model.OpticsFailure;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
@@ -242,6 +243,7 @@ public class CablingTaskService {
     private CableValidationFailureTasks getResultFromIssueDescription(Issue issue) {
         List<LldpFailure> lldpFailureList = new LinkedList<>();
         List<OpticsFailure> opticsFailureList = new LinkedList<>();
+        List<InvalidTransceiverFailure> invalidTransceiverFailureList = new LinkedList<>();
         List<GpuLldpFailure> gpuLldpFailureList = new LinkedList<>();
         String devicesUnreachable = "";
         String description = issue.getDescription();
@@ -258,17 +260,18 @@ public class CablingTaskService {
                     line = scanner.nextLine();
                     opticsFailureList.addAll(this.getOpticsFailureList(line));
                 }
-                if (line.contains("needs to be connected to")) {
-                    gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
+                if (line.contains("*Failed:* test_invalid_transceiver")) {
+                    line = scanner.nextLine();
+                    invalidTransceiverFailureList.addAll(
+                            this.getInvalidTransceiverFailureList(line));
                 }
             }
             cableValidationFailureTasks =
                     CableValidationFailureTasks.builder()
                             .lldpFailures(lldpFailureList)
                             .opticsFailures(opticsFailureList)
-                            .gpuLldpFailures(gpuLldpFailureList)
+                            .invalidTransceiverFailures(invalidTransceiverFailureList)
                             .build();
-
         } else if (description.contains("Validation Progress: None")) {
             Scanner scanner = new Scanner(new StringReader(description));
             while (scanner.hasNext()) {
@@ -381,6 +384,13 @@ public class CablingTaskService {
             startIndex = line.indexOf(deviceString, endIndex + 1);
         }
         return opticsFailureList;
+    }
+
+    private List<InvalidTransceiverFailure> getInvalidTransceiverFailureList(String line) {
+        List<InvalidTransceiverFailure> invalidTransceiverFailureList = new LinkedList<>();
+        InvalidTransceiverFailure invalidTransceiverFailure = new InvalidTransceiverFailure(line);
+        invalidTransceiverFailureList.add(invalidTransceiverFailure);
+        return invalidTransceiverFailureList;
     }
 
     private SearchResult searchCableValidationTickets(

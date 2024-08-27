@@ -243,27 +243,58 @@ public class CablingTaskService {
         List<LldpFailure> lldpFailureList = new LinkedList<>();
         List<OpticsFailure> opticsFailureList = new LinkedList<>();
         List<GpuLldpFailure> gpuLldpFailureList = new LinkedList<>();
+        String devicesUnreachable = "";
         String description = issue.getDescription();
-        Scanner scanner = new Scanner(new StringReader(description));
-        while (scanner.hasNext()) {
-            String line = scanner.nextLine();
-            if (line.contains("LLDP Failures")) {
-                lldpFailureList.addAll(this.getLldpFailureList(line));
+        CableValidationFailureTasks cableValidationFailureTasks = null;
+        assert description != null;
+        if (description.contains("Validation Progress: completed")) {
+            Scanner scanner = new Scanner(new StringReader(description));
+            while (scanner.hasNext()) {
+                String line = scanner.nextLine();
+                if (line.contains("LLDP Failures")) {
+                    lldpFailureList.addAll(this.getLldpFailureList(line));
+                }
+                if (line.contains("*Failed:* test_optics")) {
+                    line = scanner.nextLine();
+                    opticsFailureList.addAll(this.getOpticsFailureList(line));
+                }
+                if (line.contains("needs to be connected to")) {
+                    gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
+                }
             }
-            if (line.contains("*Failed:* test_optics")) {
-                line = scanner.nextLine();
-                opticsFailureList.addAll(this.getOpticsFailureList(line));
+            cableValidationFailureTasks =
+                    CableValidationFailureTasks.builder()
+                            .lldpFailures(lldpFailureList)
+                            .opticsFailures(opticsFailureList)
+                            .gpuLldpFailures(gpuLldpFailureList)
+                            .build();
+
+        } else if (description.contains("Validation Progress: None")) {
+            Scanner scanner = new Scanner(new StringReader(description));
+            while (scanner.hasNext()) {
+                String line = scanner.nextLine();
+                if (line.contains("Validation Status: devicesunreachable")) {
+                    devicesUnreachable = scanner.nextLine();
+                }
             }
-            if (line.contains("needs to be connected to")) {
-                gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
+            cableValidationFailureTasks =
+                    CableValidationFailureTasks.builder()
+                            .deviceUnreachableFailures(devicesUnreachable)
+                            .build();
+        } else if (description.contains("Compute Product Validation")) {
+            Scanner scanner = new Scanner(new StringReader(description));
+            while (scanner.hasNext()) {
+                String line = scanner.nextLine();
+                if (line.contains("needs to be connected to")) {
+                    gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
+                }
             }
+            cableValidationFailureTasks =
+                    CableValidationFailureTasks.builder()
+                            .gpuLldpFailures(gpuLldpFailureList)
+                            .build();
         }
-        CableValidationFailureTasks cableValidationFailureTasks =
-                CableValidationFailureTasks.builder()
-                        .lldpFailures(lldpFailureList)
-                        .opticsFailures(opticsFailureList)
-                        .gpuLldpFailures(gpuLldpFailureList)
-                        .build();
+
         return cableValidationFailureTasks;
     }
 

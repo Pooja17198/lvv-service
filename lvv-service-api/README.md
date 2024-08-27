@@ -86,7 +86,7 @@ Follow the following steps for testing the service locally using Kiev-in-a-box
       1. Create projects using PUT by providing the projectId and json body:
       
          ```
-         curl --header "Content-Type: application/json"   --request PUT --data '{"project": { "vendorName": "vendor2", "building": "112", "block": "029", "type": "cabling"}}' http://localhost:21000/lvv/projects/DO116
+         curl --header "Content-Type: application/json" --request PUT --data '{"project": { "vendorName": "vendor2", "building": "112", "block": "029", "type": "cabling"}}' http://localhost:21000/lvv/projects/DO116
          ```
       2. Get project using GET by providing the project Id:
       
@@ -108,7 +108,7 @@ Follow the following steps for testing the service locally using Kiev-in-a-box
 ssh operator-access-token.svc.ad1.us-ashburn-1 'generate --mode=password'
 ```
 Here is the full guideline of JIT in case the above command is out of date https://confluence.oci.oraclecorp.com/display/SS/JIT+%28Just+in+Time%29+Password+Service+User+Guide
-3. Put the genearted password in src/main/resources/jira-sd-test-password (without the last %)
+3. Put the generated password in src/main/resources/jira-sd-test-password (without the last %)
 4. Put your OCI email in src/main/resources/jira-sd-test-username, for example a.b@oracle.com
 5. Now you can run the service, should be able to call to Jira
 6. Remember don't commit these two files to git

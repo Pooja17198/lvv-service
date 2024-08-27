@@ -499,6 +499,9 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/GpuLldpFailure'
+      deviceUnreachableFailures:
+        description: Show Devices that are unreachable Failures.
+        type: string
   LldpFailure:
     description: Details for each lldp failure.
     type: object
@@ -544,6 +547,13 @@ definitions:
       devicePhys:
         type: string
         description: device phys.
+  InvalidTransceiverFailure:
+    description: Details for each invalid transceiver failure.
+    type: object
+    properties:
+      errorMessage:
+        type: string
+        description: errorMessage.
   ResolveValidationFailureTaskResponse:
     description: ResolveValidationFailureTaskResponse.
     type: object

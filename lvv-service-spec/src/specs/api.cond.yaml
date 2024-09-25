@@ -368,10 +368,293 @@ paths:
             $ref: '#/definitions/ResolveValidationFailureTaskResponse'
         default:
           $ref: '#/responses/Error'
+  /buildings:
+    get:
+      tags: [ 'storekeeper' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
 
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
+      summary: List buildings
+      operationId: ListBuildings
+      parameters:
+        - $ref: '#/parameters/RegionNameQueryParam'
+      responses:
+        200:
+          description: List of buildings
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Building'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
+  /blocks:
+    get:
+      tags: [ 'storekeeper' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
+      summary: List blocks
+      operationId: ListBlocks
+      parameters:
+        - $ref: '#/parameters/BuildingNameQueryParam'
+      responses:
+        200:
+          description: List of buildings
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Block'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
+  /assets/show:
+    get:
+      tags: [ 'storekeeper' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
+      summary: Show asset
+      operationId: GetAsset
+      parameters:
+        - $ref: '#/parameters/StorekeeperIdParam'
+      responses:
+        200:
+          description: Asset
+          schema:
+            $ref: '#/definitions/LvvAsset'
+
+  /racks:
+    get:
+      tags: [ 'storekeeper' ]
+      x-obmcs-splat:
+        authorization:
+          mode: none  # TODO: tiwatso this might need to be automated
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvvportal' ]
+
+
+      summary: List rack locations map
+      operationId: ListRacks
+      parameters:
+        - $ref: '#/parameters/BuildingNameQueryParam'
+        - $ref: '#/parameters/BlockNameQueryParam'
+      responses:
+        200:
+          description: List of rack locations map
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/LvvRack'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
 #==========[ Definitions ]================================================================================================
 
 definitions:
+  # RackLocationMap in sk yaml
+  LvvRack:
+    type: object
+    required:
+      - rack_number
+    properties:
+      availability_domain_name:
+        type: string
+      region_name:
+        type: string
+      rack_number:
+        type: string
+      ticket_number:
+        type: string
+      storekeeper_id:
+        type: string
+      actual_rack_serial:
+        type: string
+      rack_state:
+        type: string
+      power_status:
+        type: boolean
+      infrastructure_status:
+        type: boolean
+      activation_status:
+        type: boolean
+      rack_serial:
+        type: string
+      power_allocation:
+        type: number
+        format: float
+      network_ports_allocation:
+        type: integer
+        format: int32
+      platform_name:
+        type: string
+      platform_type:
+        type: string
+  LvvAsset:
+    type: object
+    required:
+      - storekeeper_id
+      - owner
+      - part_no
+      - version
+    properties:
+      region_name:
+        type: string
+      region_canonical_name:
+        type: string
+      building_canonical_name:
+        type: string
+      building_name:
+        type: string
+      room_canonical_name:
+        type: string
+      availability_domain_canonical_short_code:
+        type: string
+      description:
+        type: string
+      part_no:
+        type: string
+      serial:
+        type: string
+      type:
+        type: string
+      elevation:
+        type: integer
+      height:
+        type: integer
+      state:
+        type: string
+      tag:
+        type: string
+      sales_order:
+        type: string
+      purchase_order:
+        type: string
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+      version:
+        type: integer
+      storekeeper_id:
+        type: string
+      destroy_id:
+        type: integer
+      rack_number:
+        type: string
+      slot:
+        type: string
+      oracle_asset_id:
+        type: string
+      shipped_date:
+        type: string
+        format: date-time
+      received_date:
+        type: string
+        format: date-time
+      installed_date:
+        type: string
+        format: date-time
+      power_on_date:
+        type: string
+        format: date-time
+      available_date:
+        type: string
+        format: date-time
+      retired_date:
+        type: string
+        format: date-time
+      reclamation_date:
+        type: string
+        format: date-time
+      oracle_part_no:
+        type: string
+
+  Building:
+    type: object
+    required:
+      - name
+      - canonical_name
+    properties:
+      name:
+        type: string
+      canonical_name:
+        type: string
+  Block:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        type: string
   Error:
     type: object
     required:
@@ -569,6 +852,60 @@ definitions:
 
 #==========[ Parameters ]================================================================================================
 parameters:
+  BlockNameQueryParam:
+    name: blockName
+    in: query
+    description: Filter results by block_name
+    required: false
+    type: string
+  StorekeeperIdParam:
+    name: storekeeperId
+    in: query
+    description: The storekeeper_id, optional query param
+    required: false
+    type: string
+  BuildingNameQueryParam:
+    name: buildingName
+    in: query
+    description: Filter results by the building_name
+    required: false
+    type: string
+  DetailQueryParam:
+    name: details
+    in: query
+    description: Show details
+    required: false
+    type: string
+  PageTokenQueryParam:
+    name: page_token
+    type: string
+    in: query
+    description: The page token used to retrieve a page.
+  BuildingProviderQueryParam:
+    name: building_provider
+    in: query
+    description: Filter results by the building_provider
+    required: false
+    type: string
+  NumResultsQueryParam:
+    name: num_results
+    type: integer
+    in: query
+    description: The number of results to return from the request
+    minimum: 1
+    maximum: 50
+  RegionNameQueryParam:
+    name: regionName
+    in: query
+    description: Filter results by the region_name
+    required: false
+    type: string
+  AvailabilityDomainNameQueryParam:
+    name: availability_domain_name
+    in: query
+    description: Filter results by the availability_domain_name
+    required: false
+    type: string
   PutProjectRequestBodyParam:
     name: value
     in: body

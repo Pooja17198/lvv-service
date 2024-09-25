@@ -43,6 +43,8 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
 
     @NotNull private NcpServiceConfiguration ncpServiceConfiguration;
 
+    @NotNull private StoreKeeperClientConfig skConfig;
+
     public void validateAdAndRegionConfiguration() {
         Validate.isTrue(getLocation().isValid());
     }

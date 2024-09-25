@@ -49,7 +49,10 @@ import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
 import com.oracle.pic.networking.ncp.JobsClient;
+import com.oracle.pic.storekeeper.StoreKeeper;
+import com.oracle.pic.storekeeper.StoreKeeperClient;
 import com.oracle.pic.telemetry.overlay.metrics.MetricsModules;
 import com.oracle.pic.vault.MockAuthenticationDetailsProvider;
 import com.oracle.pic.vault.VaultClient;
@@ -81,6 +84,7 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(NcpServiceConfiguration.class).toInstance(config.getNcpServiceConfiguration());
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
+        bind(StoreKeeperService.class).in(Singleton.class);
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
@@ -263,6 +267,22 @@ public class LvvServiceApiModule extends AbstractModule {
             default:
                 return InstancePrincipalsAuthenticationDetailsProvider.builder().build();
         }
+    }
+
+    @Provides
+    @Singleton
+    public StoreKeeper skClient() {
+        BasicAuthenticationDetailsProvider authProvider;
+
+        if (config.getStage().equals("DEVELOPMENT")) {
+            authProvider = new MockAuthenticationDetailsProvider();
+        } else {
+            authProvider = InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+        }
+
+        final StoreKeeperClient skClient = new StoreKeeperClient(authProvider, null);
+        skClient.setEndpoint(this.config.getSkConfig().getEndpoint());
+        return skClient;
     }
 
     @Named("NcpJobsClient")

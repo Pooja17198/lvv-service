@@ -18,6 +18,7 @@ import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
+import com.oracle.pic.networking.lvv.service.resources.StoreKeeperResource;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.sfw.internal.GeneratedApplicationHeartbeater;
@@ -58,6 +59,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
             ImmutableList.<Class<?>>builder()
                     .add(ProjectResource.class)
                     .add(CablingTaskResource.class)
+                    .add(StoreKeeperResource.class)
                     .build();
 
     /*

@@ -249,7 +249,7 @@ public class CablingTaskService {
         String description = issue.getDescription();
         CableValidationFailureTasks cableValidationFailureTasks = null;
         assert description != null;
-        if (description.contains("Validation Progress: completed")) {
+        if (description.contains("Validation Status: Failure")) {
             Scanner scanner = new Scanner(new StringReader(description));
             while (scanner.hasNext()) {
                 String line = scanner.nextLine();
@@ -272,7 +272,7 @@ public class CablingTaskService {
                             .opticsFailures(opticsFailureList)
                             .invalidTransceiverFailures(invalidTransceiverFailureList)
                             .build();
-        } else if (description.contains("Validation Progress: None")) {
+        } else if (description.contains("Validation Status: devicesunreachable")) {
             Scanner scanner = new Scanner(new StringReader(description));
             while (scanner.hasNext()) {
                 String line = scanner.nextLine();

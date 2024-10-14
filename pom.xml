@@ -31,7 +31,7 @@
     <!-- Treat any resources/sources as UTF-8 -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <nwauto-core-bom-version>0.1.73</nwauto-core-bom-version>
+    <nwauto-core-bom-version>0.1.74</nwauto-core-bom-version>
 
     <formatter-goal>apply</formatter-goal>
     <maven-toolchains-plugin-version>3.0.0</maven-toolchains-plugin-version>

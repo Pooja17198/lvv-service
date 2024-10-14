@@ -56,6 +56,9 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     @Getter(AccessLevel.NONE)
     private LocationOverride locationOverride;
 
+    private String dynamicCoreRegionsImportPath;
+    private String dynamicCoreRegionsImportOverridePath;
+
     @Getter @Setter private KaasStoreConfig kaasStoreConfig;
 
     @NotNull private AssetsConfiguration assets;

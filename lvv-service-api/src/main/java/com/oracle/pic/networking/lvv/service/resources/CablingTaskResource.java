@@ -45,6 +45,23 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
     }
 
     @Override
+    public CablingTaskCollection getClosedCablingTasks(
+            String building,
+            String block,
+            String rackLocation,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+        try (MetricsScope scope = MetricsScope.create("getClosedCablingTasks")) {
+            scope.emit("volume", 1.0);
+            CablingTaskCollection collection =
+                    this.cablingTaskService.getClosedCablingTasks(building, block, rackLocation);
+            scope.recordSuccess();
+            return collection;
+        }
+    }
+
+    @Override
     public ResolveValidationFailureTaskResponse resolveValidationFailureTask(
             String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope = MetricsScope.create("resolveValidationFailureTask")) {

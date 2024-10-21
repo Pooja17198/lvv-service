@@ -26,6 +26,7 @@ public class CablingTaskResourceTest {
     private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
     private static final String OPC_REQUEST_ID = "opcRequestId";
     private static final String TASK_ID = "DO-1191815";
+    private static final String RACK_LOCATION = "1403";
     private static final String NCPJOB_ID = "e760441d-4dd7-4925-b3b4-3f90fa40283e";
 
     @Mock private Principal principalMock;
@@ -51,6 +52,21 @@ public class CablingTaskResourceTest {
                 this.principalMock,
                 this.authorizationRequestMock);
         verify(this.mockedCablingTaskService).getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
+    }
+
+    @Test
+    public void shouldGetClosedCablingTasks() {
+        CablingTaskCollection cablingTaskCollection = mock();
+        when(this.mockedCablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION))
+                .thenReturn(cablingTaskCollection);
+        this.cablingTaskResource.getClosedCablingTasks(
+                BUILDING,
+                BLOCK,
+                RACK_LOCATION,
+                OPC_REQUEST_ID,
+                this.principalMock,
+                this.authorizationRequestMock);
+        verify(this.mockedCablingTaskService).getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION);
     }
 
     @Test

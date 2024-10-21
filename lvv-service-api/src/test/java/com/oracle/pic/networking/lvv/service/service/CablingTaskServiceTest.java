@@ -37,6 +37,7 @@ public class CablingTaskServiceTest {
     private static final String BUILDING = "PHX1";
     private static final String BLOCK = "15";
     private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
+    private static final String RACK_LOCATION = "1403";
     private static final String CABLE_VALIDATION_TICKET_DESCRIPTION = "Ticket Description";
     private static final String GPU_CABLE_VALIDATION_TICKET_DESCRIPTION = "GPU Ticket Description";
     private static final String TASK_ID = "DO-1191815";
@@ -188,6 +189,56 @@ public class CablingTaskServiceTest {
     }
 
     @Test
+    public void shouldGetClosedCableValidationTasks() {
+        String closedCableValidationJql =
+                String.format(
+                        cablingTaskService.JQL_CLOSED
+                                + cablingTaskService.FINAL_VALIDATION
+                                + cablingTaskService.RACK_LOCATION,
+                        BUILDING,
+                        BLOCK,
+                        RACK_LOCATION);
+        List<Issue> closedCableValidationTickets = new LinkedList<>();
+        Issue closedCableValidationTicket = mock();
+        when(closedCableValidationTicket.getDescription())
+                .thenReturn(CABLE_VALIDATION_TICKET_DESCRIPTION);
+        IssueField issueField = new IssueField("id", "name", "type", RACK_LOCATION);
+        List<IssueField> issueFields = new LinkedList<>();
+        issueFields.add(issueField);
+        when(closedCableValidationTicket.getFields()).thenReturn(issueFields);
+        closedCableValidationTickets.add(closedCableValidationTicket);
+        SearchResult closedCableValidationSearchResult =
+                new SearchResult(0, 1, 1, closedCableValidationTickets);
+        when(this.mockedJiraSDService.searchJiraSD(eq(closedCableValidationJql)))
+                .thenReturn(closedCableValidationSearchResult);
+
+        // Setup initial cabling search results
+        String closedInitialCablingJql =
+                String.format(
+                        cablingTaskService.JQL_CLOSED
+                                + cablingTaskService.RACK_DEPLOYMENT
+                                + cablingTaskService.RACK_LOCATION,
+                        BUILDING,
+                        BLOCK,
+                        RACK_LOCATION);
+        List<Issue> closedInitialCablingTickets = new LinkedList<>();
+        SearchResult closedInitialCablingSearchResult =
+                new SearchResult(0, 0, 0, closedInitialCablingTickets);
+        when(this.mockedJiraSDService.searchJiraSD(closedInitialCablingJql))
+                .thenReturn(closedInitialCablingSearchResult);
+
+        CablingTaskCollection cablingTaskCollection =
+                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION);
+
+        verify(this.mockedJiraSDService, times(1)).searchJiraSD(closedCableValidationJql);
+        verify(this.mockedJiraSDService, times(1)).searchJiraSD(closedInitialCablingJql);
+        assertEquals(0, cablingTaskCollection.getInitialCablingTasks().size());
+        assertEquals(
+                CABLE_VALIDATION_TICKET_DESCRIPTION,
+                cablingTaskCollection.getValidationFailureTasks().get(0).getFailureReason());
+    }
+
+    @Test
     public void shouldResolveValidationFailureTask() {
         Issue issueMock = mock();
         when(this.mockedJiraSDService.getIssue(eq(TASK_ID))).thenReturn(issueMock);
@@ -225,6 +276,22 @@ public class CablingTaskServiceTest {
 
         assertEquals(1, cablingTaskCollection.getInitialCablingTasks().size());
         assertEquals(2, cablingTaskCollection.getValidationFailureTasks().size());
+    }
+
+    @Test
+    public void shouldGetClosedCablingTasks() {
+        Issue mockIssue = Mockito.mock(Issue.class);
+        List<Issue> mockIssues = new LinkedList<>();
+        mockIssues.add(mockIssue);
+
+        SearchResult mockResult = new SearchResult(0, 1, 1, mockIssues);
+        when(this.mockedJiraSDService.searchJiraSD(anyString())).thenReturn(mockResult);
+
+        CablingTaskCollection cablingTaskCollection =
+                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION);
+
+        assertEquals(1, cablingTaskCollection.getInitialCablingTasks().size());
+        assertEquals(1, cablingTaskCollection.getValidationFailureTasks().size());
     }
 
     @Test

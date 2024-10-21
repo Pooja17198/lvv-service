@@ -38,10 +38,13 @@ public class CablingTaskService {
 
     public static final String JQL =
             "project = \"DO\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = %s AND Block ~ %s";
+    public static final String JQL_CLOSED =
+            "project = \"DO\" AND status in (Closed, Resolved) AND Building = %s AND Block ~ %s";
     public static final String FINAL_VALIDATION = " AND summary ~ FinalRackValidation";
     public static final String GPU_VALIDATION = " AND summary ~ \"NA Cable Validation Failure\"";
     public static final String RACK_DEPLOYMENT = " AND summary ~ \"Rack Deployment\"";
     public static final String SERIAL_NUMBER = " AND \"Serial Number\" ~ %s";
+    public static final String RACK_LOCATION = " AND \"Rack Location\" ~ %s";
 
     @Inject
     public CablingTaskService(
@@ -130,6 +133,48 @@ public class CablingTaskService {
             InitialCablingTaskDetails initialCablingTaskDetails =
                     new InitialCablingTaskDetails(
                             issue.getKey(), building, block, rackLocation, rackSerialNumber);
+            initialCablingTaskDetailsList.add(initialCablingTaskDetails);
+        }
+
+        CablingTaskCollection cablingTaskCollection =
+                new CablingTaskCollection(
+                        initialCablingTaskDetailsList, validationFailureTaskDetailsLinkedList);
+        return cablingTaskCollection;
+    }
+
+    public CablingTaskCollection getClosedCablingTasks(
+            String building, String block, String rackLocation) {
+        // Search the tickets with cable validation task
+        log.info(
+                "Get closed  cabling tasks building {} block {} rackLocation {}",
+                building,
+                block,
+                rackLocation);
+
+        SearchResult cableValidationTickets =
+                this.searchClosedCableValidationTickets(building, block, rackLocation);
+        List<ValidationFailureTaskDetails> validationFailureTaskDetailsLinkedList =
+                new LinkedList<>();
+        for (Issue issue : cableValidationTickets.getIssues()) {
+            ValidationFailureTaskDetails validationFailureTaskDetails =
+                    new ValidationFailureTaskDetails(
+                            issue.getKey(),
+                            building,
+                            block,
+                            rackLocation,
+                            null,
+                            issue.getDescription());
+            validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
+        }
+
+        // Search the tickets with initial cabling task
+        SearchResult initialCablingTickets =
+                this.searchClosedInitialCablingTickets(building, block, rackLocation);
+        List<InitialCablingTaskDetails> initialCablingTaskDetailsList = new LinkedList<>();
+        for (Issue issue : initialCablingTickets.getIssues()) {
+            InitialCablingTaskDetails initialCablingTaskDetails =
+                    new InitialCablingTaskDetails(
+                            issue.getKey(), building, block, rackLocation, null);
             initialCablingTaskDetailsList.add(initialCablingTaskDetails);
         }
 
@@ -417,6 +462,28 @@ public class CablingTaskService {
         if (rackSerialNumber != null) {
             initialCablingJql += String.format(SERIAL_NUMBER, rackSerialNumber);
         }
+        return this.jiraSDService.searchJiraSD(initialCablingJql);
+    }
+
+    private SearchResult searchClosedCableValidationTickets(
+            String building, String block, String rackLocation) {
+        String cableValidationJql =
+                String.format(
+                        JQL_CLOSED + FINAL_VALIDATION + RACK_LOCATION,
+                        building,
+                        block,
+                        rackLocation);
+        return this.jiraSDService.searchJiraSD(cableValidationJql);
+    }
+
+    private SearchResult searchClosedInitialCablingTickets(
+            String building, String block, String rackLocation) {
+        String initialCablingJql =
+                String.format(
+                        JQL_CLOSED + RACK_DEPLOYMENT + RACK_LOCATION,
+                        building,
+                        block,
+                        rackLocation);
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }
 }

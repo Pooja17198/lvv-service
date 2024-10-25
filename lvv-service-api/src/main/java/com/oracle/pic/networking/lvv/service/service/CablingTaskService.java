@@ -44,7 +44,6 @@ public class CablingTaskService {
     public static final String GPU_VALIDATION = " AND summary ~ \"NA Cable Validation Failure\"";
     public static final String RACK_DEPLOYMENT = " AND summary ~ \"Rack Deployment\"";
     public static final String SERIAL_NUMBER = " AND \"Serial Number\" ~ %s";
-    public static final String RACK_LOCATION = " AND \"Rack Location\" ~ %s";
 
     @Inject
     public CablingTaskService(
@@ -143,38 +142,62 @@ public class CablingTaskService {
     }
 
     public CablingTaskCollection getClosedCablingTasks(
-            String building, String block, String rackLocation) {
+            String building, String block, String rackSerialNumber) {
         // Search the tickets with cable validation task
         log.info(
-                "Get closed  cabling tasks building {} block {} rackLocation {}",
+                "Get closed  cabling tasks building {} block {} rackSerialNumber {}",
                 building,
                 block,
-                rackLocation);
+                rackSerialNumber);
 
         SearchResult cableValidationTickets =
-                this.searchClosedCableValidationTickets(building, block, rackLocation);
+                this.searchClosedCableValidationTickets(building, block, rackSerialNumber);
+        SearchResult initialCablingTickets =
+                this.searchClosedInitialCablingTickets(building, block, rackSerialNumber);
+
         List<ValidationFailureTaskDetails> validationFailureTaskDetailsLinkedList =
                 new LinkedList<>();
         for (Issue issue : cableValidationTickets.getIssues()) {
+            String rackLocation = null;
+            rackSerialNumber = null;
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Rack Location")) {
+                    rackLocation = issueField.getValue().toString();
+                } else if (issueField.getName().equals("Serial Number")) {
+                    rackSerialNumber = issueField.getValue().toString();
+                }
+                if (rackLocation != null && rackSerialNumber != null) {
+                    break;
+                }
+            }
             ValidationFailureTaskDetails validationFailureTaskDetails =
                     new ValidationFailureTaskDetails(
                             issue.getKey(),
                             building,
                             block,
                             rackLocation,
-                            null,
+                            rackSerialNumber,
                             issue.getDescription());
             validationFailureTaskDetailsLinkedList.add(validationFailureTaskDetails);
         }
 
-        // Search the tickets with initial cabling task
-        SearchResult initialCablingTickets =
-                this.searchClosedInitialCablingTickets(building, block, rackLocation);
         List<InitialCablingTaskDetails> initialCablingTaskDetailsList = new LinkedList<>();
         for (Issue issue : initialCablingTickets.getIssues()) {
+            String rackLocation = null;
+            rackSerialNumber = null;
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Rack Location")) {
+                    rackLocation = issueField.getValue().toString();
+                } else if (issueField.getName().equals("Serial Number")) {
+                    rackSerialNumber = issueField.getValue().toString();
+                }
+                if (rackLocation != null && rackSerialNumber != null) {
+                    break;
+                }
+            }
             InitialCablingTaskDetails initialCablingTaskDetails =
                     new InitialCablingTaskDetails(
-                            issue.getKey(), building, block, rackLocation, null);
+                            issue.getKey(), building, block, rackLocation, rackSerialNumber);
             initialCablingTaskDetailsList.add(initialCablingTaskDetails);
         }
 
@@ -466,24 +489,20 @@ public class CablingTaskService {
     }
 
     private SearchResult searchClosedCableValidationTickets(
-            String building, String block, String rackLocation) {
-        String cableValidationJql =
-                String.format(
-                        JQL_CLOSED + FINAL_VALIDATION + RACK_LOCATION,
-                        building,
-                        block,
-                        rackLocation);
+            String building, String block, String rackSerialNumber) {
+        String cableValidationJql = String.format(JQL_CLOSED + FINAL_VALIDATION, building, block);
+        if (rackSerialNumber != null) {
+            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+        }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchClosedInitialCablingTickets(
-            String building, String block, String rackLocation) {
-        String initialCablingJql =
-                String.format(
-                        JQL_CLOSED + RACK_DEPLOYMENT + RACK_LOCATION,
-                        building,
-                        block,
-                        rackLocation);
+            String building, String block, String rackSerialNumber) {
+        String initialCablingJql = String.format(JQL_CLOSED + RACK_DEPLOYMENT, building, block);
+        if (rackSerialNumber != null) {
+            initialCablingJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+        }
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }
 }

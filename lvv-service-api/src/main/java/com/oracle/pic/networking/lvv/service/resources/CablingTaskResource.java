@@ -48,14 +48,15 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
     public CablingTaskCollection getClosedCablingTasks(
             String building,
             String block,
-            String rackLocation,
+            String rackSerialNumber,
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope = MetricsScope.create("getClosedCablingTasks")) {
             scope.emit("volume", 1.0);
             CablingTaskCollection collection =
-                    this.cablingTaskService.getClosedCablingTasks(building, block, rackLocation);
+                    this.cablingTaskService.getClosedCablingTasks(
+                            building, block, rackSerialNumber);
             scope.recordSuccess();
             return collection;
         }

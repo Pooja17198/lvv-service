@@ -323,7 +323,7 @@ paths:
       parameters:
         - $ref: '#/parameters/BuildingParam'
         - $ref: '#/parameters/BlockParam'
-        - $ref: '#/parameters/RackLocationParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
@@ -981,11 +981,6 @@ parameters:
     type: string
     in: query
     description: Serial number for a rack
-  RackLocationParam:
-    name: rackLocation
-    type: string
-    in: query
-    description: Location number for a rack
   VendorQueryParam:
     name: vendorName
     type: string

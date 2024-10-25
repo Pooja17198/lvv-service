@@ -37,7 +37,6 @@ public class CablingTaskServiceTest {
     private static final String BUILDING = "PHX1";
     private static final String BLOCK = "15";
     private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
-    private static final String RACK_LOCATION = "1403";
     private static final String CABLE_VALIDATION_TICKET_DESCRIPTION = "Ticket Description";
     private static final String GPU_CABLE_VALIDATION_TICKET_DESCRIPTION = "GPU Ticket Description";
     private static final String TASK_ID = "DO-1191815";
@@ -194,15 +193,15 @@ public class CablingTaskServiceTest {
                 String.format(
                         cablingTaskService.JQL_CLOSED
                                 + cablingTaskService.FINAL_VALIDATION
-                                + cablingTaskService.RACK_LOCATION,
+                                + cablingTaskService.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
-                        RACK_LOCATION);
+                        RACK_SERIAL_NUMBER);
         List<Issue> closedCableValidationTickets = new LinkedList<>();
         Issue closedCableValidationTicket = mock();
         when(closedCableValidationTicket.getDescription())
                 .thenReturn(CABLE_VALIDATION_TICKET_DESCRIPTION);
-        IssueField issueField = new IssueField("id", "name", "type", RACK_LOCATION);
+        IssueField issueField = new IssueField("id", "name", "type", RACK_SERIAL_NUMBER);
         List<IssueField> issueFields = new LinkedList<>();
         issueFields.add(issueField);
         when(closedCableValidationTicket.getFields()).thenReturn(issueFields);
@@ -217,10 +216,10 @@ public class CablingTaskServiceTest {
                 String.format(
                         cablingTaskService.JQL_CLOSED
                                 + cablingTaskService.RACK_DEPLOYMENT
-                                + cablingTaskService.RACK_LOCATION,
+                                + cablingTaskService.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
-                        RACK_LOCATION);
+                        RACK_SERIAL_NUMBER);
         List<Issue> closedInitialCablingTickets = new LinkedList<>();
         SearchResult closedInitialCablingSearchResult =
                 new SearchResult(0, 0, 0, closedInitialCablingTickets);
@@ -228,7 +227,7 @@ public class CablingTaskServiceTest {
                 .thenReturn(closedInitialCablingSearchResult);
 
         CablingTaskCollection cablingTaskCollection =
-                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION);
+                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
 
         verify(this.mockedJiraSDService, times(1)).searchJiraSD(closedCableValidationJql);
         verify(this.mockedJiraSDService, times(1)).searchJiraSD(closedInitialCablingJql);
@@ -288,7 +287,7 @@ public class CablingTaskServiceTest {
         when(this.mockedJiraSDService.searchJiraSD(anyString())).thenReturn(mockResult);
 
         CablingTaskCollection cablingTaskCollection =
-                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_LOCATION);
+                this.cablingTaskService.getClosedCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
 
         assertEquals(1, cablingTaskCollection.getInitialCablingTasks().size());
         assertEquals(1, cablingTaskCollection.getValidationFailureTasks().size());

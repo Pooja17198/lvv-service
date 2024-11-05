@@ -115,18 +115,17 @@ public class CablingTaskService {
                 this.searchInitialCablingTickets(building, block, rackSerialNumber);
         for (Issue issue : initialCablingTickets.getIssues()) {
             String rackLocation = null;
+            rackSerialNumber = null;
             for (IssueField issueField : issue.getFields()) {
                 if (issueField.getName().equals("Rack Location")) {
                     rackLocation = issueField.getValue().toString();
                     break;
                 }
             }
-            if (rackSerialNumber == null) {
-                for (IssueField issueField : issue.getFields()) {
-                    if (issueField.getName().equals("Serial Number")) {
-                        rackSerialNumber = issueField.getValue().toString();
-                        break;
-                    }
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Serial Number")) {
+                    rackSerialNumber = issueField.getValue().toString();
+                    break;
                 }
             }
             InitialCablingTaskDetails initialCablingTaskDetails =
@@ -216,7 +215,7 @@ public class CablingTaskService {
                 new LinkedList<>();
         for (Issue issue : cableValidationTickets.getIssues()) {
             // Populate rack serial number for search requests without rack serial number
-            String ticketRackSerialNumber = rackSerialNumber;
+            String ticketRackSerialNumber = null;
             String rackLocation = null;
             for (IssueField issueField : issue.getFields()) {
                 if (issueField.getName().equals("Rack Location")) {
@@ -224,12 +223,10 @@ public class CablingTaskService {
                     break;
                 }
             }
-            if (ticketRackSerialNumber == null) {
-                for (IssueField issueField : issue.getFields()) {
-                    if (issueField.getName().equals("Serial Number")) {
-                        ticketRackSerialNumber = issueField.getValue().toString();
-                        break;
-                    }
+            for (IssueField issueField : issue.getFields()) {
+                if (issueField.getName().equals("Serial Number")) {
+                    ticketRackSerialNumber = issueField.getValue().toString();
+                    break;
                 }
             }
             if (ticketRackSerialNumber == null) {

@@ -69,7 +69,7 @@
     -->
     <codegen.endpoint>lvv-service</codegen.endpoint>
 
-    <dropwizard-service-bom-version>2.1.46</dropwizard-service-bom-version>
+    <dropwizard-service-bom-version>3.0.29</dropwizard-service-bom-version>
   </properties>
 
   <build>

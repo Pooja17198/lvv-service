@@ -13,10 +13,10 @@ import com.oracle.pic.networking.lvv.service.canary.config.LvvServiceCanaryConfi
 import com.oracle.pic.networking.lvv.service.canary.config.LvvServiceCanaryModule;
 import com.oracle.pic.networking.lvv.service.canary.health.LvvServiceCanaryHealthCheck;
 // import com.oracle.pic.networking.lvv.service.canary.schedulers.CanaryScheduler;
-import io.dropwizard.Application;
+import io.dropwizard.core.Application;
+import io.dropwizard.core.setup.Bootstrap;
+import io.dropwizard.core.setup.Environment;
 import io.dropwizard.lifecycle.Managed;
-import io.dropwizard.setup.Bootstrap;
-import io.dropwizard.setup.Environment;
 import lombok.extern.slf4j.Slf4j;
 
 /** {@code LvvServiceCanary} */

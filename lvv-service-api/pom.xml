@@ -697,7 +697,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.4.0</version>
+        <version>3.6.0</version>
         <configuration>
           <!-- We shouldn't need the Dependency Reduced Pom.  Don't change it. -->
           <createDependencyReducedPom>false</createDependencyReducedPom>

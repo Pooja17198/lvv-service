@@ -1,7 +1,8 @@
 # Odo base image: https://confluence.oci.oraclecorp.com/x/7KbfFQ
-FROM ocr-docker-remote.artifactory.oci.oraclecorp.com/os/oraclelinux:7-slim
-COPY --from=odo-docker-signed-local.artifactory.oci.oraclecorp.com/base-image-support/ol7:1.20 / /
+FROM ocr-docker-remote.artifactory.oci.oraclecorp.com/os/oraclelinux:9
+COPY --from=odo-docker-signed-local.artifactory.oci.oraclecorp.com/base-image-support/ol9:1.37 / /
 ENTRYPOINT ["/sbin/simple_init.py"]
+RUN dnf install io-ol9-container-hardening && rm -rf /var/cache/yum
 
 ## TESTING ON YOUR DESKTOP
 # From the root directory of the service (where the pom.xml is...)
@@ -21,12 +22,13 @@ MAINTAINER <opc_nw_automation_dev_us_grp@oracle.com>
 # =============================================================================
 # Odo base image utils
 # =============================================================================
-RUN yum install -y lumberjack-chainsaw2-nodeps-noarch && \
-    yum install yum-plugin-versionlock && \
-    yum-config-manager --add-repo https://artifactory.oci.oraclecorp.com/graalvm-release-yum-local/ && \
-    yum install --setopt=obsoletes=0 graalvm21-ee-17-jdk && \
-    yum versionlock 'graalvm*' && \
-    yum clean all
+RUN dnf install -y lumberjack-chainsaw2-nodeps-noarch
+# https://confluence.oci.oraclecorp.com/display/GRAAL/GraalVM+Enterprise+ODO+Runtimes+Images
+RUN dnf install 'dnf-command(versionlock)' && \
+    dnf config-manager --add-repo https://artifactory.oci.oraclecorp.com/graalvm-release-yum-local/ && \
+    dnf install --setopt=obsoletes=0 graalvm21-ee-17-jdk && \
+    dnf versionlock add 'graalvm*' && \
+    dnf clean all
 
 # =============================================================================
 # Executables
@@ -118,13 +120,15 @@ EXPOSE 24000
 # =============================================================================
 # Install useful operational tools
 # =============================================================================
-RUN yum -y install less \
+RUN dnf -y install less \
     lsof \
     tcpdump \
     gnutls \
     openssl \
     vim-minimal \
-    && yum clean all
+    && dnf clean all
+
+RUN dnf -y update && dnf clean all
 
 # Fix ownership for files/paths that are written to at runtime
 RUN chown -R odosvc /etc/{sv,service,runit} /var/{log,cache} /run

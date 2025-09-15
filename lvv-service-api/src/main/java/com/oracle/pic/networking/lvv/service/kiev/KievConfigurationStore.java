@@ -13,6 +13,7 @@ import com.oracle.pic.networking.lvv.service.utils.KievConstants;
 import java.util.List;
 import java.util.Optional;
 import lombok.NonNull;
+import lombok.ToString;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Value
+@ToString
 public class KievConfigurationStore<K, V> implements ConfigurationStore<K, V> {
 
     private MappedDataStore mappedDataStore;
@@ -56,25 +58,28 @@ public class KievConfigurationStore<K, V> implements ConfigurationStore<K, V> {
 
     @Override
     public V createItem(@NonNull Transaction txn, @NonNull V entity) {
-        log.debug("Create Item  {}", entity.toString());
+        log.debug("Create Item  {}", entity);
         return bucket.insert(txn, entity);
     }
 
     @Override
     public V updateItem(@NonNull Transaction txn, @NonNull V entity) {
-        log.debug("Update Item  {}", entity.toString());
+        log.debug("Update Item  {}", entity);
         return bucket.put(txn, entity);
     }
 
     @Override
-    public V getItem(@NonNull K key) throws Exception {
+    public V getItem(@NonNull K key) throws RuntimeException {
+        log.debug("Get Item  {}", key);
         Optional<V> item = bucket.get(key);
         return item.map(v -> item.get())
-                .orElseThrow(() -> new Exception("Failed to retrieve item " + key.toString()));
+                .orElseThrow(
+                        () -> new RuntimeException("Failed to retrieve item " + key.toString()));
     }
 
     @Override
     public boolean deleteItem(@NonNull Transaction txn, @NonNull K key) {
+        log.debug("Delete Item  {}", key);
         Optional<V> item = bucket.get(txn, key);
         return item.map(
                         (v) -> {

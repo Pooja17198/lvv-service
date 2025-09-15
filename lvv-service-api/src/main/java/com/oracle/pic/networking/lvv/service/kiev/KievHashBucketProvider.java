@@ -4,6 +4,7 @@ import com.google.inject.Provider;
 import com.oracle.pic.kiev.mapping.MappedDataStore;
 import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import javax.inject.Inject;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
@@ -14,6 +15,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
  * @param <V> The entity class for object stored in kiev
  */
 @Slf4j
+@ToString
 public class KievHashBucketProvider<H, V> implements Provider<MappedHashBucket<H, V>> {
 
     private MappedDataStore dataStore;

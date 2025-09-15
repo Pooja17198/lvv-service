@@ -7,10 +7,11 @@ import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.atlassian.jira.rest.client.api.domain.input.ComplexIssueInputFieldValue;
 import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.google.inject.Inject;
-import com.google.inject.name.Named;
-import com.oracle.bmc.model.BmcException;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraQueries;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
-import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+// import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.GpuLldpFailure;
@@ -19,73 +20,94 @@ import com.oracle.pic.networking.lvv.service.model.InvalidTransceiverFailure;
 import com.oracle.pic.networking.lvv.service.model.LldpFailure;
 import com.oracle.pic.networking.lvv.service.model.OpticsFailure;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
-import com.oracle.pic.networking.ncp.model.Job;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Scanner;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@ToString
 public class CablingTaskService {
     private JiraSDService jiraSDService;
-    private NcpService ncpService;
-
-    public static final String JQL =
-            "project = \"DO\" AND status in (Open, \"In Progress\", Reopened, Pending) AND Building = %s AND Block ~ %s";
-    public static final String JQL_CLOSED =
-            "project = \"DO\" AND status in (Closed, Resolved) AND Building = %s AND Block ~ %s";
-    public static final String FINAL_VALIDATION = " AND summary ~ FinalRackValidation";
-    public static final String GPU_VALIDATION = " AND summary ~ \"NA Cable Validation Failure\"";
-    public static final String RACK_DEPLOYMENT = " AND summary ~ \"Rack Deployment\"";
-    public static final String SERIAL_NUMBER = " AND \"Serial Number\" ~ %s";
+    // private NcpService ncpService;
+    private BlockDetailsDao blockDetailsDao;
 
     @Inject
     public CablingTaskService(
-            JiraSDService jiraSDService, @Named("NcpServiceClient") NcpService ncpService) {
+            JiraSDService jiraSDService,
+            // @Named("NcpServiceClient") NcpService ncpService,
+            BlockDetailsDao blockDetailsDao) {
         this.jiraSDService = jiraSDService;
-        this.ncpService = ncpService;
+        // this.ncpService = ncpService;
+        this.blockDetailsDao = blockDetailsDao;
     }
 
     public String getResultFromIssueField(Issue issue) {
-        String descRegex = "(\\w+-\\w+-\\w+-\\w+-\\w+)";
-
-        Pattern pattern = Pattern.compile(descRegex);
-        Set<String> labels = issue.getLabels();
-        Optional<String> ncpField =
-                labels.stream()
-                        .filter(label -> label.startsWith("NCP_JOB_ID:"))
-                        .map(
-                                label -> {
-                                    Matcher matcher = pattern.matcher(label);
-                                    if (matcher.find()) {
-                                        return matcher.group(1);
-                                    }
-                                    return null;
-                                })
-                        .filter(Objects::nonNull)
-                        .findFirst();
-        if (ncpField.isPresent()) {
-            return getResultFromNcpJob(ncpField.get(), issue.getDescription());
-        }
+        //        String descRegex = "(\\w+-\\w+-\\w+-\\w+-\\w+)";
+        //
+        //        Pattern pattern = Pattern.compile(descRegex);
+        //        Set<String> labels = issue.getLabels();
+        //        Optional<String> ncpField =
+        //                labels.stream()
+        //                        .filter(label -> label.startsWith("NCP_JOB_ID:"))
+        //                        .map(
+        //                                label -> {
+        //                                    Matcher matcher = pattern.matcher(label);
+        //                                    if (matcher.find()) {
+        //                                        return matcher.group(1);
+        //                                    }
+        //                                    return null;
+        //                                })
+        //                        .filter(Objects::nonNull)
+        //                        .findFirst();
+        //        if (ncpField.isPresent()) {
+        //            return getResultFromNcpJob(ncpField.get(), issue.getDescription());
+        //        }
         return issue.getDescription();
     }
 
-    public String getResultFromNcpJob(String jobId, String fallbackResult) {
+    //    public String getResultFromNcpJob(String jobId, String fallbackResult) {
+    //        try {
+    //            Job ncpJobResult = ncpService.getNcpJob(jobId);
+    //            return ncpJobResult.toString();
+    //        } catch (BmcException e) {
+    //            log.error(
+    //                    "Exception occurred while processing ncp job id {}: error {}",
+    //                    jobId,
+    //                    e.toString());
+    //            return fallbackResult;
+    //        }
+    //    }
+
+    public CablingTaskCollection getCablingTasksForProject(String projectId) {
         try {
-            Job ncpJobResult = ncpService.getNcpJob(jobId);
-            return ncpJobResult.toString();
-        } catch (BmcException e) {
-            log.error(
-                    "Exception occurred while processing ncp job id {}: error {}",
-                    jobId,
-                    e.toString());
-            return fallbackResult;
+            List<BlockDetails> blockDetails = blockDetailsDao.getBlockDetailsForProject(projectId);
+
+            List<InitialCablingTaskDetails> initialCablingTaskDetails = new ArrayList<>();
+            List<ValidationFailureTaskDetails> validationFailureTaskDetails = new ArrayList<>();
+
+            for (BlockDetails blockItem : blockDetails) {
+                CablingTaskCollection cablingTasksForBlock =
+                        getCablingTasks(
+                                blockItem.getBlock().getBuilding(),
+                                blockItem.getBlock().getBlockNumber(),
+                                null);
+                initialCablingTaskDetails.addAll(cablingTasksForBlock.getInitialCablingTasks());
+                validationFailureTaskDetails.addAll(
+                        cablingTasksForBlock.getValidationFailureTasks());
+            }
+
+            return CablingTaskCollection.builder()
+                    .initialCablingTasks(initialCablingTaskDetails)
+                    .validationFailureTasks(validationFailureTaskDetails)
+                    .build();
+
+        } catch (Exception exception) {
+            log.info("Unable to fetch project {}", projectId);
+            return CablingTaskCollection.builder().build();
         }
     }
 
@@ -460,45 +482,52 @@ public class CablingTaskService {
 
     private SearchResult searchCableValidationTickets(
             String building, String block, String rackSerialNumber) {
-        String cableValidationJql = String.format(JQL + FINAL_VALIDATION, building, block);
+        String cableValidationJql =
+                String.format(JiraQueries.JQL + JiraQueries.FINAL_VALIDATION, building, block);
         if (rackSerialNumber != null) {
-            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+            cableValidationJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchGpuCableValidationTickets(
             String building, String block, String rackSerialNumber) {
-        String cableValidationJql = String.format(JQL + GPU_VALIDATION, building, block);
+        String cableValidationJql =
+                String.format(JiraQueries.JQL + JiraQueries.GPU_VALIDATION, building, block);
         if (rackSerialNumber != null) {
-            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+            cableValidationJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchInitialCablingTickets(
             String building, String block, String rackSerialNumber) {
-        String initialCablingJql = String.format(JQL + RACK_DEPLOYMENT, building, block);
+        String initialCablingJql =
+                String.format(JiraQueries.JQL + JiraQueries.RACK_DEPLOYMENT, building, block);
         if (rackSerialNumber != null) {
-            initialCablingJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+            initialCablingJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }
 
     private SearchResult searchClosedCableValidationTickets(
             String building, String block, String rackSerialNumber) {
-        String cableValidationJql = String.format(JQL_CLOSED + FINAL_VALIDATION, building, block);
+        String cableValidationJql =
+                String.format(
+                        JiraQueries.JQL_CLOSED + JiraQueries.FINAL_VALIDATION, building, block);
         if (rackSerialNumber != null) {
-            cableValidationJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+            cableValidationJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(cableValidationJql);
     }
 
     private SearchResult searchClosedInitialCablingTickets(
             String building, String block, String rackSerialNumber) {
-        String initialCablingJql = String.format(JQL_CLOSED + RACK_DEPLOYMENT, building, block);
+        String initialCablingJql =
+                String.format(
+                        JiraQueries.JQL_CLOSED + JiraQueries.RACK_DEPLOYMENT, building, block);
         if (rackSerialNumber != null) {
-            initialCablingJql += String.format(SERIAL_NUMBER, rackSerialNumber);
+            initialCablingJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
         }
         return this.jiraSDService.searchJiraSD(initialCablingJql);
     }

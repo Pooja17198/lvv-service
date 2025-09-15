@@ -8,7 +8,6 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
-import com.google.inject.name.Named;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
 import com.oracle.bmc.monitoring.MonitoringClient;
@@ -33,24 +32,27 @@ import com.oracle.pic.kiev.registry.data.ClientRegistryLocality;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
-import com.oracle.pic.networking.lvv.service.dependencies.ncp.MockNcpClients;
-import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
-import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpServiceConfiguration;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
 import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.KievHashBucketProvider;
-import com.oracle.pic.networking.lvv.service.kiev.KievManager;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
+import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
+import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
 import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
-import com.oracle.pic.networking.ncp.JobsClient;
 import com.oracle.pic.storekeeper.StoreKeeper;
 import com.oracle.pic.storekeeper.StoreKeeperClient;
 import com.oracle.pic.telemetry.overlay.metrics.MetricsModules;
@@ -80,13 +82,13 @@ public class LvvServiceApiModule extends AbstractModule {
     protected void configure() {
         log.info("Binding");
 
-        bind(NcpService.class).in(Singleton.class);
-        bind(NcpServiceConfiguration.class).toInstance(config.getNcpServiceConfiguration());
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
         bind(StoreKeeperService.class).in(Singleton.class);
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
+        bind(CablingValidationService.class).in(Singleton.class);
+        bind(NcpClientHelper.class).in(Singleton.class);
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
             bind(c).in(Singleton.class);
         }
@@ -104,14 +106,18 @@ public class LvvServiceApiModule extends AbstractModule {
                         .build());
 
         bindProjectBucket();
-        bind(ProjectService.class).in(Singleton.class);
-        bind(KievManager.class).in(Singleton.class);
+        bindValidationFailureResultBucket();
+        bindBlockDetailsBucket();
+        bind(ProjectItemDao.class).in(Singleton.class);
+        bind(ValidationFailureResultDao.class).in(Singleton.class);
+        bind(BlockDetailsDao.class).in(Singleton.class);
+        bind(ResourceModelTransformer.class).in(Singleton.class);
     }
 
     private void bindProjectBucket() {
         KievHashBucketProvider<String, ProjectItem> kievHashBucketProvider =
                 new KievHashBucketProvider<>(
-                        "projectListBucket",
+                        "projectsListBucket",
                         "Bucket which stores all project list",
                         String.class,
                         ProjectItem.class);
@@ -120,6 +126,45 @@ public class LvvServiceApiModule extends AbstractModule {
 
         bind(new TypeLiteral<ConfigurationStore<String, ProjectItem>>() {})
                 .to(new TypeLiteral<KievConfigurationStore<String, ProjectItem>>() {});
+    }
+
+    private void bindValidationFailureResultBucket() {
+        KievHashBucketProvider<ValidationFailureResult.LinkSource, ValidationFailureResult>
+                validationResultProvider =
+                        new KievHashBucketProvider<>(
+                                "cableValidationsStore",
+                                "Bucket to store validation failure results",
+                                ValidationFailureResult.LinkSource.class,
+                                ValidationFailureResult.class);
+
+        bind(new TypeLiteral<
+                        MappedHashBucket<
+                                ValidationFailureResult.LinkSource, ValidationFailureResult>>() {})
+                .toProvider(validationResultProvider);
+
+        bind(new TypeLiteral<
+                        ConfigurationStore<
+                                ValidationFailureResult.LinkSource, ValidationFailureResult>>() {})
+                .to(
+                        new TypeLiteral<
+                                KievConfigurationStore<
+                                        ValidationFailureResult.LinkSource,
+                                        ValidationFailureResult>>() {});
+    }
+
+    private void bindBlockDetailsBucket() {
+        KievHashBucketProvider<BlockDetails.Block, BlockDetails> blockDetailsProvider =
+                new KievHashBucketProvider<>(
+                        "blockDetailsBucket",
+                        "Bucket to store block details for projects",
+                        BlockDetails.Block.class,
+                        BlockDetails.class);
+
+        bind(new TypeLiteral<MappedHashBucket<BlockDetails.Block, BlockDetails>>() {})
+                .toProvider(blockDetailsProvider);
+
+        bind(new TypeLiteral<ConfigurationStore<BlockDetails.Block, BlockDetails>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<BlockDetails.Block, BlockDetails>>() {});
     }
 
     @Provides
@@ -285,36 +330,6 @@ public class LvvServiceApiModule extends AbstractModule {
         return skClient;
     }
 
-    @Named("NcpJobsClient")
-    @Provides
-    @Singleton
-    public JobsClient provideNcpJobsClient(
-            BasicAuthenticationDetailsProvider basicAuthenticationDetailsProvider) {
-        JobsClient jobsClient;
-        //        config.setStage("DEVELOPMENT_WITH_INST_PRINCIPAL");
-        switch (config.getStage()) {
-            case "DEVELOPMENT":
-                return MockNcpClients.getMockJobsClient();
-            default:
-                /*
-                 * Apply below command for using instance principal in local
-                 * ssh -L 8000:169.254.169.254:80 <guid>@<instance-ip-in-beta-region>
-                 */
-                jobsClient =
-                        JobsClient.builder()
-                                .endpoint(this.config.getNcpServiceConfiguration().getEndpoint())
-                                .build(basicAuthenticationDetailsProvider);
-                return jobsClient;
-        }
-    }
-
-    @Named("NcpServiceClient")
-    @Provides
-    @Singleton
-    public NcpService createNcpService(@Named("NcpJobsClient") JobsClient jobsClient) {
-        return new NcpService(jobsClient);
-    }
-
     @Provides
     @Singleton
     public DataStoreConfig getKievConfig() throws IOException {
@@ -343,6 +358,10 @@ public class LvvServiceApiModule extends AbstractModule {
                     new DynamicSslContextProviderConfig(
                             null, null, null, config.getKaasStoreConfig().getRootCertPemPath()));
             kaasStoreConfig.setLocality(ClientRegistryLocality.REGIONAL);
+            kaasStoreConfig.setTransactionMaxWrites(
+                    config.getKaasStoreConfig().getTransactionMaxWrites());
+            kaasStoreConfig.setTransactionMaxReads(
+                    config.getKaasStoreConfig().getTransactionMaxReads());
             log.info("Found data store config: {}", kaasStoreConfig);
             log.info(
                     "Using KaaS Data Store endpoint: {}",

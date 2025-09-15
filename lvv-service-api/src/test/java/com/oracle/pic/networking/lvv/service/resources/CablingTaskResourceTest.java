@@ -20,7 +20,7 @@ public class CablingTaskResourceTest {
     @Mock private CablingTaskService mockedCablingTaskService;
 
     private CablingTaskResource cablingTaskResource;
-
+    private static final String PROJECT_ID = "PROJ123";
     private static final String BUILDING = "PHX1";
     private static final String BLOCK = "15";
     private static final String RACK_SERIAL_NUMBER = "1S7D9XCTO1WWJ102GBN7";
@@ -42,16 +42,17 @@ public class CablingTaskResourceTest {
     @Test
     public void shouldGetCablingTasks() {
         CablingTaskCollection cablingTaskCollection = mock();
-        when(this.mockedCablingTaskService.getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER))
+        when(this.mockedCablingTaskService.getCablingTasksForProject(PROJECT_ID))
                 .thenReturn(cablingTaskCollection);
         this.cablingTaskResource.getCablingTasks(
-                BUILDING,
-                BLOCK,
-                RACK_SERIAL_NUMBER,
+                PROJECT_ID,
+                null,
+                null,
+                null,
                 OPC_REQUEST_ID,
                 this.principalMock,
                 this.authorizationRequestMock);
-        verify(this.mockedCablingTaskService).getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
+        verify(this.mockedCablingTaskService).getCablingTasksForProject(PROJECT_ID);
     }
 
     @Test

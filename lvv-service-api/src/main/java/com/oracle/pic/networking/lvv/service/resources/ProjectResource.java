@@ -1,22 +1,22 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
 import com.google.inject.Inject;
+import com.oracle.pic.commons.exceptions.server.ErrorCode;
+import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractProjectsResource;
-import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.PutProjectRequest;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
-import com.oracle.pic.networking.lvv.service.utils.PaginationToken;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /*
@@ -34,13 +34,14 @@ import lombok.extern.slf4j.Slf4j;
 */
 
 @Slf4j
+@ToString
 public class ProjectResource extends AbstractProjectsResource {
 
     private static final String SORT_BY_ENUM_TIMECREATED = "timeCreated";
     private static final String SORT_BY_ENUM_DISPLAYNAME = "displayName";
     private static final int DEFAULT_PAGE_SIZE = 100;
 
-    private final ProjectService projectService;
+    private ProjectService projectService;
 
     @Context
     @Getter(AccessLevel.PRIVATE)
@@ -52,32 +53,66 @@ public class ProjectResource extends AbstractProjectsResource {
     }
 
     @Override
-    public Project createProject(
-            String projectId,
+    public Boolean createProject(
+            PutProjectRequest value,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.ADD_PROJECT_ITEM.name())
+                        .withDimension("projectId", value.getProject().getProjectId())) {
+            scope.emit(MetricNames.AddProjectItem.AddProject.name(), 1.0);
+
+            log.info("Creating project {}", value);
+
+            if (value.getProject().getBlocks().isEmpty()) {
+                log.info("At least 1 block needs to be assigned while creating a project");
+                scope.emit(MetricNames.AddProjectItem.BlockDetailsEmpty.name(), 1.0);
+                return false;
+            }
+
+            projectService.createProject(
+                    value.getProject().getProjectId(),
+                    value.getProject().getVendorName(),
+                    value.getProject().getBuilding(),
+                    value.getProject().getBlocks(),
+                    scope);
+
+            scope.recordSuccess();
+            return true;
+        }
+    }
+
+    @Override
+    public void updateProject(
             PutProjectRequest value,
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        try (MetricsScope scope = MetricsScope.create("createProject")) {
-            scope.emit("volume", 1.0);
-            ProjectItem projectItem =
-                    projectService.createUpdateProject(
-                            projectId,
-                            value.getProject().getVendorName(),
-                            value.getProject().getBuilding(),
-                            value.getProject().getBlock(),
-                            value.getProject().getType());
-            Project project =
-                    Project.builder()
-                            .projectId(projectItem.getProjectId())
-                            .type(projectItem.getType())
-                            .vendorName(projectItem.getVendorName())
-                            .building(projectItem.getBuilding())
-                            .block(projectItem.getBlock())
-                            .build();
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.UPDATE_PROJECT_ITEM.name())
+                        .withDimension("projectId", value.getProject().getProjectId())) {
+            scope.emit(MetricNames.UpdateProjectItem.UpdateProject.name(), 1.0);
+
+            log.info("Updating project {}", value);
+
+            if (value.getProject().getBlocks().isEmpty()) {
+                log.info("At least 1 block needs to be assigned while updating a project");
+                scope.emit(MetricNames.UpdateProjectItem.BlockDetailsEmpty.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.InvalidParameter,
+                        "At least 1 block needs to be assigned while updating a project");
+            }
+
+            projectService.updateProject(
+                    value.getProject().getProjectId(),
+                    value.getProject().getVendorName(),
+                    value.getProject().getBuilding(),
+                    value.getProject().getBlocks(),
+                    scope);
+
             scope.recordSuccess();
-            return project;
         }
     }
 
@@ -87,9 +122,19 @@ public class ProjectResource extends AbstractProjectsResource {
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
-        try (MetricsScope scope = MetricsScope.create("deleteProject")) {
-            scope.emit("volume", 1.0);
-            projectService.deleteProject(projectId);
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.DELETE_PROJECT_ITEM.name())
+                        .withDimension("projectId", projectId)) {
+            scope.emit(MetricNames.DeleteProjectItem.DeleteProject.name(), 1.0);
+
+            if (projectId.isEmpty()) {
+                log.error("Project ID cannot be empty");
+                scope.emit(MetricNames.DeleteProjectItem.ProjectIdEmpty.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.InvalidParameter, "Project ID cannot be empty");
+            }
+
+            this.projectService.deleteProject(projectId, scope);
             scope.recordSuccess();
         }
     }
@@ -101,17 +146,19 @@ public class ProjectResource extends AbstractProjectsResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        try (MetricsScope scope = MetricsScope.create("getProject")) {
-            scope.emit("volume", 1.0);
-            ProjectItem projectItem = projectService.getProject(projectId);
-            Project project =
-                    Project.builder()
-                            .projectId(projectItem.getProjectId())
-                            .type(projectItem.getType())
-                            .vendorName(projectItem.getVendorName())
-                            .building(projectItem.getBuilding())
-                            .block(projectItem.getBlock())
-                            .build();
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.GET_PROJECT_ITEM.name())
+                        .withDimension("projectId", projectId)) {
+            scope.emit(MetricNames.GetProjectItem.GetProject.name(), 1.0);
+
+            if (projectId == null || projectId.isEmpty()) {
+                log.error("Project ID is empty");
+                scope.emit(MetricNames.GetProjectItem.ProjectIdEmpty.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.MissingParameter, "Project ID cannot be empty");
+            }
+
+            Project project = projectService.getProject(projectId, scope);
             scope.recordSuccess();
             return project;
         }
@@ -124,30 +171,24 @@ public class ProjectResource extends AbstractProjectsResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        try (MetricsScope scope = MetricsScope.create("getProjectList")) {
-            scope.emit("volume", 1.0);
-            String page = null;
-            PaginationToken paginationToken = new PaginationToken();
-            paginationToken.setToken(Optional.ofNullable(page));
-            List<ProjectItem> projectItems =
-                    projectService.getProjectListByVendor(paginationToken, vendorName);
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.GET_PROJECT_ITEM.name())) {
 
-            List<Project> result = new ArrayList<>();
+            List<Project> projects;
 
-            projectItems.forEach(
-                    (item) -> {
-                        Project project =
-                                Project.builder()
-                                        .projectId(item.getProjectId())
-                                        .block(item.getBlock())
-                                        .building(item.getBuilding())
-                                        .type(item.getType())
-                                        .vendorName(item.getVendorName())
-                                        .build();
-                        result.add(project);
-                    });
+            if (vendorName == null || vendorName.isEmpty()) {
+                log.info("Fetching all the projects");
+                scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
+                projects = projectService.getProjectList();
+            } else {
+                log.info("Fetching all the projects for the vendor {}", vendorName);
+                scope.withDimension("vendorName", vendorName);
+                scope.emit(MetricNames.GetProjectItem.GetProjectsForVendor.name(), 1.0);
+                projects = projectService.getProjectListByVendor(vendorName);
+            }
+
             scope.recordSuccess();
-            return result;
+            return projects;
         }
     }
 }

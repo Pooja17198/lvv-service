@@ -13,9 +13,10 @@ import static org.mockito.Mockito.when;
 import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.IssueField;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
-import com.oracle.bmc.model.BmcException;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraQueries;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
-import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+// import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.ncp.model.Job;
@@ -31,8 +32,9 @@ import org.mockito.MockitoAnnotations;
 public class CablingTaskServiceTest {
 
     @Mock private JiraSDService mockedJiraSDService;
-    @Mock private NcpService mockedNcpService;
+    // @Mock private NcpService mockedNcpService;
     @Mock private Issue mockIssue;
+    @Mock private BlockDetailsDao blockDetailsDao;
 
     private static final String BUILDING = "PHX1";
     private static final String BLOCK = "15";
@@ -108,7 +110,7 @@ public class CablingTaskServiceTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         this.cablingTaskService =
-                new CablingTaskService(this.mockedJiraSDService, this.mockedNcpService);
+                new CablingTaskService(this.mockedJiraSDService, this.blockDetailsDao);
     }
 
     @Test
@@ -116,9 +118,7 @@ public class CablingTaskServiceTest {
         // Setup cable validation search results
         String cableValidationJql =
                 String.format(
-                        cablingTaskService.JQL
-                                + cablingTaskService.FINAL_VALIDATION
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL + JiraQueries.FINAL_VALIDATION + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -138,9 +138,7 @@ public class CablingTaskServiceTest {
 
         String gpuCableValidationJql =
                 String.format(
-                        cablingTaskService.JQL
-                                + cablingTaskService.GPU_VALIDATION
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL + JiraQueries.GPU_VALIDATION + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -161,9 +159,7 @@ public class CablingTaskServiceTest {
         // Setup initial cabling search results
         String initialCablingJql =
                 String.format(
-                        cablingTaskService.JQL
-                                + cablingTaskService.RACK_DEPLOYMENT
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL + JiraQueries.RACK_DEPLOYMENT + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -191,9 +187,9 @@ public class CablingTaskServiceTest {
     public void shouldGetClosedCableValidationTasks() {
         String closedCableValidationJql =
                 String.format(
-                        cablingTaskService.JQL_CLOSED
-                                + cablingTaskService.FINAL_VALIDATION
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL_CLOSED
+                                + JiraQueries.FINAL_VALIDATION
+                                + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -214,9 +210,9 @@ public class CablingTaskServiceTest {
         // Setup initial cabling search results
         String closedInitialCablingJql =
                 String.format(
-                        cablingTaskService.JQL_CLOSED
-                                + cablingTaskService.RACK_DEPLOYMENT
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL_CLOSED
+                                + JiraQueries.RACK_DEPLOYMENT
+                                + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -341,9 +337,7 @@ public class CablingTaskServiceTest {
     public void shouldGetValidationFailureTasks() {
         String cableValidationJql =
                 String.format(
-                        cablingTaskService.JQL
-                                + cablingTaskService.FINAL_VALIDATION
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL + JiraQueries.FINAL_VALIDATION + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -363,9 +357,7 @@ public class CablingTaskServiceTest {
 
         String initialCablingJql =
                 String.format(
-                        cablingTaskService.JQL
-                                + cablingTaskService.RACK_DEPLOYMENT
-                                + cablingTaskService.SERIAL_NUMBER,
+                        JiraQueries.JQL + JiraQueries.RACK_DEPLOYMENT + JiraQueries.SERIAL_NUMBER,
                         BUILDING,
                         BLOCK,
                         RACK_SERIAL_NUMBER);
@@ -382,7 +374,7 @@ public class CablingTaskServiceTest {
         when(this.mockedJiraSDService.searchJiraSD(anyString())).thenReturn(mockResult);
         Job expectedJob =
                 Job.builder().id(NCPJOB_ID).endDate(new Date()).state(Job.State.Succeeded).build();
-        when(this.mockedNcpService.getNcpJob(anyString())).thenReturn(expectedJob);
+        // when(this.mockedNcpService.getNcpJob(anyString())).thenReturn(expectedJob);
         CablingTaskCollection cablingTaskCollection =
                 this.cablingTaskService.getCablingTasks(BUILDING, BLOCK, RACK_SERIAL_NUMBER);
 
@@ -391,20 +383,5 @@ public class CablingTaskServiceTest {
         assertEquals(
                 NCPJOB_ID,
                 cablingTaskCollection.getValidationFailureTasks().get(0).getFailureReason());
-    }
-
-    @Test
-    void testGetResultFromNcpJobException() {
-        String jobId = "sampleJobId";
-        String fallbackResult = "fallbackResult";
-
-        Mockito.when(mockedNcpService.getNcpJob(Mockito.anyString())).thenThrow(BmcException.class);
-
-        CablingTaskService cablingTaskService =
-                new CablingTaskService(this.mockedJiraSDService, this.mockedNcpService);
-
-        String result = cablingTaskService.getResultFromNcpJob(jobId, fallbackResult);
-
-        assertEquals(fallbackResult, result);
     }
 }

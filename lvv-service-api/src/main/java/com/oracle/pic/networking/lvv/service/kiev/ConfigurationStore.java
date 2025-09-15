@@ -21,7 +21,7 @@ public interface ConfigurationStore<H, V> {
 
     V updateItem(@NonNull Transaction txn, @NonNull V entity);
 
-    V getItem(@NonNull H key) throws Exception;
+    V getItem(@NonNull H key) throws RuntimeException;
 
     boolean deleteItem(@NonNull Transaction txn, @NonNull H key);
 

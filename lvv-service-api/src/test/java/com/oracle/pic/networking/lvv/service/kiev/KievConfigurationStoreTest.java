@@ -38,14 +38,7 @@ public class KievConfigurationStoreTest {
         this.kievConfigurationStore =
                 new KievConfigurationStore<>(
                         mockMappedDataStore, mockMappedHashBucket, mockPaginationToken);
-        projectItem1 =
-                ProjectItem.builder()
-                        .projectId("project1")
-                        .vendorName("vendor1")
-                        .type("cabling")
-                        .block("block1")
-                        .building("building1")
-                        .build();
+        projectItem1 = ProjectItem.builder().projectId("project1").vendorName("vendor1").build();
 
         when(mockMappedHashBucket.insert(mockTransaction, projectItem1)).thenReturn(projectItem1);
         when(mockMappedHashBucket.put(mockTransaction, projectItem1)).thenReturn(projectItem1);
@@ -54,19 +47,19 @@ public class KievConfigurationStoreTest {
     }
 
     @Test
-    public void getItemTest() throws Exception {
+    public void getItemTest() {
         ProjectItem result = kievConfigurationStore.getItem(projectItem1.getProjectId());
         compareProject(projectItem1, result);
     }
 
     @Test
-    public void createItemTest() throws Exception {
+    public void createItemTest() {
         ProjectItem result = kievConfigurationStore.createItem(mockTransaction, projectItem1);
         compareProject(projectItem1, result);
     }
 
     @Test
-    public void updateItemTest() throws Exception {
+    public void updateItemTest() {
         ProjectItem result = kievConfigurationStore.updateItem(mockTransaction, projectItem1);
         compareProject(projectItem1, result);
     }
@@ -74,8 +67,5 @@ public class KievConfigurationStoreTest {
     void compareProject(ProjectItem project1, ProjectItem project2) {
         assertEquals(project1.getProjectId(), project2.getProjectId());
         assertEquals(project1.getVendorName(), project2.getVendorName());
-        assertEquals(project1.getType(), project2.getType());
-        assertEquals(project1.getBlock(), project2.getBlock());
-        assertEquals(project1.getBuilding(), project2.getBuilding());
     }
 }

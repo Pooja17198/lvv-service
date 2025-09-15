@@ -17,7 +17,9 @@ import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
+import com.oracle.pic.networking.lvv.service.kiev.KievRateLimiter;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
+import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
 import com.oracle.pic.networking.lvv.service.resources.StoreKeeperResource;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
@@ -60,6 +62,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                     .add(ProjectResource.class)
                     .add(CablingTaskResource.class)
                     .add(StoreKeeperResource.class)
+                    .add(CablingValidationResource.class)
                     .build();
 
     /*
@@ -124,6 +127,9 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                                     // Stop here
                                 }
                             });
+
+            log.info("KievRateLimit: {}", config.getKievRateLimit());
+            KievRateLimiter.setRate(config.getKievRateLimit());
 
             // Configure dependency injection
             log.info("Configuring Guice Injector");

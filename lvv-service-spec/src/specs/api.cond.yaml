@@ -9,11 +9,19 @@ x-oracle-package: com.oracle.pic.networking.lvv.service
 x-obmcs-splat:
   version: '1.0'
   services:
-    lvvportal:
-      # This enables Audit automation through SPLAT. SPLAT automatically emits following:
-      #  a) an event corresponding to sync api call.
-      #  b) a begin event for async api calls. Service team has to emit end events corresponding to success/failure of async call.
-      #  Reference-app emits end events in respective workflow. See AuditEventEmitter for details.
+    lvv-api-beta:
+      openIdConnectConfig:
+        clientId: "lvvportal-dev"
+        redirectUriExpression: "'https://' + request.hostName + '/callback'"
+        frontChannelLogoutUrlExpression: "'https://' + request.hostName + '/logout'"
+        postLogoutRedirectUrlExpression: "'https://' + request.hostName + '/postlogout.html'"
+        defaultToSsoLogin: false
+      authenticationMode: ['oci-signature', 'openid-connect']
+      skipOriginCheck: true
+        # This enables Audit automation through SPLAT. SPLAT automatically emits following:
+        #  a) an event corresponding to sync api call.
+        #  b) a begin event for async api calls. Service team has to emit end events corresponding to success/failure of async call.
+        #  Reference-app emits end events in respective workflow. See AuditEventEmitter for details.
       #
       # Omitting audit implies you don't want Splat to audit operations for this service (ocdn-control-plane-api)
       #
@@ -23,7 +31,7 @@ x-obmcs-splat:
         # verification: can be used for verification. Random percentage(< 1%) of requests will be audited by Splat
         # automated: means Splat will perform audit and add "oci-splat-audited" header to requests proxied downstream
         defaultMode: automated
-        eventSource: lvvportal
+        eventSource: lvv-api-beta
         requestParameterRules: [ { resources: ".*", actions: ".*", values: ".*" } ]
         requestHeaderRules:    [ { resources: ".*", actions: ".*", values: ".*" } ]
         responseHeaderRules:   [ { resources: ".*", actions: ".*", values: ".*" } ]
@@ -32,17 +40,12 @@ x-obmcs-splat:
       # But splat-swagger-maven-plugin version which includes them is not yet released.
       # This flag need to be removed when splat-swagger-maven-plugin update is available.
       allowingUnreviewedEntityType: true
-    lvvportal-dev:
-      prototype: lvvportal
-      skipServiceOverridesValidation: true
-      serviceOverrides:
-        lvvportal: lvvportal-dev
 
 info:
   title: LvvService API
   description: A description of the LvvService API.
   contact:
-    name: "Network Control Plane"
+    name: "Network Automation"
     email: opc_nw_automation_dev_us_grp@oracle.com
     url: https://confluence.oci.oraclecorp.com/display/NETAUTO/Low+Voltage+Vendor+Portal+Security+Design+and+Considerations
   version: "1.0.0"
@@ -56,12 +59,11 @@ basePath: /lvv
 produces:
   - application/json
 
-host: localhost:21000
 # Enable SDK Retries by default
 # Details: https://confluence.oci.oraclecorp.com/display/DEX/API+Consistency+Guidelines#APIConsistencyGuidelines-DefaultRetriesintheSDKs
 x-obmcs-client-retries-enabled: true
 
-x-obmcs-endpoint-template: 'https://lvv-service.{region}.oci.{secondLevelDomain}'
+x-obmcs-endpoint-template: 'https://service.lvv.{region}.oci.{secondLevelDomain}'
 
 # =============================================================================
 # Anchors used to reference common headers, properties, ...etc...
@@ -91,8 +93,6 @@ paths:
     get:
       tags: ['projects']
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -107,7 +107,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
       operationId: GetProjectList
       summary: Get Project List
@@ -137,8 +137,6 @@ paths:
     get:
       tags: ['projects']
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: GET
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -153,8 +151,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: GetProject
       summary: Get Project
       description: Gets a project by identifier
@@ -177,11 +174,10 @@ paths:
         default:
           $ref: '#/responses/Error'
 
-    put:
+  /createProject:
+    post:
       tags: ['projects']
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -196,22 +192,60 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: CreateProject
       summary: Creates a new project
-      description: Create a new project with the provided identifier
+      description: Create a new project
       parameters:
-        - $ref: '#/parameters/ProjectIdentifierPathParam'
         - $ref: '#/parameters/PutProjectRequestBodyParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: Newly created project
+          description: Newly created project success/failure
           headers:
             opc-request-id: *ref-opc-request-id
           schema:
-            $ref: '#/definitions/Project'
+            type: boolean
+        400:
+          description: The project request is not valid
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          $ref: '#/responses/Error'
+
+  /updateProject:
+    put:
+      tags: [ 'projects' ]
+      x-obmcs-splat:
+        operationType: OTHER_MUTATION
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+
+      operationId: UpdateProject
+      summary: Updates a project
+      description: Updates a project with the provided identifier
+      parameters:
+        - $ref: '#/parameters/PutProjectRequestBodyParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Updated project success/failure
+          headers:
+            opc-request-id: *ref-opc-request-id
         400:
           description: The project Id is not valid
           headers:
@@ -221,11 +255,10 @@ paths:
         default:
           $ref: '#/responses/Error'
 
+  /deleteProject/{projectId}:
     delete:
-      tags: ['projects']
+      tags: [ 'projects' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -240,7 +273,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
       operationId: DeleteProject
       description: Deletes an existing project
@@ -248,19 +281,18 @@ paths:
         - $ref: '#/parameters/ProjectIdentifierPathParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
-        204:
-          description: The project was successfully deleted.
+        200:
+          description: Delete project
           headers:
             opc-request-id: *ref-opc-request-id
         default:
           $ref: '#/responses/Error'
 
+
   /cablingTasks:
     get:
       tags: [ 'cablingTasks' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -275,12 +307,12 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: GetCablingTasks
       summary: Get cabling tasks
       description: Get cabling tasks based on query parameters
       parameters:
+        - $ref: '#/parameters/ProjectIdentifierQueryParam'
         - $ref: '#/parameters/BuildingParam'
         - $ref: '#/parameters/BlockParam'
         - $ref: '#/parameters/RackSerialNumberParam'
@@ -299,8 +331,6 @@ paths:
     get:
       tags: [ 'cablingTasks' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -315,8 +345,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: GetClosedCablingTasks
       summary: Get closed cabling tasks
       description: Get closed cabling tasks based on query parameters
@@ -339,8 +368,6 @@ paths:
     get:
       tags: [ 'cablingTasks' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -355,8 +382,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: GetCableValidationFailureTask
       summary: Get cabling tasks
       description: Get details of cabling task based on cablingTaskId
@@ -364,7 +390,7 @@ paths:
         - $ref: '#/parameters/CablingTaskIdentifierPathParam'
       responses:
         200:
-          description: Retrieves the detailed JSON object for a cabling task with the given query parameters 'cablingTaskId'
+          description: Retrieves the detailed JSON object for a cabling task
           headers:
             opc-request-id: *ref-opc-request-id
           schema:
@@ -376,8 +402,6 @@ paths:
     post:
       tags: [ 'cablingTasks' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: OTHER_MUTATION
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -392,8 +416,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
-
+        serviceList: [ 'lvv-api-beta' ]
       operationId: ResolveValidationFailureTask
       summary: Resolve a cable validation failure task
       description: Resolve a cable validation failure task
@@ -408,12 +431,160 @@ paths:
             $ref: '#/definitions/ResolveValidationFailureTaskResponse'
         default:
           $ref: '#/responses/Error'
+
+  /cablingValidation:
+    get:
+      tags: [ 'cablingValidation' ]
+      x-obmcs-splat:
+        operationType: GET
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: GetValidationFailures
+      summary: Get validation failure results for a rack
+      description: Retrieves validation diagnostics from Kiev for a specific rack
+      parameters:
+        - $ref: '#/parameters/RackSerialParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: List of link-level validation results
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ValidationFailureDisplayDTO'
+        default:
+          $ref: '#/responses/Error'
+
+    post:
+      tags: [ 'cablingValidation' ]
+      x-obmcs-splat:
+        operationType: OTHER_MUTATION
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: validateCables
+      summary: Triggers NCP's Healthcheck Job
+      description: Triggers NCP's Healthcheck Job and return the Job ID which validates the cabling of the Racks
+      parameters:
+        - $ref: '#/parameters/BuildingParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/DeviceNamesParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Return JobId of NCP's Healthcheck Job
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            type: string
+        400:
+          description: Creating Validation Job errored out
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          $ref: '#/responses/Error'
+
+  /getValidationJobStatus:
+    get:
+      tags: [ 'cablingValidation' ]
+      x-obmcs-splat:
+        operationType: GET
+        apiType: Synchronous
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: GetValidationJobStatus
+      summary: Get NCP's validation job status
+      description: Retrieves rack validation job status from NCP
+      parameters:
+        - name: jobId
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/parameters/BuildingParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Job Status
+          schema:
+            type: string
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
+  /downloadCablingValidationResults:
+    get:
+      produces:
+        - text/csv
+      tags: [ 'cablingValidation' ]
+      x-obmcs-splat:
+        operationType: GET
+        apiType: Synchronous
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: DownloadValidationFailures
+      summary: Download validation failure results for a rack in a csv file
+      description: Downloads validation diagnostics from Kiev for a specific rack in a csv file
+      parameters:
+        - name: rackSerial
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: CSV file of link-level validation results
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                x-java-type: javax.ws.rs.core.Response
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
   /buildings:
     get:
       tags: [ 'storekeeper' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -428,7 +599,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
       summary: List buildings
       operationId: ListBuildings
@@ -450,8 +621,6 @@ paths:
     get:
       tags: [ 'storekeeper' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -466,7 +635,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
       summary: List blocks
       operationId: ListBlocks
@@ -488,8 +657,6 @@ paths:
     get:
       tags: [ 'storekeeper' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -504,7 +671,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
       summary: Show asset
       operationId: GetAsset
@@ -520,8 +687,6 @@ paths:
     get:
       tags: [ 'storekeeper' ]
       x-obmcs-splat:
-        authorization:
-          mode: none  # TODO: tiwatso this might need to be automated
         operationType: LIST
         apiType: Synchronous
         # Maximum number of invocation attempts that should be made to the downstream service.
@@ -536,7 +701,7 @@ paths:
         # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
         routing:
           strategy: route-to-any-ad
-        serviceList: [ 'lvvportal' ]
+        serviceList: [ 'lvv-api-beta' ]
 
 
       summary: List rack locations map
@@ -555,9 +720,46 @@ paths:
           description: Unexpected error
           schema:
             $ref: '#/definitions/Error'
+
 #==========[ Definitions ]================================================================================================
 
 definitions:
+  ValidationFailureDisplayDTO:
+    type: object
+    properties:
+      rackSerial:
+        type: string
+      deviceARack:
+        type: string
+      deviceAName:
+        type: string
+      deviceAPort:
+        type: string
+      deviceBRack:
+        type: string
+      deviceBName:
+        type: string
+      deviceBPort:
+        type: string
+      linkStatus:
+        type: string
+      txPower:
+        type: string
+      rxPower:
+        type: string
+      lldpStatus:
+        type: string
+      deviceBRackExpected:
+        type: string
+      deviceBNameExpected:
+        type: string
+      deviceBPortExpected:
+        type: string
+      psuFailure:
+        type: string
+      psuId:
+        type: string
+
   # RackLocationMap in sk yaml
   LvvRack:
     type: object
@@ -695,6 +897,20 @@ definitions:
     properties:
       name:
         type: string
+  JobId:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+  ValidationResult:
+    type: object
+    required:
+      - result
+    properties:
+      result:
+        type: boolean
   Error:
     type: object
     required:
@@ -708,6 +924,7 @@ definitions:
         type: string
       fields:
         type: string
+
   Project:
     description: A project object represents the information of a specific project.
     type: object
@@ -715,8 +932,7 @@ definitions:
       - projectId
       - vendorName
       - building
-      - block
-      - type
+      - blocks
     properties:
       projectId:
         type: string
@@ -728,26 +944,30 @@ definitions:
         description: Name of the vendor the project is assigned to
         minLength: 1
         maxLength: 100
+      region:
+        type: string
+        description: region
+        minLength: 1
+        maxLength: 50
       building:
         type: string
         description: building number
         minLength: 1
         maxLength: 50
-      block:
-        type: string
-        description: block number
-        minLength: 1
-        maxLength: 50
-      type:
-        type: string
-        description: Project type
-        minLength: 1
-        maxLength: 50
+      blocks:
+        type: array
+        items:
+          type: string
+          description: block number
+          minLength: 1
+          maxLength: 50
+
   PutProjectRequest:
-    description: A request to create a new project
+    description: A request to create or update a project
     properties:
       project:
         $ref: '#/definitions/Project'
+
   CablingTaskCollection:
     description: An array of cabling tasks.
     type: object
@@ -762,6 +982,7 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/ValidationFailureTaskDetails'
+
   InitialCablingTaskDetails:
     description: Details for each initial cabling task.
     type: object
@@ -781,6 +1002,7 @@ definitions:
       rackSerialNumber:
         type: string
         description: Rack serial number.
+
   ValidationFailureTaskDetails:
     description: Details for each cable validation failure task.
     type: object
@@ -796,7 +1018,7 @@ definitions:
         description: Block ID.
       rackLocation:
         type: string
-        description: Rack location.
+        description: Rack Location.
       rackSerialNumber:
         type: string
         description: Rack serial number.
@@ -952,7 +1174,8 @@ parameters:
     required: true
     schema:
       $ref: '#/definitions/PutProjectRequest'
-    description: Information required for creating a project
+    description: Information required for creating or updating a project
+
   ProjectIdentifierPathParam:
     name: projectId
     type: string
@@ -960,27 +1183,52 @@ parameters:
     description: Unique Id for a project
     minLength: 1
     maxLength: 50
+  ProjectIdentifierQueryParam:
+    name: projectId
+    type: string
+    in: query
+    description: Unique Id for a project
+    minLength: 1
+    maxLength: 50
   BuildingParam:
     name: building
     type: string
     in: query
-    required: true
     description: Unique Id for a building
     minLength: 1
     maxLength: 10
+
   BlockParam:
     name: block
     type: string
     in: query
-    required: true
     description: Unique Id for a block
     minLength: 1
     maxLength: 10
+
   RackSerialNumberParam:
     name: rackSerialNumber
     type: string
+    required: false
     in: query
     description: Serial number for a rack
+
+  DeviceNamesParam:
+    name: deviceNames
+    in: query
+    description: List of devices to run NCP Validations on
+    required: false
+    type: array
+    items:
+      type: string
+
+  RackSerialParam:
+    name: rackSerial
+    in: query
+    required: true
+    type: string
+    description: Serial number for a rack
+
   VendorQueryParam:
     name: vendorName
     type: string
@@ -988,12 +1236,14 @@ parameters:
     description: Unique name for vendor
     minLength: 1
     maxLength: 50
+
   CablingTaskIdentifierPathParam:
     name: cablingTaskId
     type: string
     in: path
     description: A unique cabling task identifier
     required: true
+
   OpcRequestId:
     name: opc-request-id
     in: header

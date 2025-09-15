@@ -17,9 +17,11 @@ import com.oracle.pic.storekeeper.responses.ListBuildingsResponse;
 import com.oracle.pic.storekeeper.responses.ListRackLocationsMapResponse;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@ToString
 public class StoreKeeperService {
     private final StoreKeeper storeKeeperClient;
 

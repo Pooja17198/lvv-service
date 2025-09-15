@@ -30,3 +30,13 @@ lvv-service-python-client/build/
 **/.terraform
 **/*.tfstate
 **/*.tfstate.backup
+
+
+
+
+# This is the LvvService API spec in YAML based on API Consistency Guidelines.
+# Clients and documentation will be auto-generated from this file.
+#
+# API Consistency Guidelines: https://confluence.oci.oraclecorp.com/x/n5Sf
+# Review the API checklist: https://confluence.oci.oraclecorp.com/x/dAZY
+

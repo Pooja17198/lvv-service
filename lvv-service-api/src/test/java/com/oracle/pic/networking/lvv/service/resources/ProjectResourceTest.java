@@ -1,141 +1,234 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
+import com.oracle.pic.commons.exceptions.server.ErrorCode;
+import com.oracle.pic.commons.exceptions.server.RenderableException;
+import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
-import com.oracle.pic.networking.lvv.service.auth.AuthHelper;
-import com.oracle.pic.networking.lvv.service.kiev.KievManager;
-import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.PutProjectRequest;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
-import java.util.ArrayList;
 import java.util.List;
+import javax.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
 
-public class ProjectResourceTest {
-    private ProjectResource resource;
-    private ProjectService projectService;
-    private String opcRequestId = "opcRequestId";
+@ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
+class ProjectResourceTest {
 
-    @Mock private AuthHelper mockAuthorizationHelper;
-    @Mock private Principal mockPrincipal;
+    @Mock ProjectService projectService;
+    @Mock HttpServletResponse httpServletResponse;
+    @Mock MetricsScope metricsScope;
+    @Mock Principal principal;
+    @Mock AuthorizationRequest authorizationRequest;
 
-    @Mock private AuthorizationRequest mockAuthorizationRequest;
-    @Mock private KievManager mockKievManager;
+    ProjectResource resource;
+
+    final String projectId = "pid-123";
+    final String vendorName = "vname";
+    final String building = "bldg";
+    final List<String> blocks = List.of("B1", "B2");
+    final String type = "TYPE";
+    final String opcRequestId = "req-1";
+
+    Project project;
 
     @BeforeEach
-    public void setup() throws Exception {
-        MockitoAnnotations.initMocks(this);
-        doNothing()
-                .when(mockAuthorizationHelper)
-                .authorize(any(AuthorizationRequest.class), anyString());
-        this.projectService = new ProjectService(mockKievManager);
-        this.resource = new ProjectResource(projectService);
-        ProjectItem projectItem1 =
-                ProjectItem.builder()
-                        .projectId("project1")
-                        .vendorName("vendor1")
-                        .type("cabling")
-                        .block("block1")
-                        .building("building1")
+    void setup() {
+        resource = new ProjectResource(projectService);
+        // Sample project
+        project =
+                Project.builder()
+                        .projectId(projectId)
+                        .vendorName(vendorName)
+                        .building(building)
+                        .blocks(blocks)
                         .build();
-        ProjectItem projectItem2 =
-                ProjectItem.builder()
-                        .projectId("project2")
-                        .vendorName("vendor1")
-                        .type("cabling")
-                        .block("block2")
-                        .building("building1")
+    }
+
+    @Test
+    void testCreateProject_success() {
+        // Arrange
+        PutProjectRequest req = mock(PutProjectRequest.class);
+        when(req.getProject()).thenReturn(project);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+
+            // All needed service and scope calls:
+            doNothing().when(projectService).createProject(any(), any(), any(), any(), any());
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            Boolean result =
+                    resource.createProject(req, opcRequestId, principal, authorizationRequest);
+
+            assertTrue(result);
+            verify(projectService)
+                    .createProject(
+                            eq(projectId),
+                            eq(vendorName),
+                            eq(building),
+                            eq(blocks),
+                            eq(metricsScope));
+
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testUpdateProject_success() {
+        // Arrange
+        PutProjectRequest req = mock(PutProjectRequest.class);
+        when(req.getProject()).thenReturn(project);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+
+            // All needed service and scope calls:
+            doNothing().when(projectService).updateProject(any(), any(), any(), any(), any());
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            resource.updateProject(req, opcRequestId, principal, authorizationRequest);
+
+            verify(projectService)
+                    .updateProject(
+                            eq(projectId),
+                            eq(vendorName),
+                            eq(building),
+                            eq(blocks),
+                            eq(metricsScope));
+
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testCreateProject_withNoBlocks_returnsFalse() {
+        // Arrange
+        Project emptyBlocksProject =
+                Project.builder()
+                        .projectId(projectId)
+                        .vendorName(vendorName)
+                        .building(building)
+                        .blocks(List.of())
                         .build();
+        PutProjectRequest req = mock(PutProjectRequest.class);
+        when(req.getProject()).thenReturn(emptyBlocksProject);
 
-        List<ProjectItem> mockList = new ArrayList<>();
-        mockList.add(projectItem1);
-        mockList.add(projectItem2);
-
-        when(projectService.createUpdateProject(
-                        "project1", "vendor1", "building1", "block1", "cabling"))
-                .thenReturn(projectItem1);
-        when(projectService.getProject("project1")).thenReturn(projectItem1);
-        when(mockKievManager.getAllProjectItem(any(), eq("vendor1"))).thenReturn(mockList);
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            Boolean result =
+                    resource.createProject(req, opcRequestId, principal, authorizationRequest);
+            assertFalse(result);
+            verify(metricsScope, never()).recordSuccess();
+            // ProjectService should never be called
+            verify(projectService, never()).createProject(any(), any(), any(), any(), any());
+        }
     }
 
     @Test
-    public void createProjectTest() {
-        Project project = new Project("project1", "vendor1", "building1", "block1", "cabling");
-        Project result =
-                resource.createProject(
-                        "project1",
-                        PutProjectRequest.builder()
-                                .project(
-                                        Project.builder()
-                                                .vendorName("vendor1")
-                                                .type("cabling")
-                                                .block("block1")
-                                                .building("building1")
-                                                .build())
-                                .build(),
-                        this.opcRequestId,
-                        this.mockPrincipal,
-                        this.mockAuthorizationRequest);
-        assertEquals(project, result);
+    void testUpdateProject_withNoBlocks_returnsFalse() {
+        // Arrange
+        Project emptyBlocksProject =
+                Project.builder()
+                        .projectId(projectId)
+                        .vendorName(vendorName)
+                        .building(building)
+                        .blocks(List.of())
+                        .build();
+        PutProjectRequest req = mock(PutProjectRequest.class);
+        when(req.getProject()).thenReturn(emptyBlocksProject);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+
+            RenderableException ex =
+                    assertThrows(
+                            RenderableException.class,
+                            () ->
+                                    resource.updateProject(
+                                            req, opcRequestId, principal, authorizationRequest));
+
+            assertEquals(ErrorCode.InvalidParameter, ex.getErrorCode());
+            verify(metricsScope, never()).recordSuccess();
+            // ProjectService should never be called
+            verify(projectService, never()).updateProject(any(), any(), any(), any(), any());
+        }
     }
 
     @Test
-    public void listProjectTest() {
-        List<Project> result =
-                resource.getProjectList(
-                        "vendor1",
-                        this.opcRequestId,
-                        this.mockPrincipal,
-                        this.mockAuthorizationRequest);
-        assertEquals(result.size(), 2);
+    void testDeleteProject_success() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            doNothing().when(projectService).deleteProject(anyString(), any());
+            resource.deleteProject(projectId, opcRequestId, principal, authorizationRequest);
+
+            verify(projectService).deleteProject(projectId, metricsScope);
+            verify(metricsScope).recordSuccess();
+        }
     }
 
     @Test
-    public void getProject() {
-        Project project =
-                resource.createProject(
-                        "project1",
-                        PutProjectRequest.builder()
-                                .project(
-                                        Project.builder()
-                                                .vendorName("vendor1")
-                                                .type("cabling")
-                                                .block("block1")
-                                                .building("building1")
-                                                .build())
-                                .build(),
-                        this.opcRequestId,
-                        this.mockPrincipal,
-                        this.mockAuthorizationRequest);
-        Project result =
-                resource.getProject(
-                        "project1",
-                        this.opcRequestId,
-                        this.mockPrincipal,
-                        this.mockAuthorizationRequest);
-        assertEquals(project, result);
+    void testGetProject_success() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            when(projectService.getProject(projectId, metricsScope)).thenReturn(project);
+
+            Project result =
+                    resource.getProject(projectId, opcRequestId, principal, authorizationRequest);
+            assertEquals(project, result);
+
+            verify(projectService).getProject(projectId, metricsScope);
+            verify(metricsScope).recordSuccess();
+        }
     }
 
     @Test
-    public void deleteProject() {
-        ProjectService mockProjectService = mock(ProjectService.class);
-        doNothing().when(mockProjectService).deleteProject("project1");
-        ProjectResource projectResource = new ProjectResource(mockProjectService);
-        projectResource.deleteProject(
-                "project1", this.opcRequestId, this.mockPrincipal, this.mockAuthorizationRequest);
-        verify(mockProjectService).deleteProject("project1");
+    void testGetProjectList_success() {
+        List<Project> projects = List.of(project);
+        when(projectService.getProjectListByVendor(vendorName)).thenReturn(projects);
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            List<Project> result =
+                    resource.getProjectList(
+                            vendorName, opcRequestId, principal, authorizationRequest);
+            assertEquals(projects, result);
+
+            verify(projectService).getProjectListByVendor(vendorName);
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testDeleteProject_emptyProjectId() {
+        assertThrows(
+                RenderableException.class,
+                () -> resource.deleteProject("", opcRequestId, principal, authorizationRequest));
     }
 }

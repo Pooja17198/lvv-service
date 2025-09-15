@@ -10,9 +10,11 @@ import com.oracle.pic.networking.lvv.service.model.LvvRack;
 import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
 import java.util.List;
 import javax.inject.Inject;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@ToString
 public class StoreKeeperResource extends AbstractStorekeeperResource {
 
     private final StoreKeeperService storeKeeperService;

@@ -100,4 +100,6 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     }
 
     @NotNull private SecretServiceConfig secretServiceConfig;
+
+    @NotNull private double kievRateLimit;
 }

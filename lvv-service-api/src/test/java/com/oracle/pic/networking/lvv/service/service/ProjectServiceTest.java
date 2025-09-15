@@ -1,65 +1,306 @@
 package com.oracle.pic.networking.lvv.service.service;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
+import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
-import com.oracle.pic.networking.lvv.service.kiev.KievManager;
-import com.oracle.pic.networking.lvv.service.utils.PaginationToken;
+import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
+import com.oracle.pic.networking.lvv.service.model.Project;
+import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
+import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
 
-public class ProjectServiceTest {
+@ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
+class ProjectServiceTest {
 
-    @Mock private KievManager mockedKievManager;
+    @Mock ProjectItemDao projectItemDao;
+    @Mock BlockDetailsDao blockDetailsDao;
+    @Mock ResourceModelTransformer resourceModelTransformer;
+    @Mock MetricsScope metricsScope;
 
-    private ProjectService projectService;
+    @InjectMocks ProjectService projectService;
 
-    private static final String PROJECT_ID = "DCIB-101";
-    private static final String VENDOR_NAME = "vendor name";
-    private static final String BUILDING = "PHX1";
-    private static final String BLOCK = "15";
-    private static final String TYPE = "compute";
+    // Helper objects
+    private final String projectId = "pid-123";
+    private final String vendorName = "Vendor";
+    private final String building = "Build";
+    private final String block = "B1";
+    private final List<String> blocks = List.of(block);
+    private final String type = "test-type";
 
     @BeforeEach
-    public void setup() {
-        MockitoAnnotations.initMocks(this);
-        this.projectService = new ProjectService(this.mockedKievManager);
+    void setUp() {}
+
+    @Test
+    void testCheckBlockIsUnassigned_whenBlockDetailsNull() {
+        when(blockDetailsDao.getBlockDetails(block, building)).thenReturn(null);
+        assertTrue(projectService.checkBlockIsUnassigned(block, building));
     }
 
     @Test
-    public void createUpdateProjectShouldThrowException() throws Exception {
-        when(this.mockedKievManager.addProjectItem(any())).thenThrow(new Exception());
+    void testCheckBlockIsUnassigned_whenBlockDetailsExists() {
+        BlockDetails blockDetails = mock(BlockDetails.class);
+        when(blockDetailsDao.getBlockDetails(block, building)).thenReturn(blockDetails);
+        when(blockDetails.getProjectId()).thenReturn("other-pid");
+        assertFalse(projectService.checkBlockIsUnassigned(block, building));
+    }
+
+    @Test
+    void testCreateProject_missingParameters() {
+        List<Runnable> cases =
+                List.of(
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        null,
+                                                        vendorName,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        "",
+                                                        vendorName,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        null,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        "",
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        null,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        "",
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        building,
+                                                        null,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        building,
+                                                        Collections.emptyList(),
+                                                        metricsScope)));
+        cases.forEach(Runnable::run);
+    }
+
+    @Test
+    void testUpdateProject_missingParameters() {
+        List<Runnable> cases =
+                List.of(
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        null,
+                                                        vendorName,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        "",
+                                                        vendorName,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        null,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        "",
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        null,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        "",
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        building,
+                                                        null,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.updateProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        building,
+                                                        Collections.emptyList(),
+                                                        metricsScope)));
+        cases.forEach(Runnable::run);
+    }
+
+    @Test
+    void testCreateProject_success() {
+        doNothing().when(projectItemDao).addProjectItem(any(ProjectItem.class), anyList(), any());
+        projectService.createProject(projectId, vendorName, building, blocks, metricsScope);
+        verify(projectItemDao, times(1)).addProjectItem(any(), any(), any());
+    }
+
+    @Test
+    void testUpdateProject_success() {
+        doNothing()
+                .when(projectItemDao)
+                .updateProjectItem(any(ProjectItem.class), anyList(), any());
+        projectService.updateProject(projectId, vendorName, building, blocks, metricsScope);
+        verify(projectItemDao, times(1)).updateProjectItem(any(), any(), any());
+    }
+
+    @Test
+    void testGetProject_emptyProjectId() {
+        assertThrows(RenderableException.class, () -> projectService.getProject("", metricsScope));
         assertThrows(
-                RenderableException.class,
-                () ->
-                        this.projectService.createUpdateProject(
-                                PROJECT_ID, VENDOR_NAME, BUILDING, BLOCK, TYPE));
+                RenderableException.class, () -> projectService.getProject(null, metricsScope));
     }
 
     @Test
-    public void deleteProjectShouldThrowException() throws Exception {
-        doThrow(new Exception()).when(this.mockedKievManager).deleteProjectItem(any());
-        assertThrows(
-                RenderableException.class, () -> this.projectService.deleteProject(PROJECT_ID));
+    void testGetProject_noBlocks() {
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(mock(ProjectItem.class));
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(Collections.emptyList());
+        RenderableException ex =
+                assertThrows(
+                        RenderableException.class,
+                        () -> projectService.getProject(projectId, metricsScope));
+        assertEquals(ErrorCode.IncorrectState, ex.getErrorCode());
     }
 
     @Test
-    public void getProjectShouldThrowException() throws Exception {
-        when(this.mockedKievManager.getProjectItem(any())).thenThrow(new Exception());
-        assertThrows(RenderableException.class, () -> this.projectService.getProject(PROJECT_ID));
+    void testGetProject_success() {
+        ProjectItem item = mock(ProjectItem.class);
+        List<BlockDetails> blockDetails = List.of(mock(BlockDetails.class));
+        Project project = mock(Project.class);
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(item);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId)).thenReturn(blockDetails);
+        when(resourceModelTransformer.toModel(item, blockDetails)).thenReturn(project);
+        assertEquals(project, projectService.getProject(projectId, metricsScope));
     }
 
     @Test
-    public void getProjectListByVendorShouldThrowException() throws Exception {
-        when(this.mockedKievManager.getAllProjectItem(any(), any())).thenThrow(new Exception());
-        PaginationToken paginationToken = new PaginationToken();
-        assertThrows(
-                RenderableException.class,
-                () -> this.projectService.getProjectListByVendor(paginationToken, VENDOR_NAME));
+    void testDeleteProject_success() {
+        doNothing().when(projectItemDao).deleteProjectItem(projectId, metricsScope);
+        projectService.deleteProject(projectId, metricsScope);
+        verify(projectItemDao, times(1)).deleteProjectItem(projectId, metricsScope);
+    }
+
+    @Test
+    void testGetProjectListByVendor_noProjects() {
+        when(projectItemDao.getProjectItemsForVendor(vendorName))
+                .thenReturn(Collections.emptyList());
+        List<Project> result = projectService.getProjectListByVendor(vendorName);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetProjectListByVendor_success() {
+        ProjectItem projItem =
+                ProjectItem.builder().projectId(projectId).vendorName(vendorName).build();
+        List<BlockDetails> blockDetailsList = List.of(mock(BlockDetails.class));
+        Project project = mock(Project.class);
+
+        when(projectItemDao.getProjectItemsForVendor(vendorName)).thenReturn(List.of(projItem));
+        when(blockDetailsDao.getBlockDetailsForProject(projectId)).thenReturn(blockDetailsList);
+        when(resourceModelTransformer.toModel(projItem, blockDetailsList)).thenReturn(project);
+
+        List<Project> result = projectService.getProjectListByVendor(vendorName);
+        assertEquals(1, result.size());
+        assertEquals(project, result.get(0));
     }
 }

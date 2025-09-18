@@ -33,7 +33,7 @@ import lombok.Value;
 @ToString
 public class BlockDetails {
 
-    public static final String PROJECT_ID_COLUMN_NAME = "projectId";
+    public static final String PROJECT_ID_COLUMN_NAME = "projectIdColumn";
 
     @NonNull @HashKey @KievNestedEntity private Block block;
 

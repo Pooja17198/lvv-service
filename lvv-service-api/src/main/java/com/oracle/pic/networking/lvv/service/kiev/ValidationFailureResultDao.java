@@ -41,6 +41,8 @@ public class ValidationFailureResultDao {
     private final Index<ValidationFailureResult.RackSerialIndex, ValidationFailureResult>
             rackSerialIndex;
 
+    private static final int BATCH_SIZE = 50;
+
     @Inject
     public ValidationFailureResultDao(
             @NonNull
@@ -60,29 +62,31 @@ public class ValidationFailureResultDao {
     }
 
     private void updateExistingLinksStatusToUp(List<ValidationFailureResult> existingLinks) {
-
         log.info("Updating the following links status to UP: {}", existingLinks);
         if (existingLinks.isEmpty()) {
             return;
         }
 
-        try (Transaction txn = validationResultStore.beginTransaction(existingLinks.toString())) {
+        for (int i = 0; i < existingLinks.size(); i += BATCH_SIZE) {
+            int end = Math.min(i + BATCH_SIZE, existingLinks.size());
+            List<ValidationFailureResult> batch = existingLinks.subList(i, end);
 
-            for (ValidationFailureResult existingLink : existingLinks) {
-                ValidationFailureResult link =
-                        validationResultStore.getItem(existingLink.getLinkSource());
-                link.setLinkStatus(LinkStatus.UP);
-                validationResultStore.updateItem(txn, link);
-            }
-
-            try {
-                txn.commit();
-            } catch (CommitConflictException | DuplicateKeyException e) {
-                String message = "Failed to update existing links to UP";
-                handleException(txn, e, message);
-                throw new RenderableException(
-                        ErrorCode.ExternalServerInvalidResponse,
-                        "DB transaction failed. Please try again.");
+            try (Transaction txn = validationResultStore.beginTransaction(batch.toString())) {
+                for (ValidationFailureResult existingLink : batch) {
+                    ValidationFailureResult link =
+                            validationResultStore.getItem(existingLink.getLinkSource());
+                    link.setLinkStatus(LinkStatus.UP);
+                    validationResultStore.updateItem(txn, link);
+                }
+                try {
+                    txn.commit();
+                } catch (CommitConflictException | DuplicateKeyException e) {
+                    String message = "Failed to update existing links to UP";
+                    handleException(txn, e, message);
+                    throw new RenderableException(
+                            ErrorCode.ExternalServerInvalidResponse,
+                            "DB transaction failed. Please try again.");
+                }
             }
         }
     }
@@ -91,69 +95,68 @@ public class ValidationFailureResultDao {
             List<ValidationFailureResult> links,
             Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks,
             MetricsScope scope) {
-
         log.info("Adding/Updating the following links {}", links);
         if (links.isEmpty()) {
             scope.emit(MetricNames.AddValidationResults.NoMoreFailures, 1.0);
             return;
         }
 
-        try (Transaction txn = validationResultStore.beginTransaction(links.toString())) {
+        for (int i = 0; i < links.size(); i += BATCH_SIZE) {
+            int end = Math.min(i + BATCH_SIZE, links.size());
+            List<ValidationFailureResult> batch = links.subList(i, end);
 
-            for (ValidationFailureResult link : links) {
+            try (Transaction txn = validationResultStore.beginTransaction(batch.toString())) {
+                for (ValidationFailureResult link : batch) {
+                    try (MetricsScope updateTimeScope =
+                            MetricsScope.create(
+                                    MetricNames.MetricScopeNames.UPDATE_LINK_RESULTS.name())) {
+                        updateTimeScope.withDimension("rackSerial", link.getRackSerial());
 
-                try (MetricsScope updateTimeScope =
-                        MetricsScope.create(
-                                MetricNames.MetricScopeNames.UPDATE_LINK_RESULTS.name())) {
+                        if (link.getLinkStatus() != LinkStatus.DOWN) {
+                            // Any Validation Failure Result to be updated/added should have the
+                            // link
+                            // status as DOWN
+                            throw new RenderableException(
+                                    ErrorCode.InternalError,
+                                    "Validation Failed link doesn't have Link Status set to DOWN");
+                        }
 
-                    updateTimeScope.withDimension("rackSerial", link.getRackSerial());
-                    if (link.getLinkStatus() != LinkStatus.DOWN) {
-                        // Any Validation Failure Result to be updated/added should have the link
-                        // status
-                        // as DOWN
-                        throw new RenderableException(
-                                ErrorCode.InternalError,
-                                "Validation Failed link doesn't have Link Status set to DOWN");
-                    }
-
-                    if (!existingLinks.containsKey(link.getLinkSource())) {
-                        Timestamp currValidationTime = Timestamp.from(Instant.now());
-                        link.setLastValidatedTime(currValidationTime);
-                        validationResultStore.createItem(txn, link);
-                        log.info("Adding link result {}", link);
-                    } else {
-                        ValidationFailureResult existingLink =
-                                existingLinks.get(link.getLinkSource());
-
-                        Timestamp prevValidationTime = existingLink.getLastValidatedTime();
-                        Timestamp currValidationTime = Timestamp.from(Instant.now());
-                        long timeDiffFromLastValidation =
-                                currValidationTime.getTime() - prevValidationTime.getTime();
-                        timeDiffFromLastValidation /= 1000;
-                        timeDiffFromLastValidation /= 60;
-
-                        updateTimeScope.withDimension(
-                                "linkSource", link.getLinkSource().toString());
-                        updateTimeScope.emit(
-                                MetricNames.AddValidationResults.TimeFromLastValidation.name(),
-                                timeDiffFromLastValidation);
-
-                        link.setLastValidatedTime(currValidationTime);
-                        validationResultStore.updateItem(txn, link);
-                        log.info("{} Link Result being updated to: {}", existingLink, link);
+                        if (!existingLinks.containsKey(link.getLinkSource())) {
+                            Timestamp currValidationTime = Timestamp.from(Instant.now());
+                            link.setLastValidatedTime(currValidationTime);
+                            validationResultStore.createItem(txn, link);
+                            log.info("Adding link result {}", link);
+                        } else {
+                            ValidationFailureResult existingLink =
+                                    existingLinks.get(link.getLinkSource());
+                            Timestamp prevValidationTime = existingLink.getLastValidatedTime();
+                            Timestamp currValidationTime = Timestamp.from(Instant.now());
+                            long timeDiffFromLastValidation =
+                                    (currValidationTime.getTime() - prevValidationTime.getTime())
+                                            / 1000
+                                            / 60;
+                            updateTimeScope.withDimension(
+                                    "linkSource", link.getLinkSource().toString());
+                            updateTimeScope.emit(
+                                    MetricNames.AddValidationResults.TimeFromLastValidation.name(),
+                                    timeDiffFromLastValidation);
+                            link.setLastValidatedTime(currValidationTime);
+                            validationResultStore.updateItem(txn, link);
+                            log.info("{} Link Result being updated to: {}", existingLink, link);
+                        }
                     }
                 }
-            }
-
-            try {
-                txn.commit();
-            } catch (CommitConflictException | DuplicateKeyException e) {
-                String message = "Failed to add/update existing links to DOWN";
-                scope.emit(MetricNames.AddValidationResults.KievResultUpdateFailure.name(), 1.0);
-                handleException(txn, e, message);
-                throw new RenderableException(
-                        ErrorCode.ExternalServerInvalidResponse,
-                        "DB transaction failed. Please try again.");
+                try {
+                    txn.commit();
+                } catch (CommitConflictException | DuplicateKeyException e) {
+                    String message = "Failed to add/update existing links to DOWN";
+                    scope.emit(
+                            MetricNames.AddValidationResults.KievResultUpdateFailure.name(), 1.0);
+                    handleException(txn, e, message);
+                    throw new RenderableException(
+                            ErrorCode.ExternalServerInvalidResponse,
+                            "DB transaction failed. Please try again.");
+                }
             }
         }
     }

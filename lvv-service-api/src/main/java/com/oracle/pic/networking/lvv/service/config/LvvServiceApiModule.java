@@ -115,17 +115,17 @@ public class LvvServiceApiModule extends AbstractModule {
     }
 
     private void bindProjectBucket() {
-        KievHashBucketProvider<String, ProjectItem> kievHashBucketProvider =
+        KievHashBucketProvider<Long, ProjectItem> kievHashBucketProvider =
                 new KievHashBucketProvider<>(
-                        "projectsListBucket",
-                        "Bucket which stores all project list",
-                        String.class,
+                        "projectItemsBucket",
+                        "Bucket which stores all project items",
+                        Long.class,
                         ProjectItem.class);
-        bind(new TypeLiteral<MappedHashBucket<String, ProjectItem>>() {})
+        bind(new TypeLiteral<MappedHashBucket<Long, ProjectItem>>() {})
                 .toProvider(kievHashBucketProvider);
 
-        bind(new TypeLiteral<ConfigurationStore<String, ProjectItem>>() {})
-                .to(new TypeLiteral<KievConfigurationStore<String, ProjectItem>>() {});
+        bind(new TypeLiteral<ConfigurationStore<Long, ProjectItem>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<Long, ProjectItem>>() {});
     }
 
     private void bindValidationFailureResultBucket() {
@@ -155,7 +155,7 @@ public class LvvServiceApiModule extends AbstractModule {
     private void bindBlockDetailsBucket() {
         KievHashBucketProvider<BlockDetails.Block, BlockDetails> blockDetailsProvider =
                 new KievHashBucketProvider<>(
-                        "blockDetailsBucket",
+                        "blockDetailBucket",
                         "Bucket to store block details for projects",
                         BlockDetails.Block.class,
                         BlockDetails.class);

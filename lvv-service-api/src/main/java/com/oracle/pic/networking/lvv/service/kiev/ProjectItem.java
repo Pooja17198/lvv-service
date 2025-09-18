@@ -3,15 +3,16 @@ package com.oracle.pic.networking.lvv.service.kiev;
 import static com.oracle.pic.kiev.mapping.annotations.ColumnType.STRING;
 
 import com.oracle.pic.kiev.mapping.annotations.Column;
-import com.oracle.pic.kiev.mapping.annotations.ColumnType;
 import com.oracle.pic.kiev.mapping.annotations.HashKey;
 import com.oracle.pic.kiev.mapping.annotations.KievEntity;
 import com.oracle.pic.kiev.mapping.annotations.KievIndex;
+import com.oracle.pic.kiev.mapping.annotations.SequenceColumn;
 import com.oracle.pic.networking.lvv.service.utils.KievConstants;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.Value;
 
@@ -23,6 +24,7 @@ import lombok.Value;
 // Vendor
 
 @Getter
+@Setter
 @ToString
 @Builder(builderClassName = "Builder")
 @KievEntity(builderClass = ProjectItem.Builder.class, builderPrefix = "")
@@ -30,13 +32,21 @@ import lombok.Value;
         name = ProjectItem.VENDOR_COLUMN_NAME,
         columns = {ProjectItem.VENDOR_COLUMN_NAME},
         unique = false)
+@KievIndex(
+        name = ProjectItem.PROJECT_ID_COLUMN_NAME,
+        columns = {ProjectItem.PROJECT_ID_COLUMN_NAME},
+        unique = false)
 public class ProjectItem {
 
-    public static final String VENDOR_COLUMN_NAME = "vendorName";
+    public static final String VENDOR_COLUMN_NAME = "vendorsName";
+    public static final String PROJECT_ID_COLUMN_NAME = "projectIdCol";
+
+    @HashKey
+    @SequenceColumn(sequence = "projectKey")
+    Long projectKey;
 
     @NonNull
-    @HashKey
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH)
+    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, name = PROJECT_ID_COLUMN_NAME)
     private String projectId;
 
     @NonNull
@@ -53,7 +63,21 @@ public class ProjectItem {
             vendorName = null;
         }
 
-        @Column(type = ColumnType.STRING, length = 64, name = VENDOR_COLUMN_NAME)
+        @Column(type = STRING, length = 64, name = VENDOR_COLUMN_NAME)
         String vendorName;
+    }
+
+    @Value
+    @KievEntity
+    @AllArgsConstructor
+    @lombok.Builder(builderClassName = "Builder", toBuilder = true)
+    public static class ProjectIdIndex {
+        @SuppressWarnings("unused")
+        ProjectIdIndex() {
+            projectId = null;
+        }
+
+        @Column(type = STRING, length = 64, name = PROJECT_ID_COLUMN_NAME)
+        String projectId;
     }
 }

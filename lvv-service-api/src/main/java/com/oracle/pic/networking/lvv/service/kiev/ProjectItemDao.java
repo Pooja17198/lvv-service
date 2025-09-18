@@ -28,17 +28,18 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 public class ProjectItemDao {
     private static final int DEFAULT_PAGE_SIZE = 1000;
-    private final ConfigurationStore<String, ProjectItem> projectItemStore;
-    private final MappedHashBucket<String, ProjectItem> projectItemProvider;
+    private final ConfigurationStore<Long, ProjectItem> projectItemStore;
+    private final MappedHashBucket<Long, ProjectItem> projectItemProvider;
     private final PaginationTokenSerializer serializer;
+    private final Index<ProjectItem.ProjectIdIndex, ProjectItem> projectItemIndex;
     private final Index<ProjectItem.VendorNameIndex, ProjectItem> vendorNameIndex;
     private final BlockDetailsDao blockDetailsDao;
 
     @Inject
     public ProjectItemDao(
-            @NonNull ConfigurationStore<String, ProjectItem> projectItemStore,
+            @NonNull ConfigurationStore<Long, ProjectItem> projectItemStore,
             @NonNull PaginationTokenSerializer serializer,
-            @NonNull MappedHashBucket<String, ProjectItem> projectItemProvider,
+            @NonNull MappedHashBucket<Long, ProjectItem> projectItemProvider,
             @NonNull BlockDetailsDao blockDetailsDao) {
         this.projectItemStore = projectItemStore;
         this.projectItemProvider = projectItemProvider;
@@ -46,6 +47,9 @@ public class ProjectItemDao {
         this.vendorNameIndex =
                 projectItemProvider.getIndex(
                         ProjectItem.VENDOR_COLUMN_NAME, ProjectItem.VendorNameIndex.class);
+        this.projectItemIndex =
+                projectItemProvider.getIndex(
+                        ProjectItem.PROJECT_ID_COLUMN_NAME, ProjectItem.ProjectIdIndex.class);
         this.blockDetailsDao = blockDetailsDao;
     }
 
@@ -117,7 +121,7 @@ public class ProjectItemDao {
 
             // Check if the item already exists
             try {
-                existingItem = projectItemStore.getItem(item.getProjectId());
+                existingItem = getProjectItemForProjectId(item.getProjectId());
             } catch (RuntimeException exception) {
                 log.info(
                         "Project with ID {} does not exist. Creating new Project",
@@ -179,7 +183,7 @@ public class ProjectItemDao {
 
             // Check if the item exists
             try {
-                existingItem = projectItemStore.getItem(item.getProjectId());
+                existingItem = getProjectItemForProjectId(item.getProjectId());
             } catch (RuntimeException exception) {
                 log.info("Project with ID {} does not exist.", item.getProjectId());
                 scope.emit(MetricNames.UpdateProjectItem.ItemDoesNotExist.name(), 1.0);
@@ -206,6 +210,7 @@ public class ProjectItemDao {
 
             if (existingItem != null) {
                 log.info("Updating existing project {}", item.getProjectId());
+                item.setProjectKey(existingItem.getProjectKey());
                 this.projectItemStore.updateItem(txn, item);
             } else {
                 log.error("Project with ID {} does not exist", item.getProjectId());
@@ -230,7 +235,7 @@ public class ProjectItemDao {
 
     public ProjectItem getProjectItem(@NonNull String projectId) {
         try {
-            return projectItemStore.getItem(projectId);
+            return getProjectItemForProjectId(projectId);
         } catch (RuntimeException exception) {
             log.info("Project ID does not exist {}", projectId);
             return null;
@@ -242,11 +247,11 @@ public class ProjectItemDao {
         try (Transaction txn = projectItemStore.beginTransaction(projectId)) {
 
             log.info("Deleting the project {}", projectId);
-
-            boolean result = this.projectItemStore.deleteItem(txn, projectId);
-
-            if (!result) {
-                log.info("Project with ID {} does not exist", projectId);
+            try {
+                ProjectItem existingItem = getProjectItemForProjectId(projectId);
+                this.projectItemStore.deleteItem(txn, existingItem.getProjectKey());
+            } catch (RuntimeException exception) {
+                log.error("Project with ID {} does not exist", projectId);
                 scope.emit(MetricNames.DeleteProjectItem.ItemDoesNotExist.name(), 1.0);
                 throw new RenderableException(
                         ErrorCode.NotAuthorizedOrNotFound, "Project does not exist");
@@ -268,6 +273,52 @@ public class ProjectItemDao {
                         "Failed to delete project in Kiev");
             }
         }
+    }
+
+    public ProjectItem getProjectItemForProjectId(String projectId) {
+
+        log.info("Fetching project with ID: {}", projectId);
+
+        ProjectItem.ProjectIdIndex prefix =
+                ProjectItem.ProjectIdIndex.builder().projectId(projectId).build();
+
+        List<ProjectItem> result = Lists.newArrayList();
+
+        Preconditions.checkNotNull(projectItemIndex, "projectItemIndex is null");
+        ScanPage<ProjectItem> page = projectItemIndex.beginPrefixScan(prefix, DEFAULT_PAGE_SIZE);
+        while (page != null) {
+            KievRateLimiter.throttle();
+            List<ProjectItem> pageResults = page.results();
+            if (pageResults != null) {
+                List<ProjectItem> filteredPage =
+                        pageResults.stream()
+                                .filter(Objects::nonNull)
+                                .filter(proj -> proj.getProjectId().equals(projectId))
+                                .toList();
+
+                result.addAll(filteredPage);
+            }
+
+            // Setup next page
+            if (page.hasNext()) {
+                page = projectItemIndex.scan(page.paginationToken());
+            } else {
+                page = null;
+            }
+        }
+
+        log.info("Found {} project with ID {}", result.size(), projectId);
+
+        if (result.size() > 1) {
+            throw new RenderableException(
+                    ErrorCode.IncorrectState, "More than one project item found");
+        }
+
+        if (result.isEmpty()) {
+            throw new RuntimeException("No project item found");
+        }
+
+        return result.get(0);
     }
 
     public List<ProjectItem> getProjectItemsForVendor(String vendorName) {

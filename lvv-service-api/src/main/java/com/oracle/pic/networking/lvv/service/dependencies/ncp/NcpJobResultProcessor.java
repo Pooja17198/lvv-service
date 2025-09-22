@@ -132,7 +132,17 @@ public class NcpJobResultProcessor {
                         builder.deviceBNameExpected(expectedDevicePortInfo.deviceName);
                         builder.deviceBPortExpected(expectedDevicePortInfo.port);
                         builder.deviceBRackExpected(expectedDevicePortInfo.rackUnit);
-                        builder.lldpStatus(LldpStatus.MISMATCH);
+
+                        // Magnum tests don't provide expected results for crypto device
+                        // validations, thereby we say the LLDP status as UNSUPPORTED to avoid false
+                        // positives
+                        if (originDevicePortInfo.deviceName.contains("crypto")
+                                || destinationDevicePortInfo.deviceName.contains("crypto")) {
+                            builder.lldpStatus(LldpStatus.UNSUPPORTED);
+                        } else {
+                            builder.lldpStatus(LldpStatus.MISMATCH);
+                        }
+
                         builder.linkStatus(LinkStatus.DOWN);
                         resultBuilder.put(originDevicePortInfo, builder);
 

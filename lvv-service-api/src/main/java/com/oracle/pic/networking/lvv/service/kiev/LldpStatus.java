@@ -4,7 +4,8 @@ package com.oracle.pic.networking.lvv.service.kiev;
 // destination of a link cabled, match what is expected
 // It maps to ValidationFailureResult Data Object
 public enum LldpStatus {
-    UNTESTED,
     MATCH,
-    MISMATCH
+    MISMATCH,
+    UNSUPPORTED,
+    UNTESTED
 }

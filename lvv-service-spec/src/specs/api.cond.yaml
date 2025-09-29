@@ -114,6 +114,7 @@ paths:
       description: Gets a list of projects by specific vendors
       parameters:
         - $ref: '#/parameters/VendorQueryParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:

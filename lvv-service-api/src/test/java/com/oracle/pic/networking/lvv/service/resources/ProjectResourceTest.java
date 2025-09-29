@@ -217,10 +217,55 @@ class ProjectResourceTest {
 
             List<Project> result =
                     resource.getProjectList(
-                            vendorName, opcRequestId, principal, authorizationRequest);
+                            vendorName, null, opcRequestId, principal, authorizationRequest);
             assertEquals(projects, result);
 
             verify(projectService).getProjectListByVendor(vendorName);
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetProjectList_withRegionOnly_success() {
+        List<Project> projects = List.of(project);
+        when(projectService.getProjectListByRegion("us-phoenix-1")).thenReturn(projects);
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            List<Project> result =
+                    resource.getProjectList(
+                            null, "us-phoenix-1", opcRequestId, principal, authorizationRequest);
+            assertEquals(projects, result);
+
+            verify(projectService).getProjectListByRegion("us-phoenix-1");
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetProjectList_withVendorAndRegion_success() {
+        List<Project> projects = List.of(project);
+        when(projectService.getProjectListByVendorAndRegion(vendorName, "us-phoenix-1"))
+                .thenReturn(projects);
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
+            when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
+            when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+
+            List<Project> result =
+                    resource.getProjectList(
+                            vendorName,
+                            "us-phoenix-1",
+                            opcRequestId,
+                            principal,
+                            authorizationRequest);
+            assertEquals(projects, result);
+
+            verify(projectService).getProjectListByVendorAndRegion(vendorName, "us-phoenix-1");
             verify(metricsScope).recordSuccess();
         }
     }

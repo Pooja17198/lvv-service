@@ -167,6 +167,7 @@ public class ProjectResource extends AbstractProjectsResource {
     @Override
     public List<Project> getProjectList(
             String vendorName,
+            String regionName,
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
@@ -176,17 +177,30 @@ public class ProjectResource extends AbstractProjectsResource {
 
             List<Project> projects;
 
-            if (vendorName == null || vendorName.isEmpty()) {
+            boolean hasVendor = vendorName != null && !vendorName.isEmpty();
+            boolean hasRegion = regionName != null && !regionName.isEmpty();
+
+            if (!hasVendor && !hasRegion) {
                 log.info("Fetching all the projects");
                 scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
                 projects = projectService.getProjectList();
-            } else {
-                log.info("Fetching all the projects for the vendor {}", vendorName);
+            } else if (hasVendor && !hasRegion) {
+                log.info("Fetching projects for vendor {}", vendorName);
                 scope.withDimension("vendorName", vendorName);
                 scope.emit(MetricNames.GetProjectItem.GetProjectsForVendor.name(), 1.0);
                 projects = projectService.getProjectListByVendor(vendorName);
+            } else if (!hasVendor && hasRegion) {
+                log.info("Fetching projects for region {}", regionName);
+                scope.withDimension("regionName", regionName);
+                scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
+                projects = projectService.getProjectListByRegion(regionName);
+            } else {
+                log.info("Fetching projects for vendor {} in region {}", vendorName, regionName);
+                scope.withDimension("vendorName", vendorName);
+                scope.withDimension("regionName", regionName);
+                scope.emit(MetricNames.GetProjectItem.GetProjectsForVendor.name(), 1.0);
+                projects = projectService.getProjectListByVendorAndRegion(vendorName, regionName);
             }
-
             scope.recordSuccess();
             return projects;
         }

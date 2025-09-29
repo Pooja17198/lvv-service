@@ -30,12 +30,18 @@ public class ResourceModelTransformer {
             building = blockDetail.getBlock().getBuilding();
         }
 
+        String derivedRegion = GeneralUtils.getRegionFromBuilding(building);
+        String region =
+                project.getRegionName() != null && !project.getRegionName().isBlank()
+                        ? project.getRegionName()
+                        : derivedRegion;
+
         return Project.builder()
                 .projectId(project.getProjectId())
                 .vendorName(project.getVendorName())
                 .blocks(blocks)
                 .building(building)
-                .region(GeneralUtils.getRegionFromBuilding(building))
+                .region(region)
                 .build();
     }
 

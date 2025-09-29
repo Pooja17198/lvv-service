@@ -36,10 +36,20 @@ import lombok.Value;
         name = ProjectItem.PROJECT_ID_COLUMN_NAME,
         columns = {ProjectItem.PROJECT_ID_COLUMN_NAME},
         unique = false)
+@KievIndex(
+        name = ProjectItem.REGION_COLUMN_NAME,
+        columns = {ProjectItem.REGION_COLUMN_NAME},
+        unique = false)
+@KievIndex(
+        name = ProjectItem.VENDOR_REGION_INDEX_NAME,
+        columns = {ProjectItem.VENDOR_COLUMN_NAME, ProjectItem.REGION_COLUMN_NAME},
+        unique = false)
 public class ProjectItem {
 
     public static final String VENDOR_COLUMN_NAME = "vendorsName";
     public static final String PROJECT_ID_COLUMN_NAME = "projectIdCol";
+    public static final String REGION_COLUMN_NAME = "regionName";
+    public static final String VENDOR_REGION_INDEX_NAME = "vendorRegionIdx";
 
     @HashKey
     @SequenceColumn(sequence = "projectKey")
@@ -52,6 +62,9 @@ public class ProjectItem {
     @NonNull
     @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, name = VENDOR_COLUMN_NAME)
     private String vendorName;
+
+    @Column(type = STRING, length = 64, nullable = true, name = REGION_COLUMN_NAME)
+    private String regionName;
 
     @Value
     @KievEntity
@@ -79,5 +92,37 @@ public class ProjectItem {
 
         @Column(type = STRING, length = 64, name = PROJECT_ID_COLUMN_NAME)
         String projectId;
+    }
+
+    @Value
+    @KievEntity
+    @AllArgsConstructor
+    @lombok.Builder(builderClassName = "Builder", toBuilder = true)
+    public static class RegionNameIndex {
+        @SuppressWarnings("unused")
+        RegionNameIndex() {
+            regionName = null;
+        }
+
+        @Column(type = STRING, length = 64, name = REGION_COLUMN_NAME)
+        String regionName;
+    }
+
+    @Value
+    @KievEntity
+    @AllArgsConstructor
+    @lombok.Builder(builderClassName = "Builder", toBuilder = true)
+    public static class VendorRegionIndex {
+        @SuppressWarnings("unused")
+        VendorRegionIndex() {
+            vendorName = null;
+            regionName = null;
+        }
+
+        @Column(type = STRING, length = 64, name = VENDOR_COLUMN_NAME)
+        String vendorName;
+
+        @Column(type = STRING, length = 64, name = REGION_COLUMN_NAME)
+        String regionName;
     }
 }

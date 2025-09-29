@@ -88,24 +88,9 @@ public class ProjectService {
 
         log.info("Creating Project with ID {}", projectId);
 
-        // Adding the incoming blocks to the project
-        List<BlockDetails> blockDetails = new ArrayList<>();
+        List<BlockDetails> blockDetails = buildBlockDetailsForProject(projectId, building, blocks);
 
-        for (String block : blocks) {
-            BlockDetails blockDetail =
-                    BlockDetails.builder()
-                            .projectId(projectId)
-                            .block(
-                                    BlockDetails.Block.builder()
-                                            .blockNumber(block)
-                                            .building(building)
-                                            .build())
-                            .build();
-            blockDetails.add(blockDetail);
-        }
-
-        ProjectItem item =
-                ProjectItem.builder().projectId(projectId).vendorName(vendorName).build();
+        ProjectItem item = buildProjectItemWithRegion(projectId, vendorName, building);
 
         projectItemDao.addProjectItem(item, blockDetails, scope);
     }
@@ -121,24 +106,9 @@ public class ProjectService {
 
         log.info("Updating Project with ID {}", projectId);
 
-        // Adding the incoming blocks to the project
-        List<BlockDetails> blockDetails = new ArrayList<>();
+        List<BlockDetails> blockDetails = buildBlockDetailsForProject(projectId, building, blocks);
 
-        for (String block : blocks) {
-            BlockDetails blockDetail =
-                    BlockDetails.builder()
-                            .projectId(projectId)
-                            .block(
-                                    BlockDetails.Block.builder()
-                                            .blockNumber(block)
-                                            .building(building)
-                                            .build())
-                            .build();
-            blockDetails.add(blockDetail);
-        }
-
-        ProjectItem item =
-                ProjectItem.builder().projectId(projectId).vendorName(vendorName).build();
+        ProjectItem item = buildProjectItemWithRegion(projectId, vendorName, building);
 
         projectItemDao.updateProjectItem(item, blockDetails, scope);
     }
@@ -200,6 +170,94 @@ public class ProjectService {
         }
 
         return result;
+    }
+
+    public List<Project> getProjectListByRegion(String regionName) {
+        log.info("Fetching List of Projects by Region Name");
+
+        List<ProjectItem> projects = projectItemDao.getProjectItemsForRegion(regionName);
+
+        if (projects.isEmpty()) {
+            log.info("No projects found in region {}", regionName);
+            return Collections.emptyList();
+        }
+
+        List<Project> result = new ArrayList<>();
+
+        for (ProjectItem project : projects) {
+
+            log.info("Fetching blocks associated with project {}", project.getProjectId());
+
+            List<BlockDetails> blockDetails =
+                    blockDetailsDao.getBlockDetailsForProject(project.getProjectId());
+
+            Project proj = resourceModelTransformer.toModel(project, blockDetails);
+
+            result.add(proj);
+        }
+
+        return result;
+    }
+
+    public List<Project> getProjectListByVendorAndRegion(String vendorName, String regionName) {
+        log.info("Fetching List of Projects by Vendor and Region");
+
+        List<ProjectItem> projects =
+                projectItemDao.getProjectItemsForVendorAndRegion(vendorName, regionName);
+
+        if (projects.isEmpty()) {
+            log.info(
+                    "No projects associated with the vendor {} in region {}",
+                    vendorName,
+                    regionName);
+            return Collections.emptyList();
+        }
+
+        List<Project> result = new ArrayList<>();
+
+        for (ProjectItem project : projects) {
+
+            log.info("Fetching blocks associated with project {}", project.getProjectId());
+
+            List<BlockDetails> blockDetails =
+                    blockDetailsDao.getBlockDetailsForProject(project.getProjectId());
+
+            Project proj = resourceModelTransformer.toModel(project, blockDetails);
+
+            result.add(proj);
+        }
+
+        return result;
+    }
+
+    private static List<BlockDetails> buildBlockDetailsForProject(
+            String projectId, String building, List<String> blocks) {
+        List<BlockDetails> blockDetails = new ArrayList<>();
+        for (String block : blocks) {
+            BlockDetails blockDetail =
+                    BlockDetails.builder()
+                            .projectId(projectId)
+                            .block(
+                                    BlockDetails.Block.builder()
+                                            .blockNumber(block)
+                                            .building(building)
+                                            .build())
+                            .build();
+            blockDetails.add(blockDetail);
+        }
+        return blockDetails;
+    }
+
+    private static ProjectItem buildProjectItemWithRegion(
+            String projectId, String vendorName, String building) {
+        String regionName =
+                com.oracle.pic.networking.lvv.service.utils.GeneralUtils.getRegionFromBuilding(
+                        building);
+        return ProjectItem.builder()
+                .projectId(projectId)
+                .vendorName(vendorName)
+                .regionName(regionName)
+                .build();
     }
 
     public List<Project> getProjectList() {

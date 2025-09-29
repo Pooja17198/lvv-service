@@ -33,6 +33,8 @@ public class ProjectItemDao {
     private final PaginationTokenSerializer serializer;
     private final Index<ProjectItem.ProjectIdIndex, ProjectItem> projectItemIndex;
     private final Index<ProjectItem.VendorNameIndex, ProjectItem> vendorNameIndex;
+    private final Index<ProjectItem.RegionNameIndex, ProjectItem> regionNameIndex;
+    private final Index<ProjectItem.VendorRegionIndex, ProjectItem> vendorRegionIndex;
     private final BlockDetailsDao blockDetailsDao;
 
     @Inject
@@ -50,6 +52,13 @@ public class ProjectItemDao {
         this.projectItemIndex =
                 projectItemProvider.getIndex(
                         ProjectItem.PROJECT_ID_COLUMN_NAME, ProjectItem.ProjectIdIndex.class);
+        this.regionNameIndex =
+                projectItemProvider.getIndex(
+                        ProjectItem.REGION_COLUMN_NAME, ProjectItem.RegionNameIndex.class);
+
+        this.vendorRegionIndex =
+                projectItemProvider.getIndex(
+                        ProjectItem.VENDOR_REGION_INDEX_NAME, ProjectItem.VendorRegionIndex.class);
         this.blockDetailsDao = blockDetailsDao;
     }
 
@@ -388,6 +397,195 @@ public class ProjectItemDao {
         log.info("Found {} projects", result.size());
 
         return result;
+    }
+
+    public List<ProjectItem> getProjectItemsForRegion(String regionName) {
+
+        log.info("Fetching all the projects for region {}", regionName);
+
+        List<ProjectItem> result = com.google.common.collect.Lists.newArrayList();
+        if (regionNameIndex != null) {
+            ProjectItem.RegionNameIndex prefix =
+                    ProjectItem.RegionNameIndex.builder().regionName(regionName).build();
+
+            ScanPage<ProjectItem> page = regionNameIndex.beginPrefixScan(prefix, DEFAULT_PAGE_SIZE);
+            while (page != null) {
+                KievRateLimiter.throttle();
+                List<ProjectItem> pageResults = page.results();
+                if (pageResults != null) {
+                    List<ProjectItem> filteredPage =
+                            pageResults.stream()
+                                    .filter(Objects::nonNull)
+                                    .filter(proj -> regionName.equals(proj.getRegionName()))
+                                    .toList();
+
+                    result.addAll(filteredPage);
+                }
+
+                if (page.hasNext()) {
+                    page = regionNameIndex.scan(page.paginationToken());
+                } else {
+                    page = null;
+                }
+            }
+        } else {
+            // Fallback: full scan and filter by region; derive if missing
+            ScanPage<ProjectItem> page = projectItemProvider.beginScan(DEFAULT_PAGE_SIZE);
+            while (page != null) {
+                KievRateLimiter.throttle();
+                List<ProjectItem> pageResults = page.results();
+                if (pageResults != null) {
+                    for (ProjectItem proj : pageResults) {
+                        if (proj == null) {
+                            continue;
+                        }
+                        if (isProjectInRegion(proj, regionName)) {
+                            result.add(proj);
+                        }
+                    }
+                }
+                if (page.hasNext()) {
+                    page = projectItemProvider.scan(page.paginationToken());
+                } else {
+                    page = null;
+                }
+            }
+        }
+
+        log.info("Found {} projects in region {}", result.size(), regionName);
+
+        return result;
+    }
+
+    public List<ProjectItem> getProjectItemsForVendorAndRegion(
+            String vendorName, String regionName) {
+
+        log.info("Fetching all the projects for vendor {} in region {}", vendorName, regionName);
+
+        List<ProjectItem> result = com.google.common.collect.Lists.newArrayList();
+        java.util.Set<String> seenProjectIds = new java.util.HashSet<>();
+        if (vendorRegionIndex != null) {
+            ProjectItem.VendorRegionIndex prefix =
+                    ProjectItem.VendorRegionIndex.builder()
+                            .vendorName(vendorName)
+                            .regionName(regionName)
+                            .build();
+
+            ScanPage<ProjectItem> page =
+                    vendorRegionIndex.beginPrefixScan(prefix, DEFAULT_PAGE_SIZE);
+            while (page != null) {
+                KievRateLimiter.throttle();
+                List<ProjectItem> pageResults = page.results();
+                if (pageResults != null) {
+                    List<ProjectItem> filteredPage =
+                            pageResults.stream()
+                                    .filter(Objects::nonNull)
+                                    .filter(
+                                            proj ->
+                                                    vendorName.equals(proj.getVendorName())
+                                                            && regionName.equals(
+                                                                    proj.getRegionName()))
+                                    .toList();
+
+                    result.addAll(filteredPage);
+                    for (ProjectItem p : filteredPage) {
+                        if (p != null) {
+                            seenProjectIds.add(p.getProjectId());
+                        }
+                    }
+                }
+
+                if (page.hasNext()) {
+                    page = vendorRegionIndex.scan(page.paginationToken());
+                } else {
+                    page = null;
+                }
+            }
+            // Temporary union fallback: include vendor rows with missing regionName whose derived
+            // region matches
+            ProjectItem.VendorNameIndex vendorPrefixFallback =
+                    ProjectItem.VendorNameIndex.builder().vendorName(vendorName).build();
+            ScanPage<ProjectItem> vendorScanPage =
+                    vendorNameIndex.beginPrefixScan(vendorPrefixFallback, DEFAULT_PAGE_SIZE);
+            while (vendorScanPage != null) {
+                KievRateLimiter.throttle();
+                List<ProjectItem> vendorScanPageResults = vendorScanPage.results();
+                if (vendorScanPageResults != null) {
+                    for (ProjectItem proj : vendorScanPageResults) {
+                        if (proj == null) {
+                            continue;
+                        }
+                        if (!vendorName.equals(proj.getVendorName())) {
+                            continue;
+                        }
+                        String projRegion = proj.getRegionName();
+                        if (projRegion != null && !projRegion.isBlank()) {
+                            continue;
+                        }
+                        if (isProjectInRegion(proj, regionName)
+                                && !seenProjectIds.contains(proj.getProjectId())) {
+                            result.add(proj);
+                            seenProjectIds.add(proj.getProjectId());
+                        }
+                    }
+                }
+                if (vendorScanPage.hasNext()) {
+                    vendorScanPage = vendorNameIndex.scan(vendorScanPage.paginationToken());
+                } else {
+                    vendorScanPage = null;
+                }
+            }
+        } else {
+            // Fallback: use vendor index and then filter by region
+            ProjectItem.VendorNameIndex prefix =
+                    ProjectItem.VendorNameIndex.builder().vendorName(vendorName).build();
+            ScanPage<ProjectItem> page = vendorNameIndex.beginPrefixScan(prefix, DEFAULT_PAGE_SIZE);
+            while (page != null) {
+                KievRateLimiter.throttle();
+                List<ProjectItem> pageResults = page.results();
+                if (pageResults != null) {
+                    for (ProjectItem proj : pageResults) {
+                        if (proj == null) {
+                            continue;
+                        }
+                        if (!vendorName.equals(proj.getVendorName())) {
+                            continue;
+                        }
+                        if (isProjectInRegion(proj, regionName)) {
+                            result.add(proj);
+                        }
+                    }
+                }
+                if (page.hasNext()) {
+                    page = vendorNameIndex.scan(page.paginationToken());
+                } else {
+                    page = null;
+                }
+            }
+        }
+
+        log.info(
+                "Found {} projects for vendor {} in region {}",
+                result.size(),
+                vendorName,
+                regionName);
+
+        return result;
+    }
+
+    private boolean isProjectInRegion(ProjectItem projectItem, String expectedRegion) {
+        String projRegion = projectItem.getRegionName();
+        if (projRegion == null || projRegion.isBlank()) {
+            List<BlockDetails> blocks =
+                    blockDetailsDao.getBlockDetailsForProject(projectItem.getProjectId());
+            if (!blocks.isEmpty()) {
+                String building = blocks.get(0).getBlock().getBuilding();
+                projRegion =
+                        com.oracle.pic.networking.lvv.service.utils.GeneralUtils
+                                .getRegionFromBuilding(building);
+            }
+        }
+        return expectedRegion.equals(projRegion);
     }
 
     private void handleException(Transaction txn, Exception exception, String message) {

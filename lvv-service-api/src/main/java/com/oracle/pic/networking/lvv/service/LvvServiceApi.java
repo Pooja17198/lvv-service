@@ -14,6 +14,8 @@ import com.oracle.pic.commons.service.connectors.DynamicHttpsWithCertsProviderCo
 import com.oracle.pic.commons.service.environment.ServiceConfigurator;
 import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
 import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
+import com.oracle.pic.kiev.KaasStoreConfig;
+import com.oracle.pic.kiev.registry.data.ClientRegistryLocality;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
@@ -22,9 +24,14 @@ import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
 import com.oracle.pic.networking.lvv.service.resources.StoreKeeperResource;
+import com.oracle.pic.networking.lvv.service.schema.ApiSchemaUpdates;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.sfw.internal.GeneratedApplicationHeartbeater;
+import com.oracle.pic.sfw.kiev.schema.exceptions.NonRetryablePlanExecutionException;
+import com.oracle.pic.sfw.kiev.schema.operations.CheckResult;
+import com.oracle.pic.sfw.kiev.schema.updates.SchemaUpdate;
+import com.oracle.pic.sfw.kiev.schema.updates.SchemaUpdateRunner;
 import com.oracle.pic.sherlock.collector.dropwizard.AuditFilterInstaller;
 import io.dropwizard.core.Application;
 import io.dropwizard.core.setup.Bootstrap;
@@ -109,6 +116,85 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
         log.info("Initializing LvvServiceApi...");
 
         try {
+            // Run Kiev schema updates BEFORE binding mapped entities/DAOs
+            try {
+                // Build a transient KaasStoreConfig, connect, and run updates on the DataStore
+                KaasStoreConfig ks =
+                        new KaasStoreConfig(
+                                config.getKaasStoreConfig().getStoreName(),
+                                config.getKaasStoreConfig().getAppName());
+                ks.setAuthEndpoint(config.getKaasStoreConfig().getAuthEndpoint());
+                ks.setFrontendEndpoint(config.getKaasStoreConfig().getFrontendEndpoint());
+                ks.setCompartmentId(config.getKaasStoreConfig().getCompartmentId());
+                ks.setTenantId(config.getKaasStoreConfig().getTenantId());
+                ks.setRootCertPemPath(config.getKaasStoreConfig().getRootCertPemPath());
+                ks.setLocality(ClientRegistryLocality.REGIONAL);
+                ks.setTransactionMaxWrites(config.getKaasStoreConfig().getTransactionMaxWrites());
+                ks.setTransactionMaxReads(config.getKaasStoreConfig().getTransactionMaxReads());
+                ks.initialize();
+
+                try (var dataStore = ks.connect()) {
+                    for (SchemaUpdate update : ApiSchemaUpdates.plan()) {
+                        try {
+                            SchemaUpdateRunner.execute(
+                                    dataStore, java.util.Collections.singletonList(update));
+                            log.info(
+                                    "Kiev schema update version {} executed successfully",
+                                    update.getVersion());
+                        } catch (NonRetryablePlanExecutionException e) {
+                            var failedOn = e.getPlanExecutionResult().getFailedOn();
+                            if (failedOn.isPresent()) {
+                                var check = failedOn.get().getExecutionResult().getCheckResult();
+                                if (check.isPresent()) {
+                                    var status = check.get().getStatus();
+                                    if (CheckResult.Status.MissingBucket.equals(status)) {
+                                        log.warn(
+                                                "Bucket missing during schema update; will initialize buckets later. Skipping updates for now.");
+                                        break;
+                                    } else if (CheckResult.Status.Conflict.equals(status)) {
+                                        log.warn(
+                                                "Schema update version {} reported Conflict; treating as already applied and proceeding. Details: {}",
+                                                update.getVersion(),
+                                                check.get());
+                                        continue;
+                                    }
+                                }
+                            }
+                            throw e;
+                        }
+                    }
+                }
+            } catch (NonRetryablePlanExecutionException e) {
+                var failedOn = e.getPlanExecutionResult().getFailedOn();
+                if (failedOn.isPresent()) {
+                    var check = failedOn.get().getExecutionResult().getCheckResult();
+                    if (check.isPresent()) {
+                        var status = check.get().getStatus();
+                        if (CheckResult.Status.MissingBucket.equals(status)) {
+                            log.warn(
+                                    "Bucket missing during schema update; will initialize buckets later. Skipping updates for now.");
+                        } else if (CheckResult.Status.Conflict.equals(status)) {
+                            // Treat identical-existing index/column as success to keep startup
+                            // resilient
+                            log.warn(
+                                    "Schema update reported Conflict but appears equivalent. Proceeding. Details: {}",
+                                    check.get());
+                        } else {
+                            log.error("Kiev schema updates failed", e);
+                            throw e;
+                        }
+                    } else {
+                        log.error("Kiev schema updates failed", e);
+                        throw e;
+                    }
+                } else {
+                    log.error("Kiev schema updates failed", e);
+                    throw e;
+                }
+            } catch (Throwable t) {
+                log.error("Kiev schema updates failed", t);
+                throw t;
+            }
 
             // Lifecycle management for objects which need to be started and stopped as the service
             // is started or

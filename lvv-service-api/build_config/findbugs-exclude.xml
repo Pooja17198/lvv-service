@@ -33,4 +33,8 @@
         <Class name="com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule" />
         <Method name="&lt;init&gt;"/>
     </Match>
+    <Match>
+        <Class name="com.oracle.pic.networking.lvv.service.model.LvvReadAllProjectsResource"/>
+        <Bug pattern="DLS_DEAD_LOCAL_STORE"/>
+    </Match>
 </FindBugsFilter>

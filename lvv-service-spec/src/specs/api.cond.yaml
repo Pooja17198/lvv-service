@@ -21,7 +21,7 @@ x-obmcs-splat:
         # This enables Audit automation through SPLAT. SPLAT automatically emits following:
         #  a) an event corresponding to sync api call.
         #  b) a begin event for async api calls. Service team has to emit end events corresponding to success/failure of async call.
-        #  Reference-app emits end events in respective workflow. See AuditEventEmitter for details.
+      #  Reference-app emits end events in respective workflow. See AuditEventEmitter for details.
       #
       # Omitting audit implies you don't want Splat to audit operations for this service (ocdn-control-plane-api)
       #
@@ -114,6 +114,57 @@ paths:
       description: Gets a list of projects by specific vendors
       parameters:
         - $ref: '#/parameters/VendorQueryParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Get list of projects for a specific vendor
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Project'
+        404:
+          description: The vendorName could not be found
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          $ref: '#/responses/Error'
+
+  /allProjects:
+    get:
+      tags: [ 'projects' ]
+      x-obmcs-splat:
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+        resources:
+          LvvReadAllProjectsResource:
+            serviceResourceName: LvvReadAllProjectsResource
+            actionKind: READ
+            targetCompartmentId: "'${lvvCompartmentId}'"
+            permissions: [ 'LVV_MASTER_READ' ]
+        authorization:
+          mode: automated
+      operationId: GetAllProjectList
+      summary: Get Project List
+      description: Gets a list of projects by specific vendors
+      parameters:
         - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
@@ -1112,6 +1163,10 @@ definitions:
       cablingTaskId:
         type: string
         description: cablingTaskId.
+  LvvReadAllProjectsResource:
+    x-obmcs-splat:
+      resourceKind: "lvv-read-all-projects"
+      adLocality: ad-local
 
 #==========[ Parameters ]================================================================================================
 parameters:

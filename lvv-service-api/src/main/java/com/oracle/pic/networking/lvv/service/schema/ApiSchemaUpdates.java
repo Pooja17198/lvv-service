@@ -32,22 +32,8 @@ public final class ApiSchemaUpdates {
                                                     "regionName", DataType.STRING, 64, true))),
                             PROJECT_ITEMS_BUCKET);
 
-    private static final SchemaUpdate V3_ADD_VENDOR_REGION_INDEX =
-            new SchemaUpdate(3, "Add composite index on (vendorsName, regionName)")
-                    .addIndex(
-                            "vendorRegionIdx",
-                            new ColumnSetDescription(
-                                    false,
-                                    "vendorRegionIdx",
-                                    Arrays.asList(
-                                            new ColumnDescription<>(
-                                                    "vendorsName", DataType.STRING, 255, true),
-                                            new ColumnDescription<>(
-                                                    "regionName", DataType.STRING, 64, true))),
-                            PROJECT_ITEMS_BUCKET);
-
     public static List<SchemaUpdate> plan() {
-        return Arrays.asList(V1_ADD_REGION_COLUMN, V2_ADD_REGION_INDEX, V3_ADD_VENDOR_REGION_INDEX);
+        return Arrays.asList(V1_ADD_REGION_COLUMN, V2_ADD_REGION_INDEX);
     }
 
     private ApiSchemaUpdates() {}

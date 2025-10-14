@@ -205,4 +205,34 @@ public class ProjectResource extends AbstractProjectsResource {
             return projects;
         }
     }
+
+    @Override
+    public List<Project> getAllProjectList(
+            String regionName,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.GET_PROJECT_ITEM.name())) {
+
+            List<Project> projects;
+
+            boolean hasRegion = regionName != null && !regionName.isEmpty();
+
+            if (!hasRegion) {
+                log.info("Fetching all the projects");
+                scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
+                projects = projectService.getProjectList();
+
+            } else {
+                log.info("Fetching projects for region {}", regionName);
+                scope.withDimension("regionName", regionName);
+                scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
+                projects = projectService.getProjectListByRegion(regionName);
+            }
+            scope.recordSuccess();
+            return projects;
+        }
+    }
 }

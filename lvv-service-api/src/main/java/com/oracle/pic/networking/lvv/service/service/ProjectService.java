@@ -53,7 +53,11 @@ public class ProjectService {
     }
 
     void checkNullParameters(
-            String projectId, String vendorName, String building, List<String> blocks) {
+            String projectId,
+            String vendorName,
+            String region,
+            String building,
+            List<String> blocks) {
         // NULL Checks
         List<String> missing = new ArrayList<>();
 
@@ -62,6 +66,9 @@ public class ProjectService {
         }
         if (vendorName == null || vendorName.isBlank()) {
             missing.add("vendorName");
+        }
+        if (region == null || region.isBlank()) {
+            missing.add("region");
         }
         if (building == null || building.isBlank()) {
             missing.add("building");
@@ -80,17 +87,25 @@ public class ProjectService {
     public void createProject(
             String projectId,
             String vendorName,
+            String region,
             String building,
             List<String> blocks,
             MetricsScope scope) {
 
-        checkNullParameters(projectId, vendorName, building, blocks);
+        checkNullParameters(projectId, vendorName, region, building, blocks);
 
         log.info("Creating Project with ID {}", projectId);
 
         List<BlockDetails> blockDetails = buildBlockDetailsForProject(projectId, building, blocks);
 
-        ProjectItem item = buildProjectItemWithRegion(projectId, vendorName, building);
+        ProjectItem item =
+                ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName(
+                                vendorName.toLowerCase()) // Converting vendor name to lowercase to
+                        // make vendor names case-insensitive
+                        .regionName(region)
+                        .build();
 
         projectItemDao.addProjectItem(item, blockDetails, scope);
     }
@@ -98,17 +113,26 @@ public class ProjectService {
     public void updateProject(
             String projectId,
             String vendorName,
+            String region,
             String building,
             List<String> blocks,
             MetricsScope scope) {
 
-        checkNullParameters(projectId, vendorName, building, blocks);
+        checkNullParameters(projectId, vendorName, region, building, blocks);
 
         log.info("Updating Project with ID {}", projectId);
 
         List<BlockDetails> blockDetails = buildBlockDetailsForProject(projectId, building, blocks);
 
-        ProjectItem item = buildProjectItemWithRegion(projectId, vendorName, building);
+        // Converting vendor name to lowercase to make vendor names case-insensitive
+        vendorName = vendorName.toLowerCase();
+
+        ProjectItem item =
+                ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName(vendorName)
+                        .regionName(region)
+                        .build();
 
         projectItemDao.updateProjectItem(item, blockDetails, scope);
     }
@@ -125,6 +149,11 @@ public class ProjectService {
             throw new RenderableException(
                     ErrorCode.NotAuthorizedOrNotFound, "Project ID not found");
         }
+
+        String regionName = projectItem.getRegionName();
+        scope.withDimension("region", regionName);
+        scope.withDimension("projectId", projectId);
+        scope.emit(MetricNames.GetProjectItem.GetProject.name(), 1.0);
 
         List<BlockDetails> blockDetails = blockDetailsDao.getBlockDetailsForProject(projectId);
         if (blockDetails.isEmpty()) {
@@ -246,18 +275,6 @@ public class ProjectService {
             blockDetails.add(blockDetail);
         }
         return blockDetails;
-    }
-
-    private static ProjectItem buildProjectItemWithRegion(
-            String projectId, String vendorName, String building) {
-        String regionName =
-                com.oracle.pic.networking.lvv.service.utils.GeneralUtils.getRegionFromBuilding(
-                        building);
-        return ProjectItem.builder()
-                .projectId(projectId)
-                .vendorName(vendorName)
-                .regionName(regionName)
-                .build();
     }
 
     public List<Project> getProjectList() {

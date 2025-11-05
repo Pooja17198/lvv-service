@@ -94,7 +94,8 @@ public class ValidationFailureResultDao {
     private void updateOrAddDownLinks(
             List<ValidationFailureResult> links,
             Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks,
-            MetricsScope scope) {
+            MetricsScope scope,
+            String region) {
         log.info("Adding/Updating the following links {}", links);
         if (links.isEmpty()) {
             scope.emit(MetricNames.AddValidationResults.NoMoreFailures, 1.0);
@@ -111,6 +112,7 @@ public class ValidationFailureResultDao {
                             MetricsScope.create(
                                     MetricNames.MetricScopeNames.UPDATE_LINK_RESULTS.name())) {
                         updateTimeScope.withDimension("rackSerial", link.getRackSerial());
+                        updateTimeScope.withDimension("region", region);
 
                         if (link.getLinkStatus() != LinkStatus.DOWN) {
                             // Any Validation Failure Result to be updated/added should have the
@@ -138,7 +140,7 @@ public class ValidationFailureResultDao {
                             updateTimeScope.withDimension(
                                     "linkSource", link.getLinkSource().toString());
                             updateTimeScope.emit(
-                                    MetricNames.AddValidationResults.TimeFromLastValidation.name(),
+                                    MetricNames.UpdateLinkResults.TimeFromLastValidation.name(),
                                     timeDiffFromLastValidation);
                             link.setLastValidatedTime(currValidationTime);
                             validationResultStore.updateItem(txn, link);
@@ -164,7 +166,8 @@ public class ValidationFailureResultDao {
     public void addValidationFailureResultsForRack(
             @NonNull List<ValidationFailureResult> results,
             @NonNull String rackSerial,
-            MetricsScope scope) {
+            MetricsScope scope,
+            String region) {
 
         Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks =
                 getValidationFailuresByRack(rackSerial, false).stream()
@@ -176,11 +179,11 @@ public class ValidationFailureResultDao {
 
         List<ValidationFailureResult> newDownLinks =
                 results.stream().filter(link -> link.getLinkStatus() == LinkStatus.DOWN).toList();
-        updateOrAddDownLinks(newDownLinks, existingLinks, scope);
+        updateOrAddDownLinks(newDownLinks, existingLinks, scope, region);
     }
 
     public void updateValidationFailureResultsForDevices(
-            @NonNull List<ValidationFailureResult> results, MetricsScope scope) {
+            @NonNull List<ValidationFailureResult> results, MetricsScope scope, String region) {
 
         Map<String, List<ValidationFailureResult>> newLinks =
                 results.stream()
@@ -201,13 +204,14 @@ public class ValidationFailureResultDao {
             // First, we update all the links from the device to UP, and then based on the new
             // results we get, we either update a link to DOWN or add a new link with DOWN status
             updateExistingLinksStatusToUp(new ArrayList<>(existingLinks.values()));
+
             // We check if the first link on the device has the status DOWN, and only update those
             // devices
-            // Devices with no links DOWN, will have the first link as a minimal
+            // Devices with no links DOWN, will have the placeholder link which is a minimal
             // ValidationFailureResult object with the device name and Link Status as UP
             if (!newDeviceLinks.isEmpty()
                     && newDeviceLinks.get(0).getLinkStatus().equals(LinkStatus.DOWN)) {
-                updateOrAddDownLinks(newDeviceLinks, existingLinks, scope);
+                updateOrAddDownLinks(newDeviceLinks, existingLinks, scope, region);
             }
         }
     }

@@ -162,6 +162,7 @@ public class ProjectItemDao {
             blockDetailsDao.addBlockDetails(blockDetails, txn);
 
             this.projectItemStore.createItem(txn, item);
+            scope.emit(MetricNames.AddProjectItem.AddProject.name(), 1.0);
 
             try {
                 txn.commit();
@@ -228,6 +229,8 @@ public class ProjectItemDao {
                         ErrorCode.NotAuthorizedOrNotFound, "Project ID not found");
             }
 
+            scope.emit(MetricNames.UpdateProjectItem.UpdateProject.name(), 1.0);
+
             try {
                 txn.commit();
                 log.info("Project ID {} has been updated successfully", item.getProjectId());
@@ -258,6 +261,11 @@ public class ProjectItemDao {
             log.info("Deleting the project {}", projectId);
             try {
                 ProjectItem existingItem = getProjectItemForProjectId(projectId);
+
+                String regionName = existingItem.getRegionName();
+                scope.withDimension("region", regionName);
+                scope.emit(MetricNames.DeleteProjectItem.DeleteProject.name(), 1.0);
+
                 this.projectItemStore.deleteItem(txn, existingItem.getProjectKey());
             } catch (RuntimeException exception) {
                 log.error("Project with ID {} does not exist", projectId);

@@ -8,6 +8,8 @@ import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.atlassian.jira.rest.client.api.domain.Transition;
 import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
+import com.atlassian.jira.rest.client.api.domain.input.IssueInput;
+import com.atlassian.jira.rest.client.api.domain.input.IssueInputBuilder;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
 import com.oracle.pic.commons.metrics.MetricsScope;
@@ -74,6 +76,25 @@ public class JiraSDService {
         try (MetricsScope scope = MetricsScope.create("JiraTransition")) {
             scope.emit("volume", 1.0);
             this.issueRestClient.transition(issue, transitionInput).claim();
+            scope.recordSuccess();
+        }
+    }
+
+    /**
+     * Updates fields (like labels) on a Jira issue after transition.
+     *
+     * @param issueKey Key of the Jira issue to update.
+     * @param fieldInputList List of FieldInput to update.
+     */
+    public void updateIssueFields(String issueKey, List<FieldInput> fieldInputList) {
+        try (MetricsScope scope = MetricsScope.create("JiraUpdateIssueFields")) {
+            scope.emit("volume", 1.0);
+            IssueInputBuilder inputBuilder = new IssueInputBuilder();
+            for (FieldInput fieldInput : fieldInputList) {
+                inputBuilder.setFieldInput(fieldInput);
+            }
+            IssueInput issueInput = inputBuilder.build();
+            this.issueRestClient.updateIssue(issueKey, issueInput).claim();
             scope.recordSuccess();
         }
     }

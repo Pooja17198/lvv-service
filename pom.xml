@@ -32,7 +32,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <dropwizard-service-bom-version>3.0.29</dropwizard-service-bom-version>
-    <oci-internal-bom-version>4.3.44</oci-internal-bom-version>
+    <oci-internal-bom-version>4.6.1</oci-internal-bom-version>
 
     <formatter-goal>apply</formatter-goal>
     <maven-toolchains-plugin-version>3.0.0</maven-toolchains-plugin-version>
@@ -74,7 +74,7 @@ Maven ticket: https://issues.apache.org/jira/browse/MNG-4148
         <groupId>com.oracle.pic.sfw</groupId>
         <artifactId>oci-internal-bom</artifactId>
         <!-- Pickup the latest 4.x version from: https://confluence.oci.oraclecorp.com/x/BGhfGQ -->
-        <version>${oci-internal-bom-version}</version>
+        <version>4.6.1</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

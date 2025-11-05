@@ -161,6 +161,7 @@ paths:
             permissions: [ 'LVV_MASTER_READ' ]
         authorization:
           mode: automated
+          check: resources['LvvReadAllProjectsResource'].grantedPermissions.contains('LVV_MASTER_READ')
       operationId: GetAllProjectList
       summary: Get Project List
       description: Gets a list of projects by specific vendors
@@ -368,6 +369,7 @@ paths:
         - $ref: '#/parameters/BuildingParam'
         - $ref: '#/parameters/BlockParam'
         - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
@@ -474,6 +476,7 @@ paths:
       description: Resolve a cable validation failure task
       parameters:
         - $ref: '#/parameters/CablingTaskIdentifierPathParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
       responses:
         200:
           description: The cabling task has been resolved.
@@ -507,6 +510,7 @@ paths:
       summary: Get validation failure results for a rack
       description: Retrieves validation diagnostics from Kiev for a specific rack
       parameters:
+        - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/RackSerialParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
@@ -543,7 +547,8 @@ paths:
       summary: Triggers NCP's Healthcheck Job
       description: Triggers NCP's Healthcheck Job and return the Job ID which validates the cabling of the Racks
       parameters:
-        - $ref: '#/parameters/BuildingParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
+        - $ref: '#/parameters/BuildingNameQueryParam'
         - $ref: '#/parameters/RackSerialNumberParam'
         - $ref: '#/parameters/DeviceNamesParam'
         - $ref: '#/parameters/OpcRequestId'
@@ -583,7 +588,7 @@ paths:
           required: true
           schema:
             type: string
-        - $ref: '#/parameters/BuildingParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/RackSerialNumberParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
@@ -618,6 +623,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
@@ -983,6 +989,7 @@ definitions:
     required:
       - projectId
       - vendorName
+      - region
       - building
       - blocks
     properties:
@@ -998,7 +1005,7 @@ definitions:
         maxLength: 100
       region:
         type: string
-        description: region
+        description: Name of the region
         minLength: 1
         maxLength: 50
       building:

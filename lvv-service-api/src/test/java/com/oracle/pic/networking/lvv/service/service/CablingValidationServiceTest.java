@@ -1,135 +1,257 @@
 // package com.oracle.pic.networking.lvv.service.service;
 //
 // import static org.junit.jupiter.api.Assertions.*;
-// import static org.mockito.ArgumentMatchers.any;
 // import static org.mockito.Mockito.*;
 //
 // import com.atlassian.jira.rest.client.api.domain.Issue;
 // import com.atlassian.jira.rest.client.api.domain.IssueField;
 // import com.atlassian.jira.rest.client.api.domain.SearchResult;
-// import com.google.common.collect.Lists;
+// import com.oracle.pic.commons.exceptions.server.ErrorCode;
 // import com.oracle.pic.commons.exceptions.server.RenderableException;
 // import com.oracle.pic.commons.metrics.MetricsScope;
 // import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 // import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
-// import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 // import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
+// import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 // import com.oracle.pic.networking.ncp.model.Job;
-// import java.util.List;
+// import java.util.*;
 // import org.junit.jupiter.api.BeforeEach;
 // import org.junit.jupiter.api.Test;
-// import org.junit.jupiter.api.extension.ExtendWith;
-// import org.mockito.InjectMocks;
-// import org.mockito.Mock;
-// import org.mockito.junit.jupiter.MockitoExtension;
+// import org.mockito.*;
 //
-// @ExtendWith(MockitoExtension.class)
-// public class CablingValidationServiceTest {
+// class CablingValidationServiceTest {
 //
 //    @Mock private NcpClientHelper ncpClientHelper;
-//
 //    @Mock private JiraSDService jiraSDService;
-//
 //    @Mock private ValidationFailureResultDao validationFailureResultDao;
-//
-//    @InjectMocks private CablingValidationService cablingValidationService;
-//
-//    private Issue issue;
-//    private IssueField issueField;
-//    private SearchResult searchResult;
-//    private Job job;
-//    private List<ValidationFailureResult> output;
+//    @Mock private MetricsScope metricsScope;
+//    @InjectMocks private CablingValidationService service;
 //
 //    @BeforeEach
-//    void setup() {
-//        issue = mock(Issue.class);
-//        issueField = mock(IssueField.class);
-//        searchResult = mock(SearchResult.class);
-//        job = mock(Job.class);
-//        output =
-//                Lists.newArrayList(
-//                        ValidationFailureResult.builder()
-//                                .linkSource(ValidationFailureResult.LinkSource.builder().build())
-//                                .rackSerial("rackSerial")
-//                                .projectId("proj123")
-//                                .build());
+//    void setUp() {
+//        MockitoAnnotations.openMocks(this);
+//        service =
+//                new CablingValidationService(
+//                        ncpClientHelper, jiraSDService, validationFailureResultDao);
+//    }
+//
+//    // ========= fetchRackLocation (reachable via validateCablingTasks, getValidationJobStatus)
+//    // ==========
+//
+//    @Test
+//    void fetchRackLocation_returnsRackLocation_whenFieldPresent() {
+//        // Prepare
+//        String rackSerial = "RSN123";
+//        IssueField rackLocationField = mock(IssueField.class);
+//        Job job = mock(Job.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("LOC-42");
+//        when(ncpClientHelper.createJob(any(), any(), any(), any(), any())).thenReturn(job);
+//        when(job.getId()).thenReturn("jobId");
+//
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
+//
+//        // Test private via public
+//        String id =
+//                service.validateCablingTasks(
+//                        "us-phx", "bld-a", rackSerial, List.of("dev1"), metricsScope);
+//        // If NCP mocked, we'd check for rackLocation used in payload, but the main assert is that
+//        // no exception was thrown.
+//        assertNotNull(id);
 //    }
 //
 //    @Test
-//    void testValidateCablingTasksSuccess() throws Exception {
-//        // Arrange
-//        when(jiraSDService.searchJiraSD(any())).thenReturn(searchResult);
-//        when(searchResult.getIssues()).thenReturn(Lists.newArrayList(issue));
-//        when(issue.getFields()).thenReturn(Lists.newArrayList(issueField));
-//        when(issueField.getName()).thenReturn("Rack Location");
-//        when(issueField.getValue()).thenReturn("rackLocation");
-//        when(ncpClientHelper.createJob(any(), any(), any())).thenReturn(job);
-//        when(ncpClientHelper.pollJobToFetchResult(any(), any(), any(MetricsScope.class)))
-//                .thenReturn(true);
-//        when(ncpClientHelper.getNcpJobOutput(any())).thenReturn(output);
+//    void fetchRackLocation_returnsNull_whenNoRackLocationField() {
+//        // Setup without "Rack Location"
+//        IssueField otherField = mock(IssueField.class);
+//        when(otherField.getName()).thenReturn("Other Field");
+//        when(otherField.getValue()).thenReturn("irrelevant");
 //
-//        // Act
-//        Boolean result =
-//                cablingValidationService.validateCablingTasks(
-//                        "building", "block", "rackSerialNumber",
-// Lists.newArrayList("deviceName"));
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(otherField)); // No "Rack Location"
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
 //
-//        // Assert
-//        assertTrue(result);
-//        verify(ncpClientHelper, times(1)).createJob(any(), any(), any());
-//        verify(ncpClientHelper, times(1))
-//                .pollJobToFetchResult(any(), any(), any(MetricsScope.class));
-//        verify(ncpClientHelper, times(1)).getNcpJobOutput(any());
-//        verify(validationFailureResultDao, times(1))
-//                .addValidationFailureResultsForRack(any(), any());
+//        // Should throw exception because rack location is null
+//        RenderableException ex =
+//                assertThrows(
+//                        RenderableException.class,
+//                        () ->
+//                                service.validateCablingTasks(
+//                                        "us-phx", "bld-a", "RSN111", List.of(), metricsScope));
+//        assertEquals(ErrorCode.IncorrectState, ex.getErrorCode());
+//    }
+//
+//    // ========== validateCablingTasks ==========
+//
+//    @Test
+//    void validateCablingTasks_populatesPerRackJobType_onEmptyDevices() throws Exception {
+//        // Setup a "Rack Location" field
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("RACK-1");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
+//
+//        // NCP job creation
+//        Job job = mock(Job.class);
+//        when(job.getId()).thenReturn("JOB-42");
+//        when(ncpClientHelper.createJob(any(), any(), any(), any(), any())).thenReturn(job);
+//
+//        // Run
+//        String jobId = service.validateCablingTasks("reg", "bld", "RSN1", List.of(),
+// metricsScope);
+//
+//        // Validate
+//        assertEquals("JOB-42", jobId);
 //    }
 //
 //    @Test
-//    void testValidateCablingTasksFailure() {
-//        // Arrange
-//        when(jiraSDService.searchJiraSD(any())).thenReturn(searchResult);
-//        when(searchResult.getIssues()).thenReturn(Lists.newArrayList());
+//    void validateCablingTasks_populatesHealthCheckJobType_whenDevicesPresent() throws Exception {
+//        // Setup as before
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("RACKX");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
 //
-//        // Act and Assert
-//        assertThrows(
-//                RenderableException.class,
-//                () -> cablingValidationService.validateCablingTasks(
-//                        "building", "block", "rackSerialNumber",
-//                        Lists.newArrayList("deviceName")));
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
+//
+//        Job job = mock(Job.class);
+//        when(job.getId()).thenReturn("JOB-HEX");
+//        when(ncpClientHelper.createJob(any(), any(), any(), any(), any())).thenReturn(job);
+//
+//        // Run
+//        String id =
+//                service.validateCablingTasks(
+//                        "region", "building", "RSN", List.of("devA", "devB"), metricsScope);
+//        assertEquals("JOB-HEX", id);
+//    }
+//
+//    // ========== getValidationJobStatus ==========
+//
+//    @Test
+//    void getValidationJobStatus_handlesSuccessAndPerRackValidationJobType() {
+//        // Arrange
+//        when(ncpClientHelper.fetchJobStatus(any(), any(), any()))
+//                .thenReturn(Job.State.Succeeded.name());
+//        // Rack location as before
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("RACKZZ");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
+//
+//        // Output job output and job type
+//        when(ncpClientHelper.getNcpJobOutput(any(), any(), any(), any())).thenReturn(List.of());
+//        when(ncpClientHelper.getJobType(any(),
+// any())).thenReturn(JobType.PER_RACK_VALIDATION_JOB);
+//
+//        // New MetricsScope for "AddResults"
+//        MetricsScope addResultsScope = mock(MetricsScope.class);
+//        Mockito.mockStatic(MetricsScope.class)
+//                .when(() -> MetricsScope.create(anyString()))
+//                .thenReturn(addResultsScope);
+//
+//        String status = service.getValidationJobStatus("JID", metricsScope, "reg", "RSN");
+//        assertEquals(Job.State.Succeeded.name(), status);
+//        verify(validationFailureResultDao)
+//                .addValidationFailureResultsForRack(any(), any(), eq(addResultsScope));
+//        verify(metricsScope).recordSuccess();
 //    }
 //
 //    @Test
-//    void testValidateCablingTasksPollJobFailure() {
-//        // Arrange
-//        when(jiraSDService.searchJiraSD(any())).thenReturn(searchResult);
-//        when(searchResult.getIssues()).thenReturn(Lists.newArrayList(issue));
-//        when(issue.getFields()).thenReturn(Lists.newArrayList(issueField));
-//        when(issueField.getName()).thenReturn("Rack Location");
-//        when(issueField.getValue()).thenReturn("rackLocation");
-//        when(ncpClientHelper.createJob(any(), any(), any())).thenReturn(job);
-//        when(ncpClientHelper.pollJobToFetchResult(any(), any(), any(MetricsScope.class)))
-//                .thenReturn(false);
+//    void getValidationJobStatus_handlesHealthCheckJobType() {
+//        when(ncpClientHelper.fetchJobStatus(any(), any(), any()))
+//                .thenReturn(Job.State.Succeeded.name());
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("RACKZZ");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
 //
-//        // Act and Assert
-//        assertThrows(
-//                RenderableException.class,
-//                () -> cablingValidationService.validateCablingTasks(
-//                        "building", "block", "rackSerialNumber",
-//                        Lists.newArrayList("deviceName")));
+//        when(ncpClientHelper.getNcpJobOutput(any(), any(), any(), any())).thenReturn(List.of());
+//        when(ncpClientHelper.getJobType(any(), any())).thenReturn(JobType.HEALTH_CHECK);
+//
+//        MetricsScope addResultsScope = mock(MetricsScope.class);
+//        try (MockedStatic<MetricsScope> metricsScopeMocked =
+//                Mockito.mockStatic(MetricsScope.class)) {
+//            metricsScopeMocked
+//                    .when(() -> MetricsScope.create(anyString()))
+//                    .thenReturn(addResultsScope);
+//
+//            String status = service.getValidationJobStatus("JID", metricsScope, "reg", "RSN");
+//            assertEquals(Job.State.Succeeded.name(), status);
+//            verify(validationFailureResultDao)
+//                    .addValidationFailureResultsForRack(any(), any(), eq(addResultsScope));
+//            verify(metricsScope).recordSuccess();
+//        }
 //    }
 //
 //    @Test
-//    void testValidateCablingTasksException() {
-//        // Arrange
-//        when(jiraSDService.searchJiraSD(any())).thenThrow(new RuntimeException());
+//    void getValidationJobStatus_throwsRenderableException_onFailureStatus() {
+//        when(ncpClientHelper.fetchJobStatus(any(), any(), any()))
+//                .thenReturn(Job.State.Failed.name());
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("RAK");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
 //
-//        // Act
-//        Boolean result =
-//                cablingValidationService.validateCablingTasks(
-//                        "building", "block", "rackSerialNumber",
-// Lists.newArrayList("deviceName"));
+//        RenderableException ex =
+//                assertThrows(
+//                        RenderableException.class,
+//                        () -> service.getValidationJobStatus("JID", metricsScope, "reg",
+// "serial"));
+//        assertEquals(ErrorCode.ExternalServerInvalidResponse, ex.getErrorCode());
+//    }
 //
-//        // Assert
-//        assertFalse(result);
+//    @Test
+//    void getValidationJobStatus_returnsOtherStatus_whenOtherThanSucceededOrFailed() {
+//        when(ncpClientHelper.fetchJobStatus(any(), any(), any())).thenReturn("InProgress");
+//        IssueField rackLocationField = mock(IssueField.class);
+//        when(rackLocationField.getName()).thenReturn("Rack Location");
+//        when(rackLocationField.getValue()).thenReturn("XYZ");
+//        Issue issue = mock(Issue.class);
+//        when(issue.getFields()).thenReturn(List.of(rackLocationField));
+//        SearchResult searchResult = mock(SearchResult.class);
+//        when(searchResult.getIssues()).thenReturn(List.of(issue));
+//        when(jiraSDService.searchJiraSD(anyString())).thenReturn(searchResult);
+//
+//        String ret = service.getValidationJobStatus("JID", metricsScope, "reg", "RSN");
+//        assertEquals("InProgress", ret);
+//    }
+//
+//    // ========== searchInitialCablingTickets ==========
+//    @Test
+//    void searchInitialCablingTickets_throwsOnNullSerial() {
+//        RenderableException ex =
+//                assertThrows(
+//                        RenderableException.class,
+//                        () ->
+//                                service.validateCablingTasks(
+//                                        "r", "b", null, List.of(), metricsScope));
+//        assertEquals(ErrorCode.InvalidParameter, ex.getErrorCode());
 //    }
 // }

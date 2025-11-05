@@ -86,7 +86,6 @@ public class MetricNames {
     }
 
     public enum AddValidationResults {
-        TimeFromLastValidation,
         KievResultUpdateFailure,
         NoMoreFailures
     }
@@ -109,5 +108,9 @@ public class MetricNames {
         Pass,
         LldpErrorFormatUnexpected,
         OpticErrorFormatUnexpected
+    }
+
+    public enum UpdateLinkResults {
+        TimeFromLastValidation
     }
 }

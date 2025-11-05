@@ -12,6 +12,7 @@ import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 // import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.GpuLldpFailure;
@@ -32,16 +33,12 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 public class CablingTaskService {
     private JiraSDService jiraSDService;
-    // private NcpService ncpService;
+    private ProjectItemDao projectItemDao;
     private BlockDetailsDao blockDetailsDao;
 
     @Inject
-    public CablingTaskService(
-            JiraSDService jiraSDService,
-            // @Named("NcpServiceClient") NcpService ncpService,
-            BlockDetailsDao blockDetailsDao) {
+    public CablingTaskService(JiraSDService jiraSDService, BlockDetailsDao blockDetailsDao) {
         this.jiraSDService = jiraSDService;
-        // this.ncpService = ncpService;
         this.blockDetailsDao = blockDetailsDao;
     }
 
@@ -84,6 +81,7 @@ public class CablingTaskService {
 
     public CablingTaskCollection getCablingTasksForProject(String projectId) {
         try {
+
             List<BlockDetails> blockDetails = blockDetailsDao.getBlockDetailsForProject(projectId);
 
             List<InitialCablingTaskDetails> initialCablingTaskDetails = new ArrayList<>();
@@ -275,6 +273,7 @@ public class CablingTaskService {
     public void resolveValidationFailureTask(String cablingTaskId) {
         String resolution = "Fixed";
         String comment = "Vendor has resolved the issue through Low-voltage Vendor Portal";
+        String labelString = "lvv-portal-resolved";
 
         // Required fields during resolve tickets
         Issue issue = this.jiraSDService.getIssue(cablingTaskId);
@@ -318,6 +317,13 @@ public class CablingTaskService {
         fieldInputList.add(serviceTypeFieldInput);
 
         this.jiraSDService.resolveTicket(cablingTaskId, comment, fieldInputList);
+
+        // After resolution, add label in a separate update (requires updateIssueFields in
+        // JiraSDService)
+        FieldInput labelsFieldInput =
+                new FieldInput("labels", new ArrayList<>(List.of(labelString)));
+        List<FieldInput> labelFieldInputs = new ArrayList<>(List.of(labelsFieldInput));
+        this.jiraSDService.updateIssueFields(cablingTaskId, labelFieldInputs);
     }
 
     public CableValidationFailureTasks getCableValidationFailureTask(String cablingTaskId) {

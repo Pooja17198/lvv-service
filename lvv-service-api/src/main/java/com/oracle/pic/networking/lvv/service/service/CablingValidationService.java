@@ -17,7 +17,6 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
-import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import com.oracle.pic.networking.ncp.model.Job;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +65,7 @@ public class CablingValidationService {
     }
 
     public String validateCablingTasks(
+            String regionName,
             String building,
             String rackSerialNumber,
             List<String> deviceNames,
@@ -81,7 +81,9 @@ public class CablingValidationService {
                         "Rack Deployment ticket for the corresponding rack serial not found");
             }
 
-            String region = GeneralUtils.getRegionFromBuilding(building);
+            scope.withDimension("buildingName", building);
+            scope.withDimension("rackSerialNumber", rackSerialNumber);
+            scope.withDimension("region", regionName);
 
             String jobType;
 
@@ -112,7 +114,7 @@ public class CablingValidationService {
 
             log.info("Validating Building:Rack {}:{}", building, rackLocation);
 
-            Job job = ncpClientHelper.createJob(jobType, payload, deviceNames, scope, region);
+            Job job = ncpClientHelper.createJob(jobType, payload, deviceNames, scope, regionName);
 
             log.info("NCP Job Created. Job ID: {}", job.getId());
 
@@ -141,16 +143,17 @@ public class CablingValidationService {
                             MetricNames.MetricScopeNames.ADD_VALIDATION_RESULTS.name())) {
 
                 addResultsScope.withDimension("rackSerialNumber", rackSerialNumber);
+                addResultsScope.withDimension("region", region);
                 List<ValidationFailureResult> output =
                         ncpClientHelper.getNcpJobOutput(jobId, region, rackSerialNumber, rackUnit);
                 String jobType = ncpClientHelper.getJobType(jobId, region);
 
                 if (jobType.equals(JobType.PER_RACK_VALIDATION_JOB)) {
                     validationFailureResultDao.addValidationFailureResultsForRack(
-                            output, rackSerialNumber, addResultsScope);
+                            output, rackSerialNumber, addResultsScope, region);
                 } else if (jobType.equals(JobType.HEALTH_CHECK)) {
                     validationFailureResultDao.updateValidationFailureResultsForDevices(
-                            output, addResultsScope);
+                            output, addResultsScope, region);
                 }
 
                 scope.recordSuccess();

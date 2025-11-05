@@ -110,9 +110,9 @@ COPY ./target/docker/sbin/simple_startup.py /sbin/simple_startup.py
 ADD ./target/scripts/postDeployValidate.sh /postDeployValidate.sh
 RUN chmod +x /postDeployValidate.sh
 
-# =============================================================================
+# ==============================================================================
 # Chainsaw
-# =============================================================================
+# ==============================================================================
 # Configure runit to manage Chainsaw
 #
 # Executable : Chainsaw : Service Directory Entry

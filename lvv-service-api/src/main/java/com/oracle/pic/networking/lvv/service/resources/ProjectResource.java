@@ -60,8 +60,8 @@ public class ProjectResource extends AbstractProjectsResource {
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.ADD_PROJECT_ITEM.name())
-                        .withDimension("projectId", value.getProject().getProjectId())) {
-            scope.emit(MetricNames.AddProjectItem.AddProject.name(), 1.0);
+                        .withDimension("projectId", value.getProject().getProjectId())
+                        .withDimension("region", value.getProject().getRegion())) {
 
             log.info("Creating project {}", value);
 
@@ -74,6 +74,7 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.createProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getRegion(),
                     value.getProject().getBuilding(),
                     value.getProject().getBlocks(),
                     scope);
@@ -92,8 +93,8 @@ public class ProjectResource extends AbstractProjectsResource {
 
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.UPDATE_PROJECT_ITEM.name())
-                        .withDimension("projectId", value.getProject().getProjectId())) {
-            scope.emit(MetricNames.UpdateProjectItem.UpdateProject.name(), 1.0);
+                        .withDimension("projectId", value.getProject().getProjectId())
+                        .withDimension("region", value.getProject().getRegion())) {
 
             log.info("Updating project {}", value);
 
@@ -108,6 +109,7 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.updateProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getRegion(),
                     value.getProject().getBuilding(),
                     value.getProject().getBlocks(),
                     scope);
@@ -123,9 +125,7 @@ public class ProjectResource extends AbstractProjectsResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope =
-                MetricsScope.create(MetricNames.MetricScopeNames.DELETE_PROJECT_ITEM.name())
-                        .withDimension("projectId", projectId)) {
-            scope.emit(MetricNames.DeleteProjectItem.DeleteProject.name(), 1.0);
+                MetricsScope.create(MetricNames.MetricScopeNames.DELETE_PROJECT_ITEM.name())) {
 
             if (projectId.isEmpty()) {
                 log.error("Project ID cannot be empty");
@@ -133,6 +133,8 @@ public class ProjectResource extends AbstractProjectsResource {
                 throw new RenderableException(
                         ErrorCode.InvalidParameter, "Project ID cannot be empty");
             }
+
+            scope.withDimension("projectId", projectId);
 
             this.projectService.deleteProject(projectId, scope);
             scope.recordSuccess();
@@ -147,9 +149,7 @@ public class ProjectResource extends AbstractProjectsResource {
             AuthorizationRequest authorizationRequest) {
 
         try (MetricsScope scope =
-                MetricsScope.create(MetricNames.MetricScopeNames.GET_PROJECT_ITEM.name())
-                        .withDimension("projectId", projectId)) {
-            scope.emit(MetricNames.GetProjectItem.GetProject.name(), 1.0);
+                MetricsScope.create(MetricNames.MetricScopeNames.GET_PROJECT_ITEM.name())) {
 
             if (projectId == null || projectId.isEmpty()) {
                 log.error("Project ID is empty");
@@ -164,6 +164,8 @@ public class ProjectResource extends AbstractProjectsResource {
         }
     }
 
+    // This method is called when a vendor logs in with his given credentials. We provide him list
+    // of all projects assigned to him.
     @Override
     public List<Project> getProjectList(
             String vendorName,
@@ -206,6 +208,8 @@ public class ProjectResource extends AbstractProjectsResource {
         }
     }
 
+    // This method is called when a user logs in with his BOAT credentials to view the project list.
+    // We return the list of all projects assigned to every vendor
     @Override
     public List<Project> getAllProjectList(
             String regionName,

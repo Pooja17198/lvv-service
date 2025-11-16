@@ -13,6 +13,7 @@ import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -163,6 +164,37 @@ class NcpJobResultProcessorTest {
         p.extractLldpErrors(msg, "devA", metricsScope);
 
         assertTrue(p.getResultBuilder().isEmpty());
+    }
+
+    Map<String, LldpStatus> createLldpErrorMap() {
+        Map<String, LldpStatus> lldpErrorMap = new HashMap<>();
+        lldpErrorMap.put(
+                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord7-c0-b60-t0-r9:Ethernet1/14:ord7:6037:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"ord7-c1-b60-t1-r2:Ethernet17/1:ord7:5925:24\"}]}",
+                LldpStatus.UNKNOWN);
+        lldpErrorMap.put(
+                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord7-c0-b60-t0-r9:Ethernet1/13:ord7:6037:42\", \"current_destination\": \"ord7-c1-b60-t1-r4:Ethernet17/1:ord7:5925:26\", \"expected_destination\": \"ord7-c1-b60-t1-r1:Ethernet17/1:ord7:5925:23\"}]}",
+                LldpStatus.MISMATCH);
+        lldpErrorMap.put(
+                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord15-j1-crypto5:Ethernet1/13:ord7:6037:42\", \"current_destination\": \"devB:portB:x:y:unitB\", \"expected_destination\": \"devC:portC:x:y:unitC\"}]}",
+                LldpStatus.UNSUPPORTED);
+
+        return lldpErrorMap;
+    }
+
+    @Test
+    void testExtractLldpErrors_lldpStatus() {
+        Map<String, LldpStatus> lldpErrorMap = createLldpErrorMap();
+        for (Map.Entry<String, LldpStatus> entry : lldpErrorMap.entrySet()) {
+            NcpJobResultProcessor p = newProcessorWithJson("{}");
+            // Device name argument is used only for fallback on bad JSON; for well-formed messages
+            // it is ignored.
+            p.extractLldpErrors(entry.getKey(), "device", metricsScope);
+            List<ValidationFailureResult> validationFailureResults =
+                    p.buildValidationFailureResults("rackSerialNumber", "rackUnit");
+            assertFalse(validationFailureResults.isEmpty());
+            ValidationFailureResult result = validationFailureResults.get(0);
+            assertEquals(entry.getValue(), result.getLldpStatus());
+        }
     }
 
     @Test

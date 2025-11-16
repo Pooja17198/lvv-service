@@ -40,6 +40,8 @@ public class NcpJobResultProcessor {
     private static final String FAILED = "FAILED";
 
     private static final String PSU_FAILURE_MESSAGE = "Power supply failure detected";
+    private static final String CRYPTO = "crypto";
+    private static final String UNKNOWN = "Unknown";
 
     @ToString
     @Getter
@@ -70,12 +72,12 @@ public class NcpJobResultProcessor {
 
     public DevicePortInfo parseDeviceString(String input) {
         if (input == null || input.isEmpty()) {
-            return new DevicePortInfo("Unknown", "Unknown", "Unknown");
+            return new DevicePortInfo(UNKNOWN, UNKNOWN, UNKNOWN);
         }
 
         String[] parts = input.split(":");
         if (parts.length < 5) {
-            return new DevicePortInfo("Unknown", "Unknown", "Unknown");
+            return new DevicePortInfo(UNKNOWN, UNKNOWN, UNKNOWN);
         }
 
         String deviceName = parts[0];
@@ -102,12 +104,12 @@ public class NcpJobResultProcessor {
                 scope.emit(MetricNames.ProcessNcpResult.LldpErrorFormatUnexpected, 1.0);
 
                 // Since LLDP Error is in unexpected format, we set the error to UNKNOWN
-                DevicePortInfo info = new DevicePortInfo(deviceName, "Unknown", "Unknown");
+                DevicePortInfo info = new DevicePortInfo(deviceName, UNKNOWN, UNKNOWN);
                 ValidationFailureResult.Builder builder = ValidationFailureResult.builder();
                 ValidationFailureResult.LinkSource linkSource =
                         ValidationFailureResult.LinkSource.builder()
                                 .deviceAName(deviceName)
-                                .deviceAPort("UNKNOWN")
+                                .deviceAPort(UNKNOWN.toUpperCase())
                                 .build();
                 builder.linkSource(linkSource);
                 builder.linkStatus(LinkStatus.DOWN);
@@ -152,9 +154,11 @@ public class NcpJobResultProcessor {
                         // Magnum tests don't provide expected results for crypto device
                         // validations, thereby we say the LLDP status as UNSUPPORTED to avoid false
                         // positives
-                        if (originDevicePortInfo.deviceName.contains("crypto")
-                                || destinationDevicePortInfo.deviceName.contains("crypto")) {
+                        if (originDevicePortInfo.deviceName.contains(CRYPTO)
+                                || destinationDevicePortInfo.deviceName.contains(CRYPTO)) {
                             builder.lldpStatus(LldpStatus.UNSUPPORTED);
+                        } else if (destinationDevicePortInfo.deviceName.equals(UNKNOWN)) {
+                            builder.lldpStatus(LldpStatus.UNKNOWN);
                         } else {
                             builder.lldpStatus(LldpStatus.MISMATCH);
                         }
@@ -277,14 +281,14 @@ public class NcpJobResultProcessor {
 
             log.debug("[POWER] No entry found for device {}, creating a new entry", deviceName);
 
-            DevicePortInfo info = new DevicePortInfo(deviceName, "Unknown", "Unknown");
+            DevicePortInfo info = new DevicePortInfo(deviceName, UNKNOWN, UNKNOWN);
 
             ValidationFailureResult.Builder builder = ValidationFailureResult.builder();
             builder.psuFailure(PSU_FAILURE_MESSAGE);
             ValidationFailureResult.LinkSource linkSource =
                     ValidationFailureResult.LinkSource.builder()
                             .deviceAName(deviceName)
-                            .deviceAPort("UNKNOWN")
+                            .deviceAPort(UNKNOWN.toUpperCase())
                             .build();
             builder.linkSource(linkSource);
             builder.linkStatus(LinkStatus.DOWN);
@@ -396,7 +400,7 @@ public class NcpJobResultProcessor {
                     // If a device has no failures, we create a minimal ValidationFailureResult
                     // Object with the device name and link status as UP, to remove these failures
                     // from the DB
-                    DevicePortInfo info = new DevicePortInfo(deviceId, "Unknown", "Unknown");
+                    DevicePortInfo info = new DevicePortInfo(deviceId, UNKNOWN, UNKNOWN);
 
                     ValidationFailureResult.LinkSource linkSource =
                             ValidationFailureResult.LinkSource.builder()

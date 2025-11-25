@@ -1072,6 +1072,8 @@ definitions:
     required:
       - projectId
       - vendorName
+      - createdBy
+      - cmLink
       - region
       - building
       - blocks
@@ -1085,6 +1087,16 @@ definitions:
         type: string
         description: Name of the vendor the project is assigned to
         minLength: 1
+        maxLength: 100
+      createdBy:
+        type: string
+        description: Guid of the user who created the project
+        minLength: 1
+        maxLength: 16
+      cmLink:
+        type: string
+        description: Link to the CM for the project
+        minLength: 0
         maxLength: 100
       region:
         type: string

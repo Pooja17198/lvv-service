@@ -31,6 +31,8 @@ class ProjectServiceTest {
     // Helper objects
     private final String projectId = "pid-123";
     private final String vendorName = "Vendor";
+    final String createdBy = "unknown";
+    final String cmLink = "https://jira-sd.mc1.oracleiaas.com/browse/CHANGE-123456";
     private final String region = "us-region";
     private final String building = "Build";
     private final String block = "B1";
@@ -65,6 +67,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         null,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -76,6 +80,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         "",
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -87,6 +93,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         projectId,
                                                         null,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -98,6 +106,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         projectId,
                                                         "",
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -110,6 +120,8 @@ class ProjectServiceTest {
                                                         projectId,
                                                         vendorName,
                                                         null,
+                                                        cmLink,
+                                                        region,
                                                         building,
                                                         blocks,
                                                         metricsScope)),
@@ -120,6 +132,34 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         projectId,
                                                         vendorName,
+                                                        "",
+                                                        cmLink,
+                                                        region,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        createdBy,
+                                                        cmLink,
+                                                        null,
+                                                        building,
+                                                        blocks,
+                                                        metricsScope)),
+                        () ->
+                                assertThrows(
+                                        RenderableException.class,
+                                        () ->
+                                                projectService.createProject(
+                                                        projectId,
+                                                        vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         "",
                                                         blocks,
@@ -131,6 +171,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         null,
@@ -142,6 +184,8 @@ class ProjectServiceTest {
                                                 projectService.createProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         Collections.emptyList(),
@@ -160,6 +204,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         null,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -171,6 +217,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         "",
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -182,6 +230,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         null,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -193,6 +243,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         "",
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         blocks,
@@ -204,6 +256,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         null,
                                                         building,
                                                         blocks,
@@ -215,6 +269,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         "",
                                                         blocks,
@@ -226,6 +282,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         null,
@@ -237,6 +295,8 @@ class ProjectServiceTest {
                                                 projectService.updateProject(
                                                         projectId,
                                                         vendorName,
+                                                        createdBy,
+                                                        cmLink,
                                                         region,
                                                         building,
                                                         Collections.emptyList(),
@@ -247,7 +307,8 @@ class ProjectServiceTest {
     @Test
     void testCreateProject_success() {
         doNothing().when(projectItemDao).addProjectItem(any(ProjectItem.class), anyList(), any());
-        projectService.createProject(projectId, vendorName, region, building, blocks, metricsScope);
+        projectService.createProject(
+                projectId, vendorName, createdBy, cmLink, region, building, blocks, metricsScope);
         verify(projectItemDao, times(1)).addProjectItem(any(), any(), any());
     }
 
@@ -256,7 +317,8 @@ class ProjectServiceTest {
         doNothing()
                 .when(projectItemDao)
                 .updateProjectItem(any(ProjectItem.class), anyList(), any());
-        projectService.updateProject(projectId, vendorName, region, building, blocks, metricsScope);
+        projectService.updateProject(
+                projectId, vendorName, createdBy, cmLink, region, building, blocks, metricsScope);
         verify(projectItemDao, times(1)).updateProjectItem(any(), any(), any());
     }
 

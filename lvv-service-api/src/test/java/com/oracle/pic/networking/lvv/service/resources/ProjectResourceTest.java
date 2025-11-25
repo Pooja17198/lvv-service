@@ -32,6 +32,8 @@ class ProjectResourceTest {
 
     final String projectId = "pid-123";
     final String vendorName = "vname";
+    final String createdBy = "unknown";
+    final String cmLink = "https://jira-sd.mc1.oracleiaas.com/browse/CHANGE-123456";
     final String building = "bldg";
     final List<String> blocks = List.of("B1", "B2");
     final String region = "us-phoenix-1";
@@ -48,6 +50,8 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
+                        .createdBy(createdBy)
+                        .cmLink(cmLink)
                         .building(building)
                         .region(region)
                         .blocks(blocks)
@@ -64,7 +68,7 @@ class ProjectResourceTest {
 
             doNothing()
                     .when(projectService)
-                    .createProject(any(), any(), any(), any(), any(), any());
+                    .createProject(any(), any(), any(), any(), any(), any(), any(), any());
             when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
             when(metricsScope.recordSuccess()).thenReturn(metricsScope);
 
@@ -76,6 +80,8 @@ class ProjectResourceTest {
                     .createProject(
                             eq(projectId),
                             eq(vendorName),
+                            eq(createdBy),
+                            eq(cmLink),
                             eq(region),
                             eq(building),
                             eq(blocks),
@@ -95,7 +101,7 @@ class ProjectResourceTest {
 
             doNothing()
                     .when(projectService)
-                    .updateProject(any(), any(), any(), any(), any(), any());
+                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any());
             when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
             when(metricsScope.recordSuccess()).thenReturn(metricsScope);
 
@@ -105,6 +111,8 @@ class ProjectResourceTest {
                     .updateProject(
                             eq(projectId),
                             eq(vendorName),
+                            eq(createdBy),
+                            eq(cmLink),
                             eq(region),
                             eq(building),
                             eq(blocks),
@@ -120,6 +128,8 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
+                        .createdBy(createdBy)
+                        .cmLink(cmLink)
                         .region(region)
                         .building(building)
                         .blocks(List.of())
@@ -135,7 +145,8 @@ class ProjectResourceTest {
                     resource.createProject(req, opcRequestId, principal, authorizationRequest);
             assertFalse(result);
             verify(metricsScope, never()).recordSuccess();
-            verify(projectService, never()).createProject(any(), any(), any(), any(), any(), any());
+            verify(projectService, never())
+                    .createProject(any(), any(), any(), any(), any(), any(), any(), any());
         }
     }
 
@@ -145,6 +156,8 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
+                        .createdBy(createdBy)
+                        .cmLink(cmLink)
                         .region(region)
                         .building(building)
                         .blocks(List.of())
@@ -165,7 +178,8 @@ class ProjectResourceTest {
                                             req, opcRequestId, principal, authorizationRequest));
             assertEquals(ErrorCode.InvalidParameter, ex.getErrorCode());
             verify(metricsScope, never()).recordSuccess();
-            verify(projectService, never()).updateProject(any(), any(), any(), any(), any(), any());
+            verify(projectService, never())
+                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any());
         }
     }
 

@@ -44,6 +44,8 @@ public class ResourceModelTransformer {
         return Project.builder()
                 .projectId(project.getProjectId())
                 .vendorName(project.getVendorName())
+                .createdBy(project.getCreatedBy())
+                .cmLink(project.getCmLink())
                 .blocks(blocks)
                 .building(building)
                 .region(region)

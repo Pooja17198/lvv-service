@@ -55,6 +55,7 @@ public class ProjectService {
     void checkNullParameters(
             String projectId,
             String vendorName,
+            String createdBy,
             String region,
             String building,
             List<String> blocks) {
@@ -66,6 +67,9 @@ public class ProjectService {
         }
         if (vendorName == null || vendorName.isBlank()) {
             missing.add("vendorName");
+        }
+        if (createdBy == null || createdBy.isBlank()) {
+            missing.add("createdBy");
         }
         if (region == null || region.isBlank()) {
             missing.add("region");
@@ -87,12 +91,15 @@ public class ProjectService {
     public void createProject(
             String projectId,
             String vendorName,
+            String createdBy,
+            String cmLink,
             String region,
             String building,
             List<String> blocks,
             MetricsScope scope) {
 
-        checkNullParameters(projectId, vendorName, region, building, blocks);
+        // since CM link is optional(can be null/empty) so we are not checking it here
+        checkNullParameters(projectId, vendorName, createdBy, region, building, blocks);
 
         log.info("Creating Project with ID {}", projectId);
 
@@ -104,6 +111,8 @@ public class ProjectService {
                         .vendorName(
                                 vendorName.toLowerCase()) // Converting vendor name to lowercase to
                         // make vendor names case-insensitive
+                        .createdBy(createdBy)
+                        .cmLink(cmLink)
                         .regionName(region)
                         .build();
 
@@ -113,12 +122,15 @@ public class ProjectService {
     public void updateProject(
             String projectId,
             String vendorName,
+            String createdBy,
+            String cmLink,
             String region,
             String building,
             List<String> blocks,
             MetricsScope scope) {
 
-        checkNullParameters(projectId, vendorName, region, building, blocks);
+        // since CM link is optional(can be null/empty) so we are not checking it here
+        checkNullParameters(projectId, vendorName, createdBy, region, building, blocks);
 
         log.info("Updating Project with ID {}", projectId);
 
@@ -131,6 +143,8 @@ public class ProjectService {
                 ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
+                        .createdBy(createdBy)
+                        .cmLink(cmLink)
                         .regionName(region)
                         .build();
 

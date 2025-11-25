@@ -61,7 +61,8 @@ public class ProjectResource extends AbstractProjectsResource {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.ADD_PROJECT_ITEM.name())
                         .withDimension("projectId", value.getProject().getProjectId())
-                        .withDimension("region", value.getProject().getRegion())) {
+                        .withDimension("region", value.getProject().getRegion())
+                        .withDimension("createdBy", value.getProject().getCreatedBy())) {
 
             log.info("Creating project {}", value);
 
@@ -74,6 +75,8 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.createProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getCreatedBy(),
+                    value.getProject().getCmLink(),
                     value.getProject().getRegion(),
                     value.getProject().getBuilding(),
                     value.getProject().getBlocks(),
@@ -94,7 +97,8 @@ public class ProjectResource extends AbstractProjectsResource {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.UPDATE_PROJECT_ITEM.name())
                         .withDimension("projectId", value.getProject().getProjectId())
-                        .withDimension("region", value.getProject().getRegion())) {
+                        .withDimension("region", value.getProject().getRegion())
+                        .withDimension("createdBy", value.getProject().getCreatedBy())) {
 
             log.info("Updating project {}", value);
 
@@ -109,6 +113,8 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.updateProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getCreatedBy(),
+                    value.getProject().getCmLink(),
                     value.getProject().getRegion(),
                     value.getProject().getBuilding(),
                     value.getProject().getBlocks(),

@@ -47,6 +47,8 @@ import lombok.Value;
 public class ProjectItem {
 
     public static final String VENDOR_COLUMN_NAME = "vendorsName";
+    public static final String CM_LINK_COLUMN_NAME = "cmLink";
+    public static final String CREATED_BY_COLUMN_NAME = "createdBy";
     public static final String PROJECT_ID_COLUMN_NAME = "projectIdCol";
     public static final String REGION_COLUMN_NAME = "regionName";
     public static final String VENDOR_REGION_INDEX_NAME = "vendorRegionIdx";
@@ -62,6 +64,18 @@ public class ProjectItem {
     @NonNull
     @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, name = VENDOR_COLUMN_NAME)
     private String vendorName;
+
+    //    @NonNull
+    @Column(type = STRING, length = 64, nullable = true, name = CREATED_BY_COLUMN_NAME)
+    private String createdBy;
+
+    //    @NonNull
+    @Column(
+            type = STRING,
+            length = KievConstants.MAX_NAME_LENGTH,
+            nullable = true,
+            name = CM_LINK_COLUMN_NAME)
+    private String cmLink;
 
     @Column(type = STRING, length = 64, nullable = true, name = REGION_COLUMN_NAME)
     private String regionName;

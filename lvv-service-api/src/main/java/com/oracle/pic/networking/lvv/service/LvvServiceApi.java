@@ -12,6 +12,7 @@ import com.oracle.pic.commons.service.configuration.ServiceCoreModule;
 import com.oracle.pic.commons.service.configuration.TypesafeConfigProvider;
 import com.oracle.pic.commons.service.connectors.DynamicHttpsWithCertsProviderConnectorFactory;
 import com.oracle.pic.commons.service.environment.ServiceConfigurator;
+import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.identity.authorization.sdk.AuthContextBinder;
 import com.oracle.pic.identity.authorization.sdk.AuthContextRequestFilter;
 import com.oracle.pic.kiev.KaasStoreConfig;
@@ -23,6 +24,7 @@ import com.oracle.pic.networking.lvv.service.kiev.KievRateLimiter;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
+import com.oracle.pic.networking.lvv.service.resources.RegionsResource;
 import com.oracle.pic.networking.lvv.service.resources.StoreKeeperResource;
 import com.oracle.pic.networking.lvv.service.schema.ApiSchemaUpdates;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
@@ -70,6 +72,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                     .add(CablingTaskResource.class)
                     .add(StoreKeeperResource.class)
                     .add(CablingValidationResource.class)
+                    .add(RegionsResource.class)
                     .build();
 
     /*
@@ -114,6 +117,13 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
     public void run(LvvServiceApiConfiguration config, Environment environment) throws Exception {
         config.validateAdAndRegionConfiguration();
         log.info("Initializing LvvServiceApi...");
+
+        /**
+         * Fail service startup if core-regions metadata import fails "me-dcc-doha-1" region is only
+         * available via dynamic core-regions metadata file for core-regions 2.1.60 or newer and its
+         * not hardcoded in core-regions library itself.
+         */
+        Region.fromPublicRegionName("me-dcc-doha-1");
 
         try {
             // Run Kiev schema updates BEFORE binding mapped entities/DAOs

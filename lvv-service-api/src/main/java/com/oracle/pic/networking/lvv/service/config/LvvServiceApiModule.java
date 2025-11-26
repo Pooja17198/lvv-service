@@ -52,6 +52,7 @@ import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetr
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.lvv.service.service.RegionsService;
 import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
 import com.oracle.pic.storekeeper.StoreKeeper;
 import com.oracle.pic.storekeeper.StoreKeeperClient;
@@ -88,6 +89,7 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         bind(CablingValidationService.class).in(Singleton.class);
+        bind(RegionsService.class).in(Singleton.class);
         bind(NcpClientHelper.class).in(Singleton.class);
         for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
             bind(c).in(Singleton.class);

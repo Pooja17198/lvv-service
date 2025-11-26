@@ -1,0 +1,64 @@
+package com.oracle.pic.networking.lvv.service.resources;
+
+import com.google.inject.Inject;
+import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.identity.authentication.Principal;
+import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
+import com.oracle.pic.networking.lvv.service.api.AbstractRegionsResource;
+import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.model.RegionObject;
+import com.oracle.pic.networking.lvv.service.service.RegionsService;
+import java.util.List;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+
+/*
+* NOTE: when creating new resources, don't forget to add it to the list of resources in
+* com.oracle.pic.networking.lvv.service.LvvServiceApi
+
+* NOTE: All resource methods defined in class are configured to have the 2XX, 4xx, 5xx, and
+* time metrics automatically instrumented and emitted (by setting resourcePackagePrefix in
+metricsConfig)
+* Don't forget to update resourcePackagePrefix if you update the package.
+* See https://confluence.oci.oraclecorp.com/x/ThJuBQ for details.
+*
+* The @ServiceName value is part of the Observability Standardization, for more details
+* and guidance on the value to use for this annotation, see
+* https://confluence.oci.oraclecorp.com/display/OBSRV/Observability+Standardization+Onboarding
+*/
+
+@Slf4j
+@ToString
+public class RegionsResource extends AbstractRegionsResource {
+
+    RegionsService regionsService;
+
+    @Inject
+    protected RegionsResource(RegionsService regionsService) {
+        this.regionsService = regionsService;
+    }
+
+    @Override
+    public List<RegionObject> getAllRegionsList(
+            String realm,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.FETCH_REGIONS.name())) {
+
+            log.info("Fetching list of regions for realm {}", realm);
+
+            if (realm.isEmpty()) {
+                log.info("Realm name cannot be empty");
+                scope.emit(MetricNames.FetchRegions.RealmEmpty.name(), 1.0);
+                return List.of();
+            }
+
+            List<RegionObject> regionsList = regionsService.getAllRegionsList(realm, scope);
+
+            scope.recordSuccess();
+            return regionsList;
+        }
+    }
+}

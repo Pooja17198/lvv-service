@@ -2,10 +2,12 @@ package com.oracle.pic.networking.lvv.service.resources;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.model.Project;
+import com.oracle.pic.networking.lvv.service.model.RegionObject;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
@@ -62,5 +64,21 @@ public class ResourceModelTransformer {
                 .deviceBPortExpected(result.getDeviceBPortExpected())
                 .psuFailure(result.getPsuFailure())
                 .build();
+    }
+
+    public List<RegionObject> toModel(Region[] regions) {
+        if (regions == null) {
+            return new ArrayList<>();
+        }
+        List<RegionObject> regionsList = new ArrayList<>();
+        for (Region region : regions) {
+
+            regionsList.add(
+                    RegionObject.builder()
+                            .name(region.getPublicRegionName())
+                            .airportCode(region.getAirportCode())
+                            .build());
+        }
+        return regionsList;
     }
 }

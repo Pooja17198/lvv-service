@@ -14,7 +14,8 @@ public class MetricNames {
         ADD_VALIDATION_RESULTS,
         BLOCK_DETAILS,
         PROCESS_NCP_JOB_OUTPUT,
-        UPDATE_LINK_RESULTS
+        UPDATE_LINK_RESULTS,
+        FETCH_REGIONS
     }
 
     public enum AddProjectItem {
@@ -112,5 +113,10 @@ public class MetricNames {
 
     public enum UpdateLinkResults {
         TimeFromLastValidation
+    }
+
+    public enum FetchRegions {
+        RealmEmpty,
+        NoRegionsFound
     }
 }

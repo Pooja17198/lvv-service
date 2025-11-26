@@ -639,6 +639,36 @@ paths:
           schema:
             $ref: '#/definitions/Error'
 
+  /allRegions/{realm}:
+    get:
+      tags: [ 'regions' ]
+      x-obmcs-splat:
+        operationType: GET
+        apiType: Synchronous
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: GetAllRegionsList
+      summary: Get list of all regions in the realm
+      description: Retrieves list of all regions from core regions lib
+      parameters:
+        - $ref: '#/parameters/RealmPathParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: List of regions
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/RegionObject'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
+
   /buildings:
     get:
       tags: [ 'storekeeper' ]
@@ -948,6 +978,7 @@ definitions:
         type: string
       canonical_name:
         type: string
+
   Block:
     type: object
     required:
@@ -955,6 +986,18 @@ definitions:
     properties:
       name:
         type: string
+
+  RegionObject:
+    type: object
+    required:
+      - name
+      - airportCode
+    properties:
+      name:
+        type: string
+      airportCode:
+        type: string
+
   JobId:
     type: object
     required:
@@ -962,6 +1005,7 @@ definitions:
     properties:
       id:
         type: string
+
   ValidationResult:
     type: object
     required:
@@ -969,6 +1013,7 @@ definitions:
     properties:
       result:
         type: boolean
+
   Error:
     type: object
     required:
@@ -1305,6 +1350,13 @@ parameters:
     type: string
     in: path
     description: A unique cabling task identifier
+    required: true
+
+  RealmPathParam:
+    name: realm
+    type: string
+    in: path
+    description: The name of the realm you need the list of regions for
     required: true
 
   OpcRequestId:

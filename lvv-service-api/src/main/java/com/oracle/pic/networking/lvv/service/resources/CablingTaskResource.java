@@ -10,7 +10,6 @@ import com.oracle.pic.networking.lvv.service.api.AbstractCablingTasksResource;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
-import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.model.ResolveValidationFailureTaskResponse;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
@@ -119,19 +118,6 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
             return ResolveValidationFailureTaskResponse.builder()
                     .cablingTaskId(cablingTaskId)
                     .build();
-        }
-    }
-
-    @Override
-    public CableValidationFailureTasks getCableValidationFailureTask(
-            String cablingTaskId, Principal principal, AuthorizationRequest authorizationRequest) {
-        try (MetricsScope scope = MetricsScope.create("getCableValidationFailureTask")) {
-            scope.emit("volume", 1.0);
-
-            CableValidationFailureTasks result =
-                    this.cablingTaskService.getCableValidationFailureTask(cablingTaskId);
-            scope.recordSuccess();
-            return result;
         }
     }
 }

@@ -418,40 +418,6 @@ paths:
         default:
           $ref: '#/responses/Error'
 
-  /cablingTasks/{cablingTaskId}/actions/getCableValidationFailureTask:
-    get:
-      tags: [ 'cablingTasks' ]
-      x-obmcs-splat:
-        operationType: LIST
-        apiType: Synchronous
-        # Maximum number of invocation attempts that should be made to the downstream service.
-        # Any non-5xx response ends the attempts.
-        maximumAttemptCount: 3
-        allowAllRequestHeaders: true
-
-        # specify the routing strategy
-        # strategy: route-to-any-ad OR route-to-inferred-ad
-        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
-        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
-        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
-        routing:
-          strategy: route-to-any-ad
-        serviceList: [ 'lvv-api-beta' ]
-      operationId: GetCableValidationFailureTask
-      summary: Get cabling tasks
-      description: Get details of cabling task based on cablingTaskId
-      parameters:
-        - $ref: '#/parameters/CablingTaskIdentifierPathParam'
-      responses:
-        200:
-          description: Retrieves the detailed JSON object for a cabling task
-          headers:
-            opc-request-id: *ref-opc-request-id
-          schema:
-            $ref: '#/definitions/CableValidationFailureTasks'
-        default:
-          $ref: '#/responses/Error'
-
   /cablingTasks/{cablingTaskId}/actions/resolveValidationFailureTask:
     post:
       tags: [ 'cablingTasks' ]

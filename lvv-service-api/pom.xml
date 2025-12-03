@@ -647,10 +647,13 @@
             <exclude>com/oracle/pic/networking/lvv/service/auth/PassThruAuthHelper.class</exclude>
             <!-- ignore common for testing -->
             <exclude>com/oracle/pic/networking/lvv/service/common/**/*</exclude>
-            <!-- ignore identity for testing -->
-            <exclude>com/oracle/pic/networking/lvv/service/identity/**/*</exclude>
-            <!-- ignore MockNcpClients for testing -->
-            <exclude>com/oracle/pic/networking/lvv/service/dependencies/ncp/Mock*.class</exclude>
+            <!-- ignore schema updates -->
+            <exclude>com/oracle/pic/networking/lvv/service/schema/*</exclude>
+            <!-- ignore NcpClients setup and config for testing -->
+            <exclude>com/oracle/pic/networking/lvv/service/dependencies/ncp/NcpClientSetup.class</exclude>
+            <exclude>com/oracle/pic/networking/lvv/service/dependencies/ncp/NcpServiceConfiguration.class</exclude>
+            <!-- ignore models -->
+            <exclude>com/oracle/pic/networking/lvv/service/models/*</exclude>
             <!-- ignore Kiev Helper class for testing -->
             <exclude>com/oracle/pic/networking/lvv/service/kiev/DataStoreProvider.class</exclude>
             <exclude>com/oracle/pic/networking/lvv/service/kiev/KievHashBucketProvider.class</exclude>
@@ -692,7 +695,7 @@
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
                       <!-- Will fast followup to make this 0.8 -->
-                      <minimum>0.01</minimum>
+                      <minimum>0.70</minimum>
                     </limit>
                   </limits>
                 </rule>

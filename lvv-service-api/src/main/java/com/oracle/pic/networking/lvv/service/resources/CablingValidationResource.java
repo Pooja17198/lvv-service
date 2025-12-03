@@ -68,6 +68,14 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                 missing.add("rackSerialNumber");
             }
 
+            if (regionName == null || regionName.isBlank()) {
+                missing.add("regionName");
+            }
+
+            if (building == null || building.isBlank()) {
+                missing.add("building");
+            }
+
             if (!missing.isEmpty()) {
                 scope.emit(MetricNames.ValidateCables.MissingParameters.name(), 1.0);
                 throw new RenderableException(

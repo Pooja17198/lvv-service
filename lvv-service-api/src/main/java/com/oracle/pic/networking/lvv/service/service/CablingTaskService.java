@@ -13,19 +13,12 @@ import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
-import com.oracle.pic.networking.lvv.service.model.CableValidationFailureTasks;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
-import com.oracle.pic.networking.lvv.service.model.GpuLldpFailure;
 import com.oracle.pic.networking.lvv.service.model.InitialCablingTaskDetails;
-import com.oracle.pic.networking.lvv.service.model.InvalidTransceiverFailure;
-import com.oracle.pic.networking.lvv.service.model.LldpFailure;
-import com.oracle.pic.networking.lvv.service.model.OpticsFailure;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Scanner;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,43 +34,6 @@ public class CablingTaskService {
         this.jiraSDService = jiraSDService;
         this.blockDetailsDao = blockDetailsDao;
     }
-
-    public String getResultFromIssueField(Issue issue) {
-        //        String descRegex = "(\\w+-\\w+-\\w+-\\w+-\\w+)";
-        //
-        //        Pattern pattern = Pattern.compile(descRegex);
-        //        Set<String> labels = issue.getLabels();
-        //        Optional<String> ncpField =
-        //                labels.stream()
-        //                        .filter(label -> label.startsWith("NCP_JOB_ID:"))
-        //                        .map(
-        //                                label -> {
-        //                                    Matcher matcher = pattern.matcher(label);
-        //                                    if (matcher.find()) {
-        //                                        return matcher.group(1);
-        //                                    }
-        //                                    return null;
-        //                                })
-        //                        .filter(Objects::nonNull)
-        //                        .findFirst();
-        //        if (ncpField.isPresent()) {
-        //            return getResultFromNcpJob(ncpField.get(), issue.getDescription());
-        //        }
-        return issue.getDescription();
-    }
-
-    //    public String getResultFromNcpJob(String jobId, String fallbackResult) {
-    //        try {
-    //            Job ncpJobResult = ncpService.getNcpJob(jobId);
-    //            return ncpJobResult.toString();
-    //        } catch (BmcException e) {
-    //            log.error(
-    //                    "Exception occurred while processing ncp job id {}: error {}",
-    //                    jobId,
-    //                    e.toString());
-    //            return fallbackResult;
-    //        }
-    //    }
 
     public CablingTaskCollection getCablingTasksForProject(String projectId) {
         try {
@@ -324,166 +280,6 @@ public class CablingTaskService {
                 new FieldInput("labels", new ArrayList<>(List.of(labelString)));
         List<FieldInput> labelFieldInputs = new ArrayList<>(List.of(labelsFieldInput));
         this.jiraSDService.updateIssueFields(cablingTaskId, labelFieldInputs);
-    }
-
-    public CableValidationFailureTasks getCableValidationFailureTask(String cablingTaskId) {
-        Issue issue = this.jiraSDService.getIssue(cablingTaskId);
-        // TODO: Get result from NCP
-        // return getResultFromIssueField(issue);
-        return getResultFromIssueDescription(issue);
-    }
-
-    private CableValidationFailureTasks getResultFromIssueDescription(Issue issue) {
-        List<LldpFailure> lldpFailureList = new LinkedList<>();
-        List<OpticsFailure> opticsFailureList = new LinkedList<>();
-        List<InvalidTransceiverFailure> invalidTransceiverFailureList = new LinkedList<>();
-        List<GpuLldpFailure> gpuLldpFailureList = new LinkedList<>();
-        String devicesUnreachable = "";
-        String description = issue.getDescription();
-        CableValidationFailureTasks cableValidationFailureTasks = null;
-        assert description != null;
-        if (description.contains("Validation Status: Failure")) {
-            Scanner scanner = new Scanner(new StringReader(description));
-            while (scanner.hasNext()) {
-                String line = scanner.nextLine();
-                if (line.contains("LLDP Failures")) {
-                    lldpFailureList.addAll(this.getLldpFailureList(line));
-                }
-                if (line.contains("*Failed:* test_optics")) {
-                    line = scanner.nextLine();
-                    opticsFailureList.addAll(this.getOpticsFailureList(line));
-                }
-                if (line.contains("*Failed:* test_invalid_transceiver")) {
-                    line = scanner.nextLine();
-                    invalidTransceiverFailureList.addAll(
-                            this.getInvalidTransceiverFailureList(line));
-                }
-            }
-            cableValidationFailureTasks =
-                    CableValidationFailureTasks.builder()
-                            .lldpFailures(lldpFailureList)
-                            .opticsFailures(opticsFailureList)
-                            .invalidTransceiverFailures(invalidTransceiverFailureList)
-                            .build();
-        } else if (description.contains("Validation Status: devicesunreachable")) {
-            Scanner scanner = new Scanner(new StringReader(description));
-            while (scanner.hasNext()) {
-                String line = scanner.nextLine();
-                if (line.contains("Validation Status: devicesunreachable")) {
-                    devicesUnreachable = scanner.nextLine();
-                }
-            }
-            cableValidationFailureTasks =
-                    CableValidationFailureTasks.builder()
-                            .deviceUnreachableFailures(devicesUnreachable)
-                            .build();
-        } else if (description.contains("Compute Product Validation")) {
-            Scanner scanner = new Scanner(new StringReader(description));
-            while (scanner.hasNext()) {
-                String line = scanner.nextLine();
-                if (line.contains("needs to be connected to")) {
-                    gpuLldpFailureList.addAll(this.getGpuLldpFailureList(line, scanner.nextLine()));
-                }
-            }
-            cableValidationFailureTasks =
-                    CableValidationFailureTasks.builder()
-                            .gpuLldpFailures(gpuLldpFailureList)
-                            .build();
-        }
-
-        return cableValidationFailureTasks;
-    }
-
-    private List<LldpFailure> getLldpFailureList(String line) {
-        List<LldpFailure> lldpFailureList = new LinkedList<>();
-        String currentOriginString = "current_origin\": \"";
-        int startIndex = line.indexOf(currentOriginString);
-        while (startIndex != -1) {
-            int endIndex = line.indexOf("\"", startIndex + currentOriginString.length());
-            String currentOrigin =
-                    line.substring(startIndex + currentOriginString.length(), endIndex);
-
-            String currentDestinationString = "current_destination\": \"";
-            startIndex = line.indexOf(currentDestinationString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + currentDestinationString.length());
-            String currentDestination =
-                    line.substring(startIndex + currentDestinationString.length(), endIndex);
-
-            String expectedDestinationString = "expected_destination\": \"";
-            startIndex = line.indexOf(expectedDestinationString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + expectedDestinationString.length());
-            String expectedDestination =
-                    line.substring(startIndex + expectedDestinationString.length(), endIndex);
-
-            LldpFailure lldpFailure =
-                    new LldpFailure(currentOrigin, currentDestination, expectedDestination);
-            lldpFailureList.add(lldpFailure);
-
-            startIndex = line.indexOf(currentOriginString, endIndex + 1);
-        }
-        return lldpFailureList;
-    }
-
-    private List<GpuLldpFailure> getGpuLldpFailureList(String line1, String line2) {
-        List<GpuLldpFailure> gpuLldpFailures = new LinkedList<>();
-        String connectString1 = "needs to be connected to";
-        String connectString2 = "Currently connected to";
-        String source = line1.substring(0, line1.indexOf(connectString1) - 1);
-        String expectedDestination =
-                line1.substring(line1.indexOf(connectString1) + connectString1.length() + 1);
-        String currentDestination = line2.substring(connectString2.length() + 1);
-        GpuLldpFailure gpuLldpFailure =
-                GpuLldpFailure.builder()
-                        .currentOrigin(source)
-                        .expectedDestination(expectedDestination)
-                        .currentDestination(currentDestination)
-                        .build();
-        gpuLldpFailures.add(gpuLldpFailure);
-        return gpuLldpFailures;
-    }
-
-    private List<OpticsFailure> getOpticsFailureList(String line) {
-        List<OpticsFailure> opticsFailureList = new LinkedList<>();
-        String deviceString = "device\": \"";
-        int startIndex = line.indexOf(deviceString);
-        while (startIndex != -1) {
-            int endIndex = line.indexOf("\"", startIndex + deviceString.length());
-            String device = line.substring(startIndex + deviceString.length(), endIndex);
-
-            String intfNameString = "intf_name\": \"";
-            startIndex = line.indexOf(intfNameString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + intfNameString.length());
-            String intfName = line.substring(startIndex + intfNameString.length(), endIndex);
-
-            String inputPowerString = "input_power\": \"";
-            startIndex = line.indexOf(inputPowerString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + inputPowerString.length());
-            String inputPower = line.substring(startIndex + inputPowerString.length(), endIndex);
-
-            String outputPowerString = "output_power\": \"";
-            startIndex = line.indexOf(outputPowerString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + outputPowerString.length());
-            String outputPower = line.substring(startIndex + outputPowerString.length(), endIndex);
-
-            String devicePhysString = "device_phys\": \"";
-            startIndex = line.indexOf(devicePhysString, endIndex + 1);
-            endIndex = line.indexOf("\"", startIndex + devicePhysString.length());
-            String devicePhys = line.substring(startIndex + devicePhysString.length(), endIndex);
-
-            OpticsFailure opticsFailure =
-                    new OpticsFailure(device, intfName, inputPower, outputPower, devicePhys);
-            opticsFailureList.add(opticsFailure);
-
-            startIndex = line.indexOf(deviceString, endIndex + 1);
-        }
-        return opticsFailureList;
-    }
-
-    private List<InvalidTransceiverFailure> getInvalidTransceiverFailureList(String line) {
-        List<InvalidTransceiverFailure> invalidTransceiverFailureList = new LinkedList<>();
-        InvalidTransceiverFailure invalidTransceiverFailure = new InvalidTransceiverFailure(line);
-        invalidTransceiverFailureList.add(invalidTransceiverFailure);
-        return invalidTransceiverFailureList;
     }
 
     private SearchResult searchCableValidationTickets(

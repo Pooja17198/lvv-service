@@ -30,9 +30,12 @@ import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,9 +61,17 @@ public class NcpClientHelper {
 
     @Inject
     public NcpClientHelper(LvvServiceApiConfiguration config) {
-        this.config = config;
-        this.ncpClientSetup = new NcpClientSetup();
+        this(config, new NcpClientSetup());
     }
+
+    public NcpClientHelper(LvvServiceApiConfiguration config, NcpClientSetup ncpClientSetup) {
+        this.config = config;
+        this.ncpClientSetup = ncpClientSetup;
+    }
+
+    @Setter
+    private Function<InputStream, NcpJobResultProcessor> jobResultProcessorFactory =
+            NcpJobResultProcessor::new;
 
     public List<ValidationFailureResult> getNcpJobOutput(
             String jobId, String region, String rackSerialNumber, String rackUnit) {
@@ -80,7 +91,7 @@ public class NcpClientHelper {
             GetJobResultResponse getJobResultResponse =
                     ncpJobResultsClient.getJobResult(getJobResultRequest);
             NcpJobResultProcessor jobResultProcessor =
-                    new NcpJobResultProcessor(getJobResultResponse.getInputStream());
+                    jobResultProcessorFactory.apply(getJobResultResponse.getInputStream());
 
             scope.withDimension("rackSerial", rackSerialNumber);
             scope.withDimension("jobId", jobId);

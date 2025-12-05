@@ -1,5 +1,6 @@
 package com.oracle.pic.networking.lvv.service.dependencies.jira;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -31,6 +32,7 @@ public class JiraSDServiceTest {
     private JiraSDService jiraSDService;
 
     private static final String TEST_ISSUE_ID = "DO-1191815";
+    private static final String TEST_TRANSITION_STATE = "Start Progress";
     private static final String TEST_RESOLUTION = "Fixed";
     private static final String TEST_COMMENT =
             "Vendor has resolved the issue through Low-voltage Vendor Portal";
@@ -58,7 +60,7 @@ public class JiraSDServiceTest {
     }
 
     @Test
-    public void shouldResolveJiraTicket() {
+    public void shouldResolveJiraTicket_whenInProgress() {
         Promise<Issue> issuePromiseMock = mock();
         when(this.mockedIssueRestClient.getIssue(eq(TEST_ISSUE_ID))).thenReturn(issuePromiseMock);
         Issue issueMock = mock();
@@ -78,10 +80,56 @@ public class JiraSDServiceTest {
 
         List<FieldInput> fieldInputList = new LinkedList<>();
 
-        this.jiraSDService.resolveTicket(TEST_ISSUE_ID, TEST_COMMENT, fieldInputList);
+        this.jiraSDService.transitionTicket(TEST_ISSUE_ID, "Resolve", TEST_COMMENT, fieldInputList);
 
         verify(this.mockedIssueRestClient).getIssue(TEST_ISSUE_ID);
         verify(this.mockedIssueRestClient).getTransitions(issueMock);
-        verify(this.mockedIssueRestClient).transition(eq(issueMock), any(TransitionInput.class));
+
+        // Capture and verify the TransitionInput used for the Jira transition
+        org.mockito.ArgumentCaptor<TransitionInput> captor =
+                org.mockito.ArgumentCaptor.forClass(TransitionInput.class);
+        verify(this.mockedIssueRestClient).transition(eq(issueMock), captor.capture());
+        TransitionInput transitionInput = captor.getValue();
+        assertNotNull(transitionInput);
+        assertEquals(41, transitionInput.getId()); // transition id used is 41
+        assertEquals(fieldInputList, transitionInput.getFields());
+        assertEquals(TEST_COMMENT, transitionInput.getComment().getBody());
+    }
+
+    @Test
+    public void shouldResolveJiraTicket_whenInPending() {
+        Promise<Issue> issuePromiseMock = mock();
+        when(this.mockedIssueRestClient.getIssue(eq(TEST_ISSUE_ID))).thenReturn(issuePromiseMock);
+        Issue issueMock = mock();
+        when(issuePromiseMock.claim()).thenReturn(issueMock);
+
+        Promise<Iterable<Transition>> transitionsPromiseMock = mock();
+        when(this.mockedIssueRestClient.getTransitions(issueMock))
+                .thenReturn(transitionsPromiseMock);
+        List<Transition> transitions = new LinkedList<>();
+        Transition transition = new Transition("Start Progress", 41, null);
+        transitions.add(transition);
+        when(transitionsPromiseMock.claim()).thenReturn(transitions);
+
+        Promise<Void> voidPromise = mock();
+        when(this.mockedIssueRestClient.transition(eq(issueMock), any(TransitionInput.class)))
+                .thenReturn(voidPromise);
+
+        List<FieldInput> fieldInputList = new LinkedList<>();
+
+        this.jiraSDService.transitionTicket(TEST_ISSUE_ID, "Start Progress", null, null);
+
+        verify(this.mockedIssueRestClient).getIssue(TEST_ISSUE_ID);
+        verify(this.mockedIssueRestClient).getTransitions(issueMock);
+
+        // Capture and verify the TransitionInput used for the Jira transition
+        org.mockito.ArgumentCaptor<TransitionInput> captor =
+                org.mockito.ArgumentCaptor.forClass(TransitionInput.class);
+        verify(this.mockedIssueRestClient).transition(eq(issueMock), captor.capture());
+        TransitionInput transitionInput = captor.getValue();
+        assertNotNull(transitionInput);
+        assertEquals(41, transitionInput.getId()); // transition id used is 41
+        assertFalse(transitionInput.getFields().iterator().hasNext());
+        assertNull(transitionInput.getComment());
     }
 }

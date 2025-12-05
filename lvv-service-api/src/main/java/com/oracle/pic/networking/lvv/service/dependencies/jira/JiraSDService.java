@@ -14,7 +14,9 @@ import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class JiraSDService {
 
     private final JiraRestClient jiraRestClient;
@@ -37,20 +39,36 @@ public class JiraSDService {
         }
     }
 
-    public void resolveTicket(String issueId, String comment, List<FieldInput> fieldInputList) {
+    public void transitionTicket(
+            String issueId,
+            String transitionState,
+            String comment,
+            List<FieldInput> fieldInputList) {
         Issue issue = this.getIssue(issueId);
         Iterable<Transition> transitions = this.getTransitions(issue);
         int transitionId = -1;
+
+        log.info("Trying to fetch {} transition", transitionState);
         for (Transition transition : transitions) {
             String transitionName = transition.getName();
-            if (transitionName.contains("Resolve")) {
+            log.info("Transition name: {}", transitionName);
+            if (transitionName.contains(transitionState)) {
                 transitionId = transition.getId();
                 break;
             }
         }
 
-        TransitionInput transitionInput =
-                new TransitionInput(transitionId, fieldInputList, Comment.valueOf(comment));
+        log.info("Fetched {} transition. ID: {}", transitionState, transitionId);
+
+        TransitionInput transitionInput;
+
+        if (comment == null || fieldInputList == null) {
+            transitionInput = new TransitionInput(transitionId);
+        } else {
+            transitionInput =
+                    new TransitionInput(transitionId, fieldInputList, Comment.valueOf(comment));
+        }
+
         this.transition(issue, transitionInput);
     }
 

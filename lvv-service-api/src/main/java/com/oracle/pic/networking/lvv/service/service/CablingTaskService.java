@@ -9,7 +9,6 @@ import com.atlassian.jira.rest.client.api.domain.input.FieldInput;
 import com.google.inject.Inject;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraQueries;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
-// import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpService;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
@@ -19,6 +18,7 @@ import com.oracle.pic.networking.lvv.service.model.ValidationFailureTaskDetails;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -231,8 +231,14 @@ public class CablingTaskService {
         String comment = "Vendor has resolved the issue through Low-voltage Vendor Portal";
         String labelString = "lvv-portal-resolved";
 
+        log.info("Fetching issue for cablingTaskId: {}", cablingTaskId);
+
         // Required fields during resolve tickets
         Issue issue = this.jiraSDService.getIssue(cablingTaskId);
+
+        String taskStatus = issue.getStatus().getName();
+        log.info("Issue status: {}", taskStatus);
+
         List<FieldInput> fieldInputList = new LinkedList<>();
 
         FieldInput resolutionFieldInput =
@@ -244,35 +250,67 @@ public class CablingTaskService {
         String rmaFieldId = null;
         String rootCauseCategorizationId = null;
         String serviceTypeId = null;
+
+        log.info("Fetching IssueFields");
         for (IssueField issueField : issue.getFields()) {
             switch (issueField.getName()) {
                 case "RMA":
+                    log.info("RMA field");
                     rmaFieldId = issueField.getId();
                     break;
                 case "Root Cause Categorization":
+                    log.info("Root Cause Categorization field");
                     rootCauseCategorizationId = issueField.getId();
                     break;
                 case "Service Type":
+                    log.info("Service Type");
                     serviceTypeId = issueField.getId();
                     break;
                 default:
                     break;
             }
         }
-        FieldInput rmaFieldInput =
-                new FieldInput(rmaFieldId, ComplexIssueInputFieldValue.with("value", "No"));
-        fieldInputList.add(rmaFieldInput);
 
-        FieldInput rootCauseCategorizationFieldInput =
-                new FieldInput(
-                        rootCauseCategorizationId,
-                        ComplexIssueInputFieldValue.with("value", "Vendor"));
-        fieldInputList.add(rootCauseCategorizationFieldInput);
+        // Add fields only if their IDs were found, else log a warning
+        if (rmaFieldId != null) {
+            FieldInput rmaFieldInput =
+                    new FieldInput(rmaFieldId, ComplexIssueInputFieldValue.with("value", "No"));
+            fieldInputList.add(rmaFieldInput);
+        } else {
+            log.warn(
+                    "Jira issue {} missing field 'RMA', will not set this field during transition",
+                    cablingTaskId);
+        }
 
-        FieldInput serviceTypeFieldInput = new FieldInput(serviceTypeId, "Rack Install");
-        fieldInputList.add(serviceTypeFieldInput);
+        if (rootCauseCategorizationId != null) {
+            FieldInput rootCauseCategorizationFieldInput =
+                    new FieldInput(
+                            rootCauseCategorizationId,
+                            ComplexIssueInputFieldValue.with("value", "Vendor"));
+            fieldInputList.add(rootCauseCategorizationFieldInput);
+        } else {
+            log.warn(
+                    "Jira issue {} missing field 'Root Cause Categorization', will not set this field during transition",
+                    cablingTaskId);
+        }
 
-        this.jiraSDService.resolveTicket(cablingTaskId, comment, fieldInputList);
+        if (serviceTypeId != null) {
+            FieldInput serviceTypeFieldInput = new FieldInput(serviceTypeId, "Rack Install");
+            fieldInputList.add(serviceTypeFieldInput);
+        } else {
+            log.warn(
+                    "Jira issue {} missing field 'Service Type', will not set this field during transition",
+                    cablingTaskId);
+        }
+
+        if (!Objects.equals(taskStatus, "In Progress")) {
+            log.info("Ticket not In Progress. Putting it to In Progress");
+            this.jiraSDService.transitionTicket(cablingTaskId, "Start Progress", null, null);
+        }
+
+        log.info("Resolving ticket");
+
+        this.jiraSDService.transitionTicket(cablingTaskId, "Resolve", comment, fieldInputList);
 
         // After resolution, add label in a separate update (requires updateIssueFields in
         // JiraSDService)

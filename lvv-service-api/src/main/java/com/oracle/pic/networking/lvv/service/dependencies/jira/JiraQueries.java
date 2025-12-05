@@ -4,7 +4,7 @@ public class JiraQueries {
 
     public static final String JQL_PROJECT = "project = \"DO\"";
     public static final String JQL_OPEN_STATUS =
-            " AND status in (Open, \"In Progress\", Reopened, Pending, \"Pending Engineering\")";
+            " AND status in (Open, \"In Progress\", Reopened, Pending, \"Pending Engineering\", \"Pending Customer\")";
     public static final String JQL_BUILDING_BLOCK = " AND Building = %s AND Block ~ %s";
     public static final String JQL = JQL_PROJECT + JQL_OPEN_STATUS + JQL_BUILDING_BLOCK;
     public static final String JQL_CLOSED =

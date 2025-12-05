@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.atlassian.jira.rest.client.api.domain.Issue;
 import com.atlassian.jira.rest.client.api.domain.IssueField;
 import com.atlassian.jira.rest.client.api.domain.SearchResult;
+import com.atlassian.jira.rest.client.api.domain.Status;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraQueries;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
@@ -109,14 +110,19 @@ class CablingTaskServiceTest {
                         new IssueField("rcFieldId", "Root Cause Categorization", "type", null),
                         new IssueField("serviceTypeFieldId", "Service Type", "type", null));
         when(issue.getFields()).thenReturn(fields);
+        Status status = mock(com.atlassian.jira.rest.client.api.domain.Status.class);
+        when(status.getName()).thenReturn("In Progress");
+        when(issue.getStatus()).thenReturn(status);
         when(jiraSDService.getIssue(TASK_ID)).thenReturn(issue);
 
-        doNothing().when(jiraSDService).resolveTicket(eq(TASK_ID), anyString(), anyList());
+        doNothing()
+                .when(jiraSDService)
+                .transitionTicket(eq(TASK_ID), anyString(), anyString(), anyList());
         doNothing().when(jiraSDService).updateIssueFields(eq(TASK_ID), anyList());
 
         assertDoesNotThrow(() -> service.resolveValidationFailureTask(TASK_ID));
 
-        verify(jiraSDService).resolveTicket(eq(TASK_ID), anyString(), anyList());
+        verify(jiraSDService).transitionTicket(eq(TASK_ID), anyString(), anyString(), anyList());
         verify(jiraSDService).updateIssueFields(eq(TASK_ID), anyList());
     }
 
@@ -216,11 +222,68 @@ class CablingTaskServiceTest {
         // No "RMA", "Root Cause Categorization", or "Service Type"
         List<IssueField> fields = List.of(new IssueField("x", "Other", "type", null));
         when(issue.getFields()).thenReturn(fields);
+
+        Status status = mock(com.atlassian.jira.rest.client.api.domain.Status.class);
+        when(status.getName()).thenReturn("In Progress");
+        when(issue.getStatus()).thenReturn(status);
+
         when(jiraSDService.getIssue(TASK_ID)).thenReturn(issue);
 
-        doNothing().when(jiraSDService).resolveTicket(anyString(), anyString(), anyList());
+        doNothing()
+                .when(jiraSDService)
+                .transitionTicket(anyString(), anyString(), anyString(), anyList());
         doNothing().when(jiraSDService).updateIssueFields(anyString(), anyList());
 
         assertDoesNotThrow(() -> service.resolveValidationFailureTask(TASK_ID));
+
+        // Optionally, assert or print the value as an example
+        String taskStatus = issue.getStatus().getName();
+        assertEquals("In Progress", taskStatus);
+    }
+
+    @Test
+    void testTransitionTicketCalledTwiceWhenNotInProgress() {
+        Issue issue = mock(Issue.class);
+        when(issue.getFields()).thenReturn(List.of());
+        Status status = mock(com.atlassian.jira.rest.client.api.domain.Status.class);
+        when(status.getName()).thenReturn("Pending");
+        when(issue.getStatus()).thenReturn(status);
+
+        when(jiraSDService.getIssue(TASK_ID)).thenReturn(issue);
+
+        doNothing()
+                .when(jiraSDService)
+                .transitionTicket(anyString(), anyString(), anyString(), anyList());
+        doNothing().when(jiraSDService).updateIssueFields(anyString(), anyList());
+
+        service.resolveValidationFailureTask(TASK_ID);
+
+        verify(jiraSDService)
+                .transitionTicket(eq(TASK_ID), eq("Start Progress"), isNull(), isNull());
+        verify(jiraSDService).transitionTicket(eq(TASK_ID), eq("Resolve"), anyString(), anyList());
+        verify(jiraSDService, times(2)).transitionTicket(anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void testTransitionTicketCalledOnceWhenInProgress() {
+        Issue issue = mock(Issue.class);
+        when(issue.getFields()).thenReturn(List.of());
+        Status status = mock(com.atlassian.jira.rest.client.api.domain.Status.class);
+        when(status.getName()).thenReturn("In Progress");
+        when(issue.getStatus()).thenReturn(status);
+
+        when(jiraSDService.getIssue(TASK_ID)).thenReturn(issue);
+
+        doNothing()
+                .when(jiraSDService)
+                .transitionTicket(anyString(), anyString(), anyString(), anyList());
+        doNothing().when(jiraSDService).updateIssueFields(anyString(), anyList());
+
+        service.resolveValidationFailureTask(TASK_ID);
+
+        verify(jiraSDService, never())
+                .transitionTicket(eq(TASK_ID), eq("Start Progress"), any(), any());
+        verify(jiraSDService).transitionTicket(eq(TASK_ID), eq("Resolve"), anyString(), anyList());
+        verify(jiraSDService, times(1)).transitionTicket(anyString(), anyString(), any(), any());
     }
 }

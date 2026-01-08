@@ -477,7 +477,7 @@ paths:
       description: Retrieves validation diagnostics from Kiev for a specific rack
       parameters:
         - $ref: '#/parameters/RegionNameQueryParam'
-        - $ref: '#/parameters/RackSerialParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
@@ -516,15 +516,14 @@ paths:
         - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/BuildingNameQueryParam'
         - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/RackNumberParam'
         - $ref: '#/parameters/DeviceNamesParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: Return JobId of NCP's Healthcheck Job
+          description: OPC Request ID
           headers:
             opc-request-id: *ref-opc-request-id
-          schema:
-            type: string
         400:
           description: Creating Validation Job errored out
           headers:
@@ -549,19 +548,18 @@ paths:
       summary: Get NCP's validation job status
       description: Retrieves rack validation job status from NCP
       parameters:
-        - name: jobId
-          in: query
-          required: true
-          schema:
-            type: string
         - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/RackNumberParam'
+        - $ref: '#/parameters/LastAttempt'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: Job Status
+          description: Job Statuses for each device
           schema:
-            type: string
+            type: array
+            items:
+              $ref: '#/definitions/DeviceValidationStatus'
         default:
           description: Unexpected error
           schema:
@@ -584,7 +582,7 @@ paths:
       summary: Download validation failure results for a rack in a csv file
       description: Downloads validation diagnostics from Kiev for a specific rack in a csv file
       parameters:
-        - name: rackSerial
+        - name: rackSerialNumber
           in: query
           required: true
           schema:
@@ -770,6 +768,47 @@ paths:
             type: array
             items:
               $ref: '#/definitions/LvvRack'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+
+  /allDevicesInRack:
+    get:
+      tags: [ 'rackDetails' ]
+      x-obmcs-splat:
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+
+
+      summary: List devices in rack serial
+      operationId: ListDevicesInRack
+      parameters:
+        - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/RackNumberParam'
+        - $ref: '#/parameters/BuildingNameQueryParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Job Statuses for each device
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/DeviceDetails'
         default:
           description: Unexpected error
           schema:
@@ -964,6 +1003,14 @@ definitions:
       airportCode:
         type: string
 
+  Device:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        type: string
+
   JobId:
     type: object
     required:
@@ -992,6 +1039,31 @@ definitions:
       message:
         type: string
       fields:
+        type: string
+
+  DeviceDetails:
+    type: object
+    required:
+      - deviceName
+      - jobStatus
+      - elevation
+    properties:
+      deviceName:
+        type: string
+      jobStatus:
+        type: string
+      elevation:
+        type: integer
+
+  DeviceValidationStatus:
+    type: object
+    required:
+      - deviceName
+      - jobStatus
+    properties:
+      deviceName:
+        type: string
+      jobStatus:
         type: string
 
   Project:
@@ -1296,12 +1368,12 @@ parameters:
     items:
       type: string
 
-  RackSerialParam:
-    name: rackSerial
+  RackNumberParam:
+    name: rackNumber
     in: query
     required: true
     type: string
-    description: Serial number for a rack
+    description: Rack number/location
 
   VendorQueryParam:
     name: vendorName
@@ -1324,6 +1396,13 @@ parameters:
     in: path
     description: The name of the realm you need the list of regions for
     required: true
+
+  LastAttempt:
+    name: lastAttempt
+    in: query
+    required: true
+    type: boolean
+    description: Is this the last attempt of front-end polling for Ncp job status
 
   OpcRequestId:
     name: opc-request-id

@@ -7,5 +7,6 @@ public enum LldpStatus {
     MATCH,
     MISMATCH,
     UNSUPPORTED,
-    UNTESTED
+    UNTESTED,
+    UNKNOWN
 }

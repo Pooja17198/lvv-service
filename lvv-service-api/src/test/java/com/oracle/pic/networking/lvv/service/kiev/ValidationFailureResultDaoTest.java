@@ -7,7 +7,6 @@ import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.kiev.Transaction;
 import com.oracle.pic.kiev.exceptions.CommitConflictException;
-import com.oracle.pic.kiev.exceptions.DuplicateKeyException;
 import com.oracle.pic.kiev.mapping.Index;
 import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.ScanPage;
@@ -82,75 +81,8 @@ public class ValidationFailureResultDaoTest {
     }
 
     @Test
-    void testAddValidationFailureResultsForRack_emptyResults() {
-        dao.addValidationFailureResultsForRack(Collections.emptyList(), "rack1", mockScope, "regA");
-        verify(mockScope).emit(eq(MetricNames.AddValidationResults.NoMoreFailures), eq(1.0));
-        // Should not attempt to update or add
-        verify(mockStore, never()).beginTransaction(any());
-    }
-
-    @Test
-    void testAddValidationFailureResultsForRack_allNormal() {
-        // Existing links present for this rack
-        when(mockRackSerialIndex.beginPrefixScan(any(), anyInt()))
-                .thenReturn(mockScanPage)
-                .thenReturn(null);
-        when(mockScanPage.results()).thenReturn(List.of(linkUp, linkDown));
-        when(mockScanPage.hasNext()).thenReturn(false);
-
-        List<ValidationFailureResult> addLinks = List.of(linkDown);
-        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
-        when(mockStore.getItem(any())).thenReturn(linkUp);
-
-        dao.addValidationFailureResultsForRack(addLinks, "rack1", mockScope, "regA");
-        // Should update existing and add new
-        verify(mockStore, atLeastOnce()).updateItem(any(), any());
-    }
-
-    @Test
-    void testAddValidationFailureResultsForRack_commitConflict() throws CommitConflictException {
-        // Setup
-        when(mockRackSerialIndex.beginPrefixScan(any(), anyInt()))
-                .thenReturn(mockScanPage)
-                .thenReturn(null);
-        when(mockScanPage.results()).thenReturn(List.of(linkUp));
-        when(mockScanPage.hasNext()).thenReturn(false);
-
-        List<ValidationFailureResult> addLinks = List.of(linkDown);
-        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
-        when(mockStore.getItem(any())).thenReturn(linkUp);
-
-        doThrow(new CommitConflictException("fail")).when(mockTransaction).commit();
-
-        assertThrows(
-                RenderableException.class,
-                () -> dao.addValidationFailureResultsForRack(addLinks, "rack1", mockScope, "regA"));
-    }
-
-    @Test
-    void testAddValidationFailureResultsForRack_duplicateKeyException()
-            throws CommitConflictException {
-        // Setup
-        when(mockRackSerialIndex.beginPrefixScan(any(), anyInt()))
-                .thenReturn(mockScanPage)
-                .thenReturn(null);
-        when(mockScanPage.results()).thenReturn(List.of(linkUp));
-        when(mockScanPage.hasNext()).thenReturn(false);
-
-        List<ValidationFailureResult> addLinks = List.of(linkDown);
-        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
-        when(mockStore.getItem(any())).thenReturn(linkUp);
-
-        doThrow(new DuplicateKeyException("fail")).when(mockTransaction).commit();
-
-        assertThrows(
-                RenderableException.class,
-                () -> dao.addValidationFailureResultsForRack(addLinks, "rack1", mockScope, "regA"));
-    }
-
-    @Test
     void testUpdateValidationFailureResultsForDevices_empty() {
-        dao.updateValidationFailureResultsForDevices(Collections.emptyList(), mockScope, "regX");
+        dao.addUpdateValidationFailureResultsForDevices(Collections.emptyList(), mockScope, "regX");
         verify(mockStore, never()).beginTransaction(any());
     }
 
@@ -195,7 +127,9 @@ public class ValidationFailureResultDaoTest {
 
         assertThrows(
                 RenderableException.class,
-                () -> dao.updateValidationFailureResultsForDevices(input, mockScope, "region12"));
+                () ->
+                        dao.addUpdateValidationFailureResultsForDevices(
+                                input, mockScope, "region12"));
     }
 
     @Test
@@ -298,5 +232,180 @@ public class ValidationFailureResultDaoTest {
     @Test
     void testGetValidationFailuresByRack_nullRackSerial() {
         assertThrows(NullPointerException.class, () -> dao.getValidationFailuresByRack(null, true));
+    }
+
+    @Test
+    void testAddUpdateValidationFailureResultsForDevices_createsNewDownLinks() throws Exception {
+        // No existing links for the device
+        when(mockProvider.beginPrefixScan(any(), anyInt())).thenReturn(mockScanPage);
+        when(mockScanPage.results()).thenReturn(new ArrayList<>());
+        when(mockScanPage.hasNext()).thenReturn(false);
+
+        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
+
+        ValidationFailureResult l1 =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder().deviceAName("devZ").deviceAPort("a").build())
+                        .rackSerial("rackZ")
+                        .linkStatus(LinkStatus.DOWN)
+                        .build();
+        ValidationFailureResult l2 =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder().deviceAName("devZ").deviceAPort("b").build())
+                        .rackSerial("rackZ")
+                        .linkStatus(LinkStatus.DOWN)
+                        .build();
+
+        dao.addUpdateValidationFailureResultsForDevices(List.of(l1, l2), mockScope, "regionX");
+
+        // Both should be created and have lastValidatedTime set
+        verify(mockStore, times(1)).beginTransaction(any());
+        verify(mockStore, times(2))
+                .createItem(eq(mockTransaction), any(ValidationFailureResult.class));
+        verify(mockTransaction, times(1)).commit();
+        assertNotNull(l1.getLastValidatedTime());
+        assertNotNull(l2.getLastValidatedTime());
+    }
+
+    @Test
+    void testAddUpdateValidationFailureResultsForDevices_updatesExistingDownLink() {
+        // One existing link for the device
+        ValidationFailureResult existing =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder().deviceAName("devU").deviceAPort("p1").build())
+                        .rackSerial("rackU")
+                        .linkStatus(LinkStatus.DOWN)
+                        .lastValidatedTime(Timestamp.from(Instant.now().minusSeconds(3600)))
+                        .build();
+
+        when(mockProvider.beginPrefixScan(any(), anyInt())).thenReturn(mockScanPage);
+        when(mockScanPage.results()).thenReturn(List.of(existing));
+        when(mockScanPage.hasNext()).thenReturn(false);
+
+        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
+        // Return a non-null item when updating existing links to UP
+        when(mockStore.getItem(any())).thenReturn(existing);
+
+        ValidationFailureResult update =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder().deviceAName("devU").deviceAPort("p1").build())
+                        .rackSerial("rackU")
+                        .linkStatus(LinkStatus.DOWN)
+                        .lastValidatedTime(Timestamp.from(Instant.now().minusSeconds(7200)))
+                        .build();
+
+        dao.addUpdateValidationFailureResultsForDevices(List.of(update), mockScope, "regU");
+
+        // Ensure the DOWN link provided is used for update
+        verify(mockStore, atLeastOnce()).updateItem(eq(mockTransaction), same(update));
+        assertNotNull(update.getLastValidatedTime());
+    }
+
+    @Test
+    void testAddUpdateValidationFailureResultsForDevices_existingLinksBatchingUpdatesToUp()
+            throws Exception {
+        // Create 51 existing links so batching (size 50) triggers 2 transactions
+        List<ValidationFailureResult> existing = new ArrayList<>();
+        for (int i = 0; i < 51; i++) {
+            existing.add(
+                    ValidationFailureResult.builder()
+                            .linkSource(
+                                    LinkSource.builder()
+                                            .deviceAName("devBatch")
+                                            .deviceAPort("p" + i)
+                                            .build())
+                            .rackSerial("rackB")
+                            .linkStatus(LinkStatus.DOWN)
+                            .lastValidatedTime(Timestamp.from(Instant.now()))
+                            .build());
+        }
+
+        when(mockProvider.beginPrefixScan(any(), anyInt())).thenReturn(mockScanPage);
+        when(mockScanPage.results()).thenReturn(existing);
+        when(mockScanPage.hasNext()).thenReturn(false);
+
+        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
+        // Return a non-null item for each getItem call
+        when(mockStore.getItem(any()))
+                .thenReturn(
+                        ValidationFailureResult.builder()
+                                .linkSource(
+                                        LinkSource.builder()
+                                                .deviceAName("devBatch")
+                                                .deviceAPort("px")
+                                                .build())
+                                .rackSerial("rackB")
+                                .linkStatus(LinkStatus.DOWN)
+                                .lastValidatedTime(Timestamp.from(Instant.now()))
+                                .build());
+
+        // Provide an input list for the same device where first link is UP to skip DOWN updates
+        ValidationFailureResult placeholderUp =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder()
+                                        .deviceAName("devBatch")
+                                        .deviceAPort("placeholder")
+                                        .build())
+                        .rackSerial("rackB")
+                        .linkStatus(LinkStatus.UP)
+                        .lastValidatedTime(Timestamp.from(Instant.now()))
+                        .build();
+
+        dao.addUpdateValidationFailureResultsForDevices(List.of(placeholderUp), mockScope, "regB");
+
+        // Two batches (50 + 1)
+        verify(mockStore, times(2)).beginTransaction(any());
+        verify(mockStore, times(51))
+                .updateItem(eq(mockTransaction), any(ValidationFailureResult.class));
+        verify(mockTransaction, times(2)).commit();
+    }
+
+    @Test
+    void
+            testAddUpdateValidationFailureResultsForDevices_updateDownCommitFailure_emitsMetricAndAborts()
+                    throws Exception {
+        // No existing links
+        when(mockProvider.beginPrefixScan(any(), anyInt())).thenReturn(mockScanPage);
+        when(mockScanPage.results()).thenReturn(new ArrayList<>());
+        when(mockScanPage.hasNext()).thenReturn(false);
+
+        when(mockStore.beginTransaction(any())).thenReturn(mockTransaction);
+        // Fail commit during DOWN updates
+        doThrow(new CommitConflictException("conflict")).when(mockTransaction).commit();
+
+        ValidationFailureResult l1 =
+                ValidationFailureResult.builder()
+                        .linkSource(
+                                LinkSource.builder().deviceAName("devErr").deviceAPort("a").build())
+                        .rackSerial("rackErr")
+                        .linkStatus(LinkStatus.DOWN)
+                        .lastValidatedTime(Timestamp.from(Instant.now()))
+                        .build();
+
+        assertThrows(
+                RenderableException.class,
+                () -> dao.addUpdateValidationFailureResultsForDevices(List.of(l1), mockScope, "r"));
+
+        // Metric emitted and transaction aborted
+        verify(mockScope, times(1))
+                .emit(eq(MetricNames.AddValidationResults.KievResultUpdateFailure.name()), eq(1.0));
+        verify(mockTransaction, times(1)).abort();
+    }
+
+    @Test
+    void testGetValidationFailuresByRack_nullIndex_throws() {
+        @SuppressWarnings("unchecked")
+        MappedHashBucket<LinkSource, ValidationFailureResult> provider2 =
+                mock(MappedHashBucket.class);
+        when(provider2.getIndex(any(), any())).thenReturn(null);
+        ValidationFailureResultDao dao2 =
+                new ValidationFailureResultDao(mockStore, mockSerializer, provider2);
+        assertThrows(
+                NullPointerException.class, () -> dao2.getValidationFailuresByRack("rack1", false));
     }
 }

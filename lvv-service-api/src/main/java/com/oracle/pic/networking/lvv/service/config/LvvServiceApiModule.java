@@ -10,6 +10,7 @@ import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
 import com.oracle.bmc.monitoring.MonitoringClient;
 import com.oracle.pic.commons.metrics.naming.FilteringNamingStrategy;
 import com.oracle.pic.commons.metrics.naming.SimpleMetricsNamingStrategy;
@@ -33,17 +34,11 @@ import com.oracle.pic.networking.lvv.service.LvvServiceApi;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
+import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceClient;
+import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceHelper;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
-import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
-import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
-import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
-import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
-import com.oracle.pic.networking.lvv.service.kiev.KievHashBucketProvider;
-import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.kiev.*;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
@@ -52,6 +47,7 @@ import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetr
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.lvv.service.service.RackDetailsService;
 import com.oracle.pic.networking.lvv.service.service.RegionsService;
 import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
 import com.oracle.pic.storekeeper.StoreKeeper;
@@ -83,20 +79,40 @@ public class LvvServiceApiModule extends AbstractModule {
     protected void configure() {
         log.info("Binding");
 
+        for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
+            bind(c).in(Singleton.class);
+        }
+
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
+
         bind(StoreKeeperService.class).in(Singleton.class);
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         bind(CablingValidationService.class).in(Singleton.class);
         bind(RegionsService.class).in(Singleton.class);
+        bind(RackDetailsService.class).in(Singleton.class);
+
         bind(NcpClientHelper.class).in(Singleton.class);
-        for (Class<?> c : LvvServiceApi.RESOURCE_CLASSES) {
-            bind(c).in(Singleton.class);
-        }
+        bind(PlanServiceHelper.class).in(Singleton.class);
+
+        bindProjectBucket();
+        bindValidationFailureResultBucket();
+        bindBlockDetailsBucket();
+        bindNcpJobDetailsBucket();
+
+        bind(ProjectItemDao.class).in(Singleton.class);
+        bind(ValidationFailureResultDao.class).in(Singleton.class);
+        bind(BlockDetailsDao.class).in(Singleton.class);
+        bind(NcpJobDetailsDao.class).in(Singleton.class);
+
+        bind(ResourceModelTransformer.class).in(Singleton.class);
+
         bind(LvvServiceApiDeepCheck.class).in(Singleton.class);
         bind(MappedDataStore.class).toProvider(DataStoreProvider.class);
+
         this.binder().requireExplicitBindings();
+
         install(
                 new MetricsModules.Builder()
                         .config(config.getMetricsConfig())
@@ -106,14 +122,6 @@ public class LvvServiceApiModule extends AbstractModule {
                         .monitoringClient(getMonitoringClient())
                         .shouldOverrideMetricKeys(false)
                         .build());
-
-        bindProjectBucket();
-        bindValidationFailureResultBucket();
-        bindBlockDetailsBucket();
-        bind(ProjectItemDao.class).in(Singleton.class);
-        bind(ValidationFailureResultDao.class).in(Singleton.class);
-        bind(BlockDetailsDao.class).in(Singleton.class);
-        bind(ResourceModelTransformer.class).in(Singleton.class);
     }
 
     private void bindProjectBucket() {
@@ -167,6 +175,20 @@ public class LvvServiceApiModule extends AbstractModule {
 
         bind(new TypeLiteral<ConfigurationStore<BlockDetails.Block, BlockDetails>>() {})
                 .to(new TypeLiteral<KievConfigurationStore<BlockDetails.Block, BlockDetails>>() {});
+    }
+
+    private void bindNcpJobDetailsBucket() {
+        KievHashBucketProvider<String, NcpJobDetails> kievHashBucketProvider =
+                new KievHashBucketProvider<>(
+                        "ncpJobDetailsBucket",
+                        "Bucket which NCP Validation job details",
+                        String.class,
+                        NcpJobDetails.class);
+        bind(new TypeLiteral<MappedHashBucket<String, NcpJobDetails>>() {})
+                .toProvider(kievHashBucketProvider);
+
+        bind(new TypeLiteral<ConfigurationStore<String, NcpJobDetails>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, NcpJobDetails>>() {});
     }
 
     @Provides
@@ -330,6 +352,14 @@ public class LvvServiceApiModule extends AbstractModule {
         final StoreKeeperClient skClient = new StoreKeeperClient(authProvider, null);
         skClient.setEndpoint(this.config.getSkConfig().getEndpoint());
         return skClient;
+    }
+
+    @Provides
+    @Singleton
+    public PlanServiceClient getPlanServiceClient() {
+        BasicAuthenticationDetailsProvider authProvider =
+                S2SAuthenticationDetailsProvider.builder().useInstancePrincipals().build();
+        return new PlanServiceClient(config.getPlanServiceConfiguration(), authProvider);
     }
 
     @Provides

@@ -8,33 +8,22 @@ import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 import com.oracle.pic.networking.lvv.service.utils.RetryHelper;
 import com.oracle.pic.networking.ncp.JobProgressClient;
 import com.oracle.pic.networking.ncp.JobResultsClient;
 import com.oracle.pic.networking.ncp.JobsClient;
-import com.oracle.pic.networking.ncp.model.Job;
-import com.oracle.pic.networking.ncp.model.JobRequest;
-import com.oracle.pic.networking.ncp.model.JobTarget;
-import com.oracle.pic.networking.ncp.model.UnitProgress;
-import com.oracle.pic.networking.ncp.model.UnitProgressStatus;
-import com.oracle.pic.networking.ncp.requests.CreateJobRequest;
-import com.oracle.pic.networking.ncp.requests.GetJobRequest;
-import com.oracle.pic.networking.ncp.requests.GetJobResultRequest;
-import com.oracle.pic.networking.ncp.requests.ListJobUnitProgressRequest;
-import com.oracle.pic.networking.ncp.requests.ListJobUnitsRequest;
-import com.oracle.pic.networking.ncp.responses.CreateJobResponse;
-import com.oracle.pic.networking.ncp.responses.GetJobResponse;
-import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
-import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
-import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
+import com.oracle.pic.networking.ncp.model.*;
+import com.oracle.pic.networking.ncp.requests.*;
+import com.oracle.pic.networking.ncp.responses.*;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
+import java.util.*;
+import java.util.function.BiFunction;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -44,11 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 public class NcpClientHelper {
 
     private static final int DEFAULT_CLIENT_RETRY_COUNT = 3;
-    private static final int RACK_VALIDATION_MAX_WAITING_CYCLES = 10;
-    private static final int RACK_VALIDATION_JOB_WAITING_TIME_SECOND = 30;
     private static final String RESULT_NAME = "TestResults";
-
-    private static final String NCP_JOB_UNKNOWN_STATE = "UNKNOWN";
 
     private static final List<Job.State> JOB_FAILED_STATES =
             List.of(Job.State.Failed, Job.State.Canceled, Job.State.Timeout, Job.State.Error);
@@ -56,22 +41,29 @@ public class NcpClientHelper {
             List.of(Job.State.Pending, Job.State.Scheduled, Job.State.Started, Job.State.New);
     private static final List<Job.State> JOB_SUCCEEDED_STATE = List.of(Job.State.Succeeded);
 
+    private static final int MAX_BATCHES = 20;
+
     private final LvvServiceApiConfiguration config;
-    private NcpClientSetup ncpClientSetup;
+    private final NcpClientSetup ncpClientSetup;
+    private final NcpJobDetailsDao ncpJobDetailsDao;
 
     @Inject
-    public NcpClientHelper(LvvServiceApiConfiguration config) {
-        this(config, new NcpClientSetup());
+    public NcpClientHelper(LvvServiceApiConfiguration config, NcpJobDetailsDao ncpJobDetailsDao) {
+        this(config, new NcpClientSetup(), ncpJobDetailsDao);
     }
 
-    public NcpClientHelper(LvvServiceApiConfiguration config, NcpClientSetup ncpClientSetup) {
+    public NcpClientHelper(
+            LvvServiceApiConfiguration config,
+            NcpClientSetup ncpClientSetup,
+            NcpJobDetailsDao ncpJobDetailsDao) {
         this.config = config;
         this.ncpClientSetup = ncpClientSetup;
+        this.ncpJobDetailsDao = ncpJobDetailsDao;
     }
 
     @Setter
-    private Function<InputStream, NcpJobResultProcessor> jobResultProcessorFactory =
-            NcpJobResultProcessor::new;
+    private BiFunction<InputStream, NcpJobDetailsDao, NcpJobResultProcessor>
+            jobResultProcessorFactory = NcpJobResultProcessor::new;
 
     public List<ValidationFailureResult> getNcpJobOutput(
             String jobId, String region, String rackSerialNumber, String rackUnit) {
@@ -79,11 +71,6 @@ public class NcpClientHelper {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.PROCESS_NCP_JOB_OUTPUT.name())) {
 
-            JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
-            Job job = getJob(jobId, ncpApiJobsClient);
-            if (Objects.equals(job.getRequest().getJobType(), JobType.PER_RACK_VALIDATION_JOB)) {
-                jobId = getValidationJobId(jobId, region);
-            }
             JobResultsClient ncpJobResultsClient =
                     ncpClientSetup.getNcpJobResultsClient(config, region);
             GetJobResultRequest getJobResultRequest =
@@ -91,86 +78,14 @@ public class NcpClientHelper {
             GetJobResultResponse getJobResultResponse =
                     ncpJobResultsClient.getJobResult(getJobResultRequest);
             NcpJobResultProcessor jobResultProcessor =
-                    jobResultProcessorFactory.apply(getJobResultResponse.getInputStream());
+                    jobResultProcessorFactory.apply(
+                            getJobResultResponse.getInputStream(), ncpJobDetailsDao);
 
-            scope.withDimension("rackSerial", rackSerialNumber);
             scope.withDimension("jobId", jobId);
 
             jobResultProcessor.processJobResult(scope);
             scope.recordSuccess();
             return jobResultProcessor.buildValidationFailureResults(rackSerialNumber, rackUnit);
-        }
-    }
-
-    private List<JobTarget> getTargetForDevices(List<String> deviceNames, String region) {
-
-        if (deviceNames.isEmpty()) {
-            JobTarget target = JobTarget.builder().type(JobTarget.Type.Region).name(region).build();
-            return List.of(target);
-        }
-
-        return deviceNames.stream()
-                .map(
-                        deviceName ->
-                                JobTarget.builder()
-                                        .type(JobTarget.Type.Device)
-                                        .name(deviceName)
-                                        .build())
-                .toList();
-    }
-
-    public Job createJob(
-            String jobType,
-            String payload,
-            List<String> deviceNames,
-            MetricsScope scope,
-            String region) {
-
-        try {
-
-            log.info(
-                    "Creating NCP Job. Job Type: {}, payload: {}, deviceNames: {}",
-                    jobType,
-                    payload,
-                    deviceNames);
-
-            JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
-
-            JobRequest jobRequest =
-                    JobRequest.builder()
-                            .jobType(jobType)
-                            .jobProcessor(JobRequest.JobProcessor.NcpDefault)
-                            .payload(payload)
-                            .targets(getTargetForDevices(deviceNames, region))
-                            .parentJobId(null)
-                            .build();
-
-            CreateJobRequest createJobRequest =
-                    CreateJobRequest.builder()
-                            .jobRequest(jobRequest)
-                            .opcIdempotencyToken(null)
-                            .build();
-
-            CreateJobResponse createJobResponse =
-                    RetryHelper.newRetryHelper(
-                                    () -> ncpApiJobsClient.createJob(createJobRequest),
-                                    DEFAULT_CLIENT_RETRY_COUNT,
-                                    RetryHelper.retryAll)
-                            .run();
-
-            log.info("NCP Job created successfully");
-
-            return createJobResponse.getJob();
-        } catch (Exception e) {
-            log.error(
-                    "{} job with the following payload {} failed to create unexpectedly",
-                    jobType,
-                    payload,
-                    e);
-            scope.emit(MetricNames.ValidateCables.NcpJobCreationFailed.name(), 1.0);
-            throw new RenderableException(
-                    ErrorCode.ExternalServerInvalidResponse,
-                    "Failed to create NCP job unexpectedly");
         }
     }
 
@@ -292,9 +207,141 @@ public class NcpClientHelper {
         return null;
     }
 
-    private Job getJob(String jobId, JobsClient ncpApiJobsClient) {
+    private List<JobTarget> getTargetsForDevices(List<String> deviceNames, String region) {
+
+        // If deviceName list is empty, we create a target for PER_RACK_VALIDATION_JOB
+        if (deviceNames.isEmpty()) {
+            JobTarget target = JobTarget.builder().type(JobTarget.Type.Region).name(region).build();
+            return List.of(target);
+        }
+
+        List<JobTarget> jobTargets = new ArrayList<>();
+
+        for (String deviceName : deviceNames) {
+            jobTargets.add(
+                    JobTarget.builder().type(JobTarget.Type.Device).name(deviceName).build());
+        }
+
+        return jobTargets;
+    }
+
+    private HashMap<String, String> createHealthcheckJob(
+            List<String> deviceNames, String payload, String region) throws Exception {
+
+        HashMap<String, String> jobList = new HashMap<>();
+        JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
+
+        // We create a max of MAX_BATCH jobs, and group the devices equally into each batch
+        int batchSize = (deviceNames.size() / MAX_BATCHES) + 1;
+
+        for (int i = 0; i < deviceNames.size(); i += batchSize) {
+
+            List<String> batch =
+                    deviceNames.subList(i, Math.min(i + batchSize, deviceNames.size()));
+
+            JobRequest jobRequest =
+                    JobRequest.builder()
+                            .jobType(JobType.HEALTH_CHECK)
+                            .jobProcessor(JobRequest.JobProcessor.NcpDefault)
+                            .payload(payload)
+                            .targets(getTargetsForDevices(batch, region))
+                            .parentJobId(null)
+                            .build();
+
+            CreateJobRequest createJobRequest =
+                    CreateJobRequest.builder()
+                            .jobRequest(jobRequest)
+                            .opcIdempotencyToken(null)
+                            .build();
+
+            CreateJobResponse createJobResponse =
+                    RetryHelper.newRetryHelper(
+                                    () -> ncpApiJobsClient.createJob(createJobRequest),
+                                    DEFAULT_CLIENT_RETRY_COUNT,
+                                    RetryHelper.retryAll)
+                            .run();
+
+            log.info("NCP Job for devices {} created successfully", batch);
+
+            for (String deviceName : batch) {
+                jobList.put(deviceName, createJobResponse.getJob().getId());
+            }
+        }
+        return jobList;
+    }
+
+    public HashMap<String, String> createRackValidationJob(
+            String payload, String rackSerialNumber, String region) throws Exception {
+        HashMap<String, String> jobList = new HashMap<>();
+        JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
+
+        JobRequest jobRequest =
+                JobRequest.builder()
+                        .jobType(JobType.PER_RACK_VALIDATION_JOB)
+                        .jobProcessor(JobRequest.JobProcessor.NcpDefault)
+                        .payload(payload)
+                        .targets(getTargetsForDevices(Collections.emptyList(), region))
+                        .parentJobId(null)
+                        .build();
+
+        CreateJobRequest createJobRequest =
+                CreateJobRequest.builder().jobRequest(jobRequest).opcIdempotencyToken(null).build();
+
+        CreateJobResponse createJobResponse =
+                RetryHelper.newRetryHelper(
+                                () -> ncpApiJobsClient.createJob(createJobRequest),
+                                DEFAULT_CLIENT_RETRY_COUNT,
+                                RetryHelper.retryAll)
+                        .run();
+
+        log.info("NCP PER_RACK_VALIDATION_JOB for rack {} created successfully", rackSerialNumber);
+        jobList.put(rackSerialNumber, createJobResponse.getJob().getId());
+
+        return jobList;
+    }
+
+    public HashMap<String, String> createJobs(
+            String jobType,
+            String rackSerialNumber,
+            String payload,
+            List<String> deviceNames,
+            MetricsScope scope,
+            String region) {
 
         try {
+            log.info(
+                    "Creating NCP Job. Job Type: {}, payload: {}, deviceNames: {}",
+                    jobType,
+                    payload,
+                    deviceNames);
+
+            if (Objects.equals(jobType, JobType.HEALTH_CHECK)) {
+                return createHealthcheckJob(deviceNames, payload, region);
+            } else {
+                return createRackValidationJob(payload, rackSerialNumber, region);
+            }
+
+        } catch (Exception e) {
+            log.error(
+                    "{} job with the following payload {} failed to create unexpectedly",
+                    jobType,
+                    payload,
+                    e);
+            scope.emit(MetricNames.ValidateCables.NcpJobCreationFailed.name(), 1.0);
+            throw new RenderableException(
+                    ErrorCode.ExternalServerInvalidResponse,
+                    "Failed to create NCP job unexpectedly");
+        }
+    }
+
+    private Job getJob(String jobId, JobsClient ncpApiJobsClient, Map<String, Job> jobsMap) {
+
+        try {
+
+            if (jobsMap.containsKey(jobId)) {
+                return jobsMap.get(jobId);
+            }
+
             GetJobRequest getJobRequest = GetJobRequest.builder().jobId(jobId).build();
 
             GetJobResponse getJobResponse =
@@ -304,6 +351,10 @@ public class NcpClientHelper {
                                     RetryHelper.retryAll)
                             .run();
 
+            // Since each job can be mapped to multiple devices, we memoize the jobs,
+            // so that we don't fetch the same job again and again for each device
+            jobsMap.put(jobId, getJobResponse.getJob());
+
             return getJobResponse.getJob();
         } catch (Exception e) {
             log.error("Unable to fetch Job {}", jobId, e);
@@ -312,86 +363,75 @@ public class NcpClientHelper {
         }
     }
 
-    public String getJobType(String jobId, String region) {
-        try {
-            JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
-            Job job = getJob(jobId, ncpApiJobsClient);
-
-            String jobType = job.getRequest().getJobType();
-            log.info("Job Type fetched is {}", jobType);
-            return jobType;
-        } catch (Exception e) {
-            log.error("Unable to fetch Job Type for job {}", jobId, e);
-            throw new RenderableException(
-                    ErrorCode.ExternalServerInvalidResponse,
-                    "Failed to fetch Job type unexpectedly");
-        }
-    }
-
-    public String fetchJobStatus(String jobId, MetricsScope scope, String region) {
+    public Map<String, JobStatus> fetchJobStatus(String rackSerialNumber, String region) {
         JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
-        Job job = getJob(jobId, ncpApiJobsClient);
-        String jobType = job.getRequest().getJobType();
-        String healthCheckJobId;
 
-        scope.withDimension("jobType", jobType);
+        // Fetch NcpJob Details for all devices in the rack
+        List<NcpJobDetails> jobDetails = ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerialNumber);
 
-        if (job.getState() != null) {
-            Job.State state = job.getState();
+        // Map of Device name -> Job status
+        Map<String, JobStatus> deviceJobStatusMap = new HashMap<>();
 
-            log.debug("{} Job State is {}", jobType, state);
+        // Map of Job ID -> Job
+        Map<String, Job> jobsMap = new HashMap<>();
 
-            if (JOB_FAILED_STATES.contains(state)) {
-                scope.emit(MetricNames.GetValidationJobStatus.Fail, 1.0);
-                return Job.State.Failed.name();
-            } else {
-                if (Objects.equals(jobType, JobType.PER_RACK_VALIDATION_JOB)) {
-                    healthCheckJobId = getValidationJobId(jobId, region);
-                    if (healthCheckJobId == null) {
-                        if (JOB_PENDING_STATES.contains(state)) {
-                            // We are still waiting for the PER_RACK_VALIDATION_JOB to trigger a
-                            // HEALTH_CHECK Job
-                            scope.emit(MetricNames.GetValidationJobStatus.Pending, 1.0);
-                            return Job.State.Pending.name();
-                        } else if (JOB_SUCCEEDED_STATE.contains(state)) {
-                            // PER_RACK_VALIDATION_JOB succeeded but was unable to trigger a
-                            // Health_check job
-                            scope.emit(MetricNames.GetValidationJobStatus.Fail, 1.0);
-                            return Job.State.Failed.name();
-                        }
-                    } else {
-                        // PER_RACK_VALIDATION_JOB has triggered a HEALTH_CHECK Job
-                        Job healthcheckJob = getJob(healthCheckJobId, ncpApiJobsClient);
-                        Job.State healthcheckState = healthcheckJob.getState();
-                        log.info(
-                                "{} Job State is {}",
-                                healthcheckJob.getRequest().getJobType(),
-                                healthcheckState);
-                        if (JOB_FAILED_STATES.contains(healthcheckState)) {
-                            scope.emit(MetricNames.GetValidationJobStatus.Fail, 1.0);
-                            return Job.State.Failed.name();
-                        } else if (JOB_PENDING_STATES.contains(healthcheckState)) {
-                            scope.emit(MetricNames.GetValidationJobStatus.Pending, 1.0);
-                            return Job.State.Pending.name();
-                        } else {
-                            scope.emit(MetricNames.GetValidationJobStatus.Success, 1.0);
-                            return Job.State.Succeeded.name();
-                        }
-                    }
+        log.info("Fetching job statuses for rack {}", rackSerialNumber);
+
+        for (NcpJobDetails ncpJobDetails : jobDetails) {
+
+            if (ncpJobDetails.getJobStatus() != JobStatus.IN_PROGRESS) {
+                log.info("No jobs in progress for device {}", ncpJobDetails.getDeviceName());
+                continue;
+            }
+
+            Job job = getJob(ncpJobDetails.getJobId(), ncpApiJobsClient, jobsMap);
+            String jobType = job.getRequest().getJobType();
+
+            if (job.getState() != null) {
+                Job.State state = job.getState();
+
+                log.info("Device {} Job State is {}", ncpJobDetails.getDeviceName(), state);
+
+                if (JOB_FAILED_STATES.contains(state)) {
+                    deviceJobStatusMap.put(ncpJobDetails.getDeviceName(), JobStatus.FAILED);
                 } else {
-                    if (JOB_PENDING_STATES.contains(state)) {
-                        scope.emit(MetricNames.GetValidationJobStatus.Pending, 1.0);
-                        return Job.State.Pending.name();
-                    } else {
-                        scope.emit(MetricNames.GetValidationJobStatus.Success, 1.0);
-                        return Job.State.Succeeded.name();
+
+                    // If Job Type is PER_RACK_VALIDATION_JOB
+                    if (Objects.equals(jobType, JobType.PER_RACK_VALIDATION_JOB)) {
+                        String jobId = job.getId();
+                        String healthCheckJobId = getValidationJobId(jobId, region);
+                        if (healthCheckJobId == null) {
+                            if (JOB_PENDING_STATES.contains(state)) {
+                                // We are still waiting for the PER_RACK_VALIDATION_JOB to trigger a
+                                // HEALTH_CHECK Job
+                                deviceJobStatusMap.put(
+                                        ncpJobDetails.getDeviceName(), JobStatus.IN_PROGRESS);
+                            } else if (JOB_SUCCEEDED_STATE.contains(state)) {
+                                // PER_RACK_VALIDATION_JOB succeeded but was unable to trigger a
+                                // Health_check job
+                                deviceJobStatusMap.put(
+                                        ncpJobDetails.getDeviceName(), JobStatus.FAILED);
+                            }
+                        } else {
+                            // PER_RACK_VALIDATION_JOB has triggered a HEALTH_CHECK Job
+                            // Update DB's Job ID from RACK_VALIDATION JOB to corresponding
+                            // HEALTH_CHECK Job
+                            ncpJobDetails.setJobId(healthCheckJobId);
+                            ncpJobDetailsDao.updateNcpJobDetails(ncpJobDetails);
+                        }
+                    } else { // If Job Type is HEALTH_CHECK
+                        if (JOB_PENDING_STATES.contains(state)) {
+                            deviceJobStatusMap.put(
+                                    ncpJobDetails.getDeviceName(), JobStatus.IN_PROGRESS);
+                        } else {
+                            deviceJobStatusMap.put(
+                                    ncpJobDetails.getDeviceName(), JobStatus.COMPLETED);
+                        }
                     }
                 }
             }
         }
 
-        log.warn("Unable to fetch Job Status for job {}", jobId);
-        scope.emit(MetricNames.GetValidationJobStatus.Unknown, 1.0);
-        return NCP_JOB_UNKNOWN_STATE;
+        return deviceJobStatusMap;
     }
 }

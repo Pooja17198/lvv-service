@@ -10,13 +10,16 @@ import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractCablingValidationResource;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
+import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
@@ -50,10 +53,11 @@ public class CablingValidationResource extends AbstractCablingValidationResource
     }
 
     @Override
-    public String validateCables(
+    public void validateCables(
             String regionName,
             String building,
             String rackSerialNumber,
+            String rackNumber,
             List<String> deviceNames,
             String opcRequestId,
             Principal principal,
@@ -66,6 +70,10 @@ public class CablingValidationResource extends AbstractCablingValidationResource
 
             if (rackSerialNumber == null || rackSerialNumber.isBlank()) {
                 missing.add("rackSerialNumber");
+            }
+
+            if (rackNumber == null || rackNumber.isBlank()) {
+                missing.add("rackNumber");
             }
 
             if (regionName == null || regionName.isBlank()) {
@@ -83,12 +91,12 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                         "Missing or empty parameters: " + String.join(", ", missing));
             }
 
-            String jobId =
-                    this.cablingValidationService.validateCablingTasks(
-                            regionName, building, rackSerialNumber, deviceNames, scope);
+            log.info("Starting validations on selected devices for rack {}", rackSerialNumber);
+
+            this.cablingValidationService.validateCablingTasks(
+                    regionName, building, rackSerialNumber, rackNumber, deviceNames, scope);
 
             scope.recordSuccess();
-            return jobId;
         }
     }
 
@@ -169,10 +177,11 @@ public class CablingValidationResource extends AbstractCablingValidationResource
     }
 
     @Override
-    public String getValidationJobStatus(
-            String jobId,
+    public List<DeviceValidationStatus> getValidationJobStatus(
             String regionName,
             String rackSerialNumber,
+            String rackNumber,
+            Boolean lastAttempt,
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
@@ -181,16 +190,9 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                 MetricsScope.create(
                         MetricNames.MetricScopeNames.GET_NCP_VALIDATION_JOB_STATUS.name())) {
 
-            log.info("Fetching NCP Validation Job Status for Job Id {}", jobId);
+            log.info("Fetching NCP Validation Job Status for rack {}", rackSerialNumber);
 
             scope.withDimension("region", regionName);
-
-            if (jobId == null || jobId.isEmpty()) {
-                scope.emit(MetricNames.GetValidationJobStatus.JobIdNull.name(), 1.0);
-                throw new RenderableException(ErrorCode.InvalidParameter, "Job ID cannot be empty");
-            }
-
-            scope.withDimension("jobId", jobId);
 
             if (rackSerialNumber == null || rackSerialNumber.isEmpty()) {
                 scope.emit(MetricNames.GetValidationJobStatus.RackSerialNull.name(), 1.0);
@@ -198,14 +200,20 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                         ErrorCode.InvalidParameter, "Rack serial cannot be empty");
             }
 
+            if (rackNumber == null || rackNumber.isEmpty()) {
+                scope.emit(MetricNames.GetValidationJobStatus.RackNumberNull.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.InvalidParameter, "Rack number cannot be empty");
+            }
+
             scope.emit(MetricNames.GetValidationJobStatus.GetJobStatus.name(), 1.0);
 
-            String status =
+            Map<String, JobStatus> jobStatuses =
                     this.cablingValidationService.getValidationJobStatus(
-                            jobId, scope, regionName, rackSerialNumber);
+                            scope, regionName, rackSerialNumber, rackNumber, lastAttempt);
 
             scope.recordSuccess();
-            return status;
+            return resourceModelTransformer.toModel(jobStatuses);
         }
     }
 }

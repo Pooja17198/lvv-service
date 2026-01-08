@@ -3,15 +3,16 @@ package com.oracle.pic.networking.lvv.service.resources;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.oracle.pic.commons.util.Region;
+import com.oracle.pic.networking.autonet.plan.service.model.Device;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
-import com.oracle.pic.networking.lvv.service.model.Project;
-import com.oracle.pic.networking.lvv.service.model.RegionObject;
-import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
+import com.oracle.pic.networking.lvv.service.model.*;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -80,5 +81,38 @@ public class ResourceModelTransformer {
                             .build());
         }
         return regionsList;
+    }
+
+    public List<DeviceDetails> toModel(Map<String, JobStatus> jobStatus, List<Device> devices) {
+
+        List<DeviceDetails> deviceValidationStatuses = new ArrayList<>();
+
+        for (Device device : devices) {
+            DeviceDetails deviceDetails =
+                    DeviceDetails.builder()
+                            .deviceName(device.getName())
+                            .jobStatus(jobStatus.get(device.getName()).name())
+                            .elevation(Integer.parseInt(device.getLocation().getElevation()))
+                            .build();
+            deviceValidationStatuses.add(deviceDetails);
+        }
+
+        return deviceValidationStatuses;
+    }
+
+    public List<DeviceValidationStatus> toModel(Map<String, JobStatus> jobStatus) {
+
+        List<DeviceValidationStatus> deviceValidationStatuses = new ArrayList<>();
+
+        for (Map.Entry<String, JobStatus> entry : jobStatus.entrySet()) {
+            DeviceValidationStatus status =
+                    DeviceValidationStatus.builder()
+                            .deviceName(entry.getKey())
+                            .jobStatus(entry.getValue().name())
+                            .build();
+            deviceValidationStatuses.add(status);
+        }
+
+        return deviceValidationStatuses;
     }
 }

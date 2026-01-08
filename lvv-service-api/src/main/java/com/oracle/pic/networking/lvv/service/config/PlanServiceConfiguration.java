@@ -1,4 +1,4 @@
-package com.oracle.pic.networking.lvv.service.dependencies.ncp;
+package com.oracle.pic.networking.lvv.service.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -10,18 +10,21 @@ import lombok.Value;
  * Configuration used by the AdSynchronizer to push configuration updates to the devices in an ad.
  */
 @Value
-@JsonDeserialize(builder = NcpServiceConfiguration.Builder.class)
+@JsonDeserialize(builder = PlanServiceConfiguration.Builder.class)
 @Builder(builderClassName = "Builder", toBuilder = true)
-public class NcpServiceConfiguration {
+public class PlanServiceConfiguration {
 
-    /** NCP service endpoint */
+    /** PlanService endpoint */
     @NotNull private String endpoint;
 
-    /** NCP Client connect timeout in msec */
+    /** PlanService Client connect timeout in msec */
     @NotNull private int connectTimeoutInMs;
 
-    /** NCP Client read timeout in msec */
+    /** PlanService Client read timeout in msec */
     @NotNull private int readTimeoutInMs;
+
+    /** PlanService maxRetries */
+    @NotNull private int maxRetries;
 
     @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {}

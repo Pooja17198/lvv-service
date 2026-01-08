@@ -6,9 +6,7 @@ import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
-import com.oracle.pic.networking.lvv.service.kiev.LinkStatus;
-import com.oracle.pic.networking.lvv.service.kiev.LldpStatus;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.kiev.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -32,6 +30,7 @@ public class NcpJobResultProcessor {
     InputStream inputStream;
     Map<DevicePortInfo, ValidationFailureResult.Builder> resultBuilder;
     ObjectMapper mapper;
+    NcpJobDetailsDao ncpJobDetailsDao;
 
     private static final String TEST_LLDP = "test_lldp";
     private static final String TEST_POWER = "test_power";
@@ -58,10 +57,15 @@ public class NcpJobResultProcessor {
         }
     }
 
-    public NcpJobResultProcessor(InputStream inputStream) {
+    public NcpJobResultProcessor(InputStream inputStream, NcpJobDetailsDao ncpJobDetailsDao) {
         this.inputStream = inputStream;
         this.mapper = new ObjectMapper();
         this.resultBuilder = new HashMap<>();
+        this.ncpJobDetailsDao = ncpJobDetailsDao;
+    }
+
+    private boolean checkDeviceUnreachable(String errorMsg) {
+        return errorMsg.contains("Unable to connect to");
     }
 
     public DevicePortInfo parseDeviceString(String input) {
@@ -81,7 +85,7 @@ public class NcpJobResultProcessor {
         return new DevicePortInfo(deviceName, port, rackUnit);
     }
 
-    public void extractLldpErrors(String message, MetricsScope scope) {
+    public void extractLldpErrors(String message, String deviceName, MetricsScope scope) {
 
         // Expected format: "Failed: {json}"
         log.info("[LLDP] Processing LLDP Error message: \n {}", message);
@@ -90,14 +94,26 @@ public class NcpJobResultProcessor {
         if (idx == 0) {
             String jsonPart = message.substring("Failed:".length()).trim();
             JsonNode failedObj;
+
             try {
                 failedObj = mapper.readTree(jsonPart);
             } catch (IOException e) {
-                log.error("[LLDP] LLDP Error in unexpected format {}", message, e);
+                log.warn("[LLDP] LLDP Error in unexpected format {}", message, e);
                 scope.emit(MetricNames.ProcessNcpResult.LldpErrorFormatUnexpected, 1.0);
-                throw new RenderableException(
-                        ErrorCode.IncorrectState,
-                        String.format("LLDP Error in unexpected format: %s", message));
+
+                // Since LLDP Error is in unexpected format, we set the error to UNKNOWN
+                DevicePortInfo info = new DevicePortInfo(deviceName, "Unknown", "Unknown");
+                ValidationFailureResult.Builder builder = ValidationFailureResult.builder();
+                ValidationFailureResult.LinkSource linkSource =
+                        ValidationFailureResult.LinkSource.builder()
+                                .deviceAName(deviceName)
+                                .deviceAPort("UNKNOWN")
+                                .build();
+                builder.linkSource(linkSource);
+                builder.linkStatus(LinkStatus.DOWN);
+                builder.lldpStatus(LldpStatus.UNKNOWN);
+                resultBuilder.put(info, builder);
+                return;
             }
 
             // Message must be "LLDP Failures"
@@ -243,6 +259,7 @@ public class NcpJobResultProcessor {
     public void updatePowerErrors(String deviceName, boolean lldpTestPassed) {
 
         log.debug("[POWER] Adding failure for device {}", deviceName);
+
         boolean onlyPsuFailure = true;
 
         for (Map.Entry<DevicePortInfo, ValidationFailureResult.Builder> entry :
@@ -267,7 +284,7 @@ public class NcpJobResultProcessor {
             ValidationFailureResult.LinkSource linkSource =
                     ValidationFailureResult.LinkSource.builder()
                             .deviceAName(deviceName)
-                            .deviceAPort("Unknown")
+                            .deviceAPort("UNKNOWN")
                             .build();
             builder.linkSource(linkSource);
             builder.linkStatus(LinkStatus.DOWN);
@@ -344,10 +361,19 @@ public class NcpJobResultProcessor {
                     }
                 }
 
+                // If device is unreachable, all 3 tests(lldp, power, optics) will show the same
+                // error message. We just check for LLDP error to confirm
+                // If unreachable, we move on to next device, after updating the database
+                if (lldpError != null && checkDeviceUnreachable(lldpError)) {
+                    log.info("Device {} unreachable. Updating DB", deviceId);
+                    ncpJobDetailsDao.updateNcpJobStatus(deviceId, JobStatus.DEVICE_UNREACHABLE);
+                    continue;
+                }
+
                 if (lldpError != null && !lldpError.equals(PASSED)) {
                     deviceHasFailures = true;
                     scope.emit(MetricNames.ProcessNcpResult.LldpError, 1.0);
-                    extractLldpErrors(lldpError, scope);
+                    extractLldpErrors(lldpError, deviceId, scope);
                 }
 
                 if (opticsError != null && !opticsError.equals(PASSED)) {

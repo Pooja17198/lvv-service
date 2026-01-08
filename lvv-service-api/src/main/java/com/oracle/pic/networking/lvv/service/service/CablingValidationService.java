@@ -1,8 +1,5 @@
 package com.oracle.pic.networking.lvv.service.service;
 
-import com.atlassian.jira.rest.client.api.domain.Issue;
-import com.atlassian.jira.rest.client.api.domain.IssueField;
-import com.atlassian.jira.rest.client.api.domain.SearchResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
@@ -10,17 +7,16 @@ import com.google.inject.Singleton;
 import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
-import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraQueries;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
+import com.oracle.pic.networking.lvv.service.kiev.*;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
-import com.oracle.pic.networking.ncp.model.Job;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.stream.Collectors;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,92 +29,96 @@ public class CablingValidationService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // private static final List<String> testSuites = List.of("dcs_rack_validation");
     private static final List<String> testSuites = List.of("dcs_rack_validation");
     private final JiraSDService jiraSDService;
     private final ValidationFailureResultDao validationFailureResultDao;
+    private final NcpJobDetailsDao ncpJobDetailsDao;
 
     @Inject
     public CablingValidationService(
             NcpClientHelper ncpClientHelper,
             JiraSDService jiraSDService,
-            ValidationFailureResultDao validationFailureResultDao) {
+            ValidationFailureResultDao validationFailureResultDao,
+            NcpJobDetailsDao ncpJobDetailsDao) {
         this.ncpClientHelper = ncpClientHelper;
         this.jiraSDService = jiraSDService;
         this.validationFailureResultDao = validationFailureResultDao;
+        this.ncpJobDetailsDao = ncpJobDetailsDao;
     }
 
-    private String fetchRackLocation(String rackSerialNumber) {
-        SearchResult initialCablingTickets = this.searchInitialCablingTickets(rackSerialNumber);
-        String rackLocation = null;
-
-        for (Issue issue : initialCablingTickets.getIssues()) {
-            for (IssueField issueField : issue.getFields()) {
-                if (issueField.getName().equals("Rack Location")) {
-                    rackLocation = issueField.getValue().toString();
-                    break;
-                }
-            }
-        }
-
-        return rackLocation;
-    }
-
-    public String validateCablingTasks(
+    public void validateCablingTasks(
             String regionName,
             String building,
             String rackSerialNumber,
+            String rackLocation,
             List<String> deviceNames,
             MetricsScope scope) {
         try {
-            // Fetch Rack Number from Rack Deployment Ticket
-            String rackLocation = fetchRackLocation(rackSerialNumber);
-            if (rackLocation == null) {
-                log.error(
-                        "Could not find a corresponding Rack Location for the rack serial from Jira");
-                throw new RenderableException(
-                        ErrorCode.IncorrectState,
-                        "Rack Deployment ticket for the corresponding rack serial not found");
-            }
-
             scope.withDimension("buildingName", building);
-            scope.withDimension("rackSerialNumber", rackSerialNumber);
+            scope.withDimension("rackLocation", rackLocation);
             scope.withDimension("region", regionName);
 
-            String jobType;
+            String payload =
+                    objectMapper.writeValueAsString(
+                            Map.of(
+                                    "testSuites", testSuites,
+                                    "rackNumber", rackLocation,
+                                    "building", building));
 
-            String payload;
+            String jobType = JobType.HEALTH_CHECK;
+            List<String> devicesList = new ArrayList<>(deviceNames);
 
-            if (deviceNames.isEmpty()) {
-                jobType = JobType.PER_RACK_VALIDATION_JOB;
+            if (devicesList.isEmpty()) {
+                devicesList =
+                        ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerialNumber).stream()
+                                .map(NcpJobDetails::getDeviceName)
+                                .collect(Collectors.toList());
 
-                payload =
-                        objectMapper.writeValueAsString(
-                                Map.of(
-                                        "rack_number", rackLocation,
-                                        "building", building,
-                                        "dry_run", true));
-            } else {
-                jobType = JobType.HEALTH_CHECK;
+                // If we are not able to fetch device names, we create a PER_RACK_VALIDATION_JOB
+                // Will happen when a region is in ViBE phase, where Plan Service is not reachable
+                // to fetch device list
+                if (devicesList.isEmpty()) {
+                    jobType = JobType.PER_RACK_VALIDATION_JOB;
 
-                payload =
-                        objectMapper.writeValueAsString(
-                                Map.of(
-                                        "testSuites", testSuites,
-                                        "rackNumber", rackLocation,
-                                        "building", building));
+                    payload =
+                            objectMapper.writeValueAsString(
+                                    Map.of(
+                                            "rack_number", rackLocation,
+                                            "building", building,
+                                            "dry_run", true));
+                }
             }
 
-            scope.withDimension("JobType", jobType);
             scope.emit(MetricNames.ValidateCables.ValidateCable.name(), 1.0);
 
             log.info("Validating Building:Rack {}:{}", building, rackLocation);
 
-            Job job = ncpClientHelper.createJob(jobType, payload, deviceNames, scope, regionName);
+            // If an NCP job is already In Progress for any of the devices/rack, we skip creating a
+            // job for it
+            if (jobType.equals(JobType.PER_RACK_VALIDATION_JOB)) {
+                if (ncpJobDetailsDao.getNcpJobDetails(rackSerialNumber) != null
+                        && ncpJobDetailsDao.getNcpJobDetails(rackSerialNumber).getJobStatus()
+                                == JobStatus.IN_PROGRESS) {
+                    return;
+                }
+            } else {
+                devicesList.removeIf(
+                        deviceName ->
+                                ncpJobDetailsDao.getNcpJobDetails(deviceName) != null
+                                        && ncpJobDetailsDao
+                                                        .getNcpJobDetails(deviceName)
+                                                        .getJobStatus()
+                                                == JobStatus.IN_PROGRESS);
+                if (devicesList.isEmpty()) {
+                    return;
+                }
+            }
 
-            log.info("NCP Job Created. Job ID: {}", job.getId());
+            HashMap<String, String> jobs =
+                    ncpClientHelper.createJobs(
+                            jobType, rackSerialNumber, payload, devicesList, scope, regionName);
 
-            return job.getId();
+            ncpJobDetailsDao.addUpdateNcpJobDetails(jobs, rackSerialNumber, scope);
 
         } catch (JsonProcessingException e) {
             log.error("Error while generating payload ", e);
@@ -127,57 +127,94 @@ public class CablingValidationService {
         }
     }
 
-    public String getValidationJobStatus(
-            String jobId, MetricsScope scope, String region, String rackSerialNumber) {
+    public void updateValidationJobStatus(
+            Map<String, JobStatus> jobStatus,
+            String rackSerialNumber,
+            String region,
+            String rackUnit,
+            Boolean lastAttempt,
+            MetricsScope scope) {
 
-        log.info("Fetching Validation Job Status for Rack: {}", rackSerialNumber);
-        String jobStatus = ncpClientHelper.fetchJobStatus(jobId, scope, region);
+        for (Map.Entry<String, JobStatus> entry : jobStatus.entrySet()) {
 
-        String rackUnit = fetchRackLocation(rackSerialNumber);
-        log.info("Rack Serial: {} Job Status: {}", rackSerialNumber, jobStatus);
+            NcpJobDetails currJobDetails = ncpJobDetailsDao.getNcpJobDetails(entry.getKey());
+            if (currJobDetails.getJobStatus() == JobStatus.IN_PROGRESS) {
+                if (entry.getValue().equals(JobStatus.FAILED)) {
+                    // Nothing to do here, validation job has failed
+                    currJobDetails.setJobStatus(JobStatus.FAILED);
+                    ncpJobDetailsDao.updateNcpJobDetails(currJobDetails);
+                } else if (entry.getValue().equals(JobStatus.COMPLETED)) {
 
-        if (Objects.equals(jobStatus, Job.State.Succeeded.name())) {
+                    // If the job has just completed, we update the database with the new results
+                    try (MetricsScope addResultsScope =
+                            MetricsScope.create(
+                                    MetricNames.MetricScopeNames.ADD_VALIDATION_RESULTS.name())) {
 
-            try (MetricsScope addResultsScope =
-                    MetricsScope.create(
-                            MetricNames.MetricScopeNames.ADD_VALIDATION_RESULTS.name())) {
+                        addResultsScope.withDimension("rackSerialNumber", rackSerialNumber);
+                        addResultsScope.withDimension("region", region);
 
-                addResultsScope.withDimension("rackSerialNumber", rackSerialNumber);
-                addResultsScope.withDimension("region", region);
-                List<ValidationFailureResult> output =
-                        ncpClientHelper.getNcpJobOutput(jobId, region, rackSerialNumber, rackUnit);
-                String jobType = ncpClientHelper.getJobType(jobId, region);
+                        // Parse the output to fetch the results
+                        List<ValidationFailureResult> output =
+                                ncpClientHelper.getNcpJobOutput(
+                                        currJobDetails.getJobId(),
+                                        region,
+                                        rackSerialNumber,
+                                        rackUnit);
 
-                if (jobType.equals(JobType.PER_RACK_VALIDATION_JOB)) {
-                    validationFailureResultDao.addValidationFailureResultsForRack(
-                            output, rackSerialNumber, addResultsScope, region);
-                } else if (jobType.equals(JobType.HEALTH_CHECK)) {
-                    validationFailureResultDao.updateValidationFailureResultsForDevices(
-                            output, addResultsScope, region);
+                        // Update the results to the Database
+                        validationFailureResultDao.addUpdateValidationFailureResultsForDevices(
+                                output, addResultsScope, region);
+                        scope.recordSuccess();
+                    }
+
+                    // Check if Device status was updated to Unreachable
+                    if (ncpJobDetailsDao.getNcpJobDetails(entry.getKey()).getJobStatus()
+                            != JobStatus.DEVICE_UNREACHABLE) {
+                        currJobDetails.setJobStatus(JobStatus.COMPLETED);
+                        ncpJobDetailsDao.updateNcpJobDetails(currJobDetails);
+                    }
+
+                } else if (entry.getValue().equals(JobStatus.IN_PROGRESS)) {
+                    // We don't do anything here,a nd just wait for job to complete
+                    // But, if it's the last attempt of polling the job, that means we've been
+                    // waiting for the job to complete for quite some time,
+                    // And we mark the device as Unreachable
+                    if (lastAttempt) {
+                        log.info(
+                                "Last polling attempt. Setting the Job status to DEVICE_UNREACHABLE since it's taking too long to validate");
+                        currJobDetails.setJobStatus(JobStatus.DEVICE_UNREACHABLE);
+                        ncpJobDetailsDao.updateNcpJobDetails(currJobDetails);
+                    }
                 }
-
-                scope.recordSuccess();
             }
-
-        } else if (Objects.equals(jobStatus, Job.State.Failed.name())) {
-            throw new RenderableException(
-                    ErrorCode.ExternalServerInvalidResponse, "Validation Job Failed");
         }
-
-        return jobStatus;
     }
 
-    private SearchResult searchInitialCablingTickets(String rackSerialNumber) {
+    public Map<String, JobStatus> getValidationJobStatus(
+            MetricsScope scope,
+            String region,
+            String rackSerialNumber,
+            String rackUnit,
+            Boolean lastAttempt) {
 
-        String initialCablingJql;
-        initialCablingJql = String.format(JiraQueries.JQL_PROJECT + JiraQueries.RACK_DEPLOYMENT);
+        log.info("Fetching Validation Job Status for Rack: {}", rackSerialNumber);
+        Map<String, JobStatus> jobStatus = ncpClientHelper.fetchJobStatus(rackSerialNumber, region);
 
-        if (rackSerialNumber != null) {
-            initialCablingJql += String.format(JiraQueries.SERIAL_NUMBER, rackSerialNumber);
-        } else {
-            throw new RenderableException(
-                    ErrorCode.InvalidParameter, "Cannot find Rack Unit without Rack Serial Number");
-        }
-        return this.jiraSDService.searchJiraSD(initialCablingJql);
+        log.info(
+                "Rack Serial: {} Rack Unit: {} Job Status: \n {}",
+                rackSerialNumber,
+                rackUnit,
+                jobStatus);
+
+        updateValidationJobStatus(
+                jobStatus, rackSerialNumber, region, rackUnit, lastAttempt, scope);
+
+        List<NcpJobDetails> ncpJobDetails =
+                ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerialNumber);
+
+        return ncpJobDetails.stream()
+                .collect(
+                        Collectors.toMap(
+                                NcpJobDetails::getDeviceName, NcpJobDetails::getJobStatus));
     }
 }

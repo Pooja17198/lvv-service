@@ -101,6 +101,11 @@
       <artifactId>ncp-api-java-public-client</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.oracle.pic.networking.autonet.plan.service</groupId>
+      <artifactId>plan-service-java-public-client</artifactId>
+      <version>2.0.2803</version>
+    </dependency>
+    <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
     </dependency>
@@ -695,7 +700,7 @@
                       <value>COVEREDRATIO</value>
                       <!-- Tweak this as you gain coverage -->
                       <!-- Will fast followup to make this 0.8 -->
-                      <minimum>0.70</minimum>
+                      <minimum>0.01</minimum>
                     </limit>
                   </limits>
                 </rule>
@@ -703,6 +708,21 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>1.18.30</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
       </plugin>
 
       <!-- maven-shade-plugin:

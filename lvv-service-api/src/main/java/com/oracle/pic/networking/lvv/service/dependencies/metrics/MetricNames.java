@@ -15,7 +15,9 @@ public class MetricNames {
         BLOCK_DETAILS,
         PROCESS_NCP_JOB_OUTPUT,
         UPDATE_LINK_RESULTS,
-        FETCH_REGIONS
+        FETCH_REGIONS,
+        RACK_DETAILS,
+        NCP_JOB_DETAILS
     }
 
     public enum AddProjectItem {
@@ -79,6 +81,7 @@ public class MetricNames {
         JobIdNull,
         BuildingNull,
         RackSerialNull,
+        RackNumberNull,
         GetJobStatus,
         Fail,
         Pending,
@@ -100,6 +103,10 @@ public class MetricNames {
         NoBlocksInProject
     }
 
+    public enum NcpJobDetails {
+        AddNcpJobDetails,
+    }
+
     public enum ProcessNcpResult {
         JsonParseFail,
         NoTestResultFound,
@@ -118,5 +125,11 @@ public class MetricNames {
     public enum FetchRegions {
         RealmEmpty,
         NoRegionsFound
+    }
+
+    public enum RackDetails {
+        MissingParameters,
+        FetchDevices,
+        FetchDevicesFailed
     }
 }

@@ -64,6 +64,7 @@ public class ValidationFailureResultDao {
     private void updateExistingLinksStatusToUp(List<ValidationFailureResult> existingLinks) {
         log.info("Updating the following links status to UP: {}", existingLinks);
         if (existingLinks.isEmpty()) {
+            log.info("No existing links found for device");
             return;
         }
 
@@ -73,10 +74,15 @@ public class ValidationFailureResultDao {
 
             try (Transaction txn = validationResultStore.beginTransaction(batch.toString())) {
                 for (ValidationFailureResult existingLink : batch) {
-                    ValidationFailureResult link =
-                            validationResultStore.getItem(existingLink.getLinkSource());
-                    link.setLinkStatus(LinkStatus.UP);
-                    validationResultStore.updateItem(txn, link);
+                    if (existingLink == null || existingLink.getLinkSource() == null) {
+                        log.warn(
+                                "Skipping UP status update; missing entity or key: {}",
+                                existingLink);
+                        continue;
+                    }
+                    // Update the instance we already have to avoid an extra read and NPE risk
+                    existingLink.setLinkStatus(LinkStatus.UP);
+                    validationResultStore.updateItem(txn, existingLink);
                 }
                 try {
                     txn.commit();
@@ -163,26 +169,7 @@ public class ValidationFailureResultDao {
         }
     }
 
-    public void addValidationFailureResultsForRack(
-            @NonNull List<ValidationFailureResult> results,
-            @NonNull String rackSerial,
-            MetricsScope scope,
-            String region) {
-
-        Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks =
-                getValidationFailuresByRack(rackSerial, false).stream()
-                        .collect(Collectors.toMap(ValidationFailureResult::getLinkSource, l -> l));
-
-        // First, we update all the links to UP, and then based on the new results we get, we either
-        // update a link to DOWN or add a new link with DOWN status
-        updateExistingLinksStatusToUp(new ArrayList<>(existingLinks.values()));
-
-        List<ValidationFailureResult> newDownLinks =
-                results.stream().filter(link -> link.getLinkStatus() == LinkStatus.DOWN).toList();
-        updateOrAddDownLinks(newDownLinks, existingLinks, scope, region);
-    }
-
-    public void updateValidationFailureResultsForDevices(
+    public void addUpdateValidationFailureResultsForDevices(
             @NonNull List<ValidationFailureResult> results, MetricsScope scope, String region) {
 
         Map<String, List<ValidationFailureResult>> newLinks =
@@ -242,14 +229,16 @@ public class ValidationFailureResultDao {
                                 .filter(Objects::nonNull)
                                 .filter(
                                         link ->
-                                                link.getLinkSource()
-                                                        .getDeviceAName()
-                                                        .equals(deviceName))
+                                                link.getLinkSource() != null
+                                                        && Objects.equals(
+                                                                link.getLinkSource()
+                                                                        .getDeviceAName(),
+                                                                deviceName))
                                 .filter(
                                         link ->
                                                 !onlyDown
-                                                        || link.getLinkStatus()
-                                                                .equals(LinkStatus.DOWN))
+                                                        || LinkStatus.DOWN.equals(
+                                                                link.getLinkStatus()))
                                 .toList();
 
                 result.addAll(filteredPage);
@@ -287,12 +276,12 @@ public class ValidationFailureResultDao {
                 List<ValidationFailureResult> filteredPage =
                         pageResults.stream()
                                 .filter(Objects::nonNull)
-                                .filter(link -> link.getRackSerial().equals(rackSerial))
+                                .filter(link -> Objects.equals(link.getRackSerial(), rackSerial))
                                 .filter(
                                         link ->
                                                 !onlyDown
-                                                        || link.getLinkStatus()
-                                                                .equals(LinkStatus.DOWN))
+                                                        || LinkStatus.DOWN.equals(
+                                                                link.getLinkStatus()))
                                 .toList();
 
                 result.addAll(filteredPage);

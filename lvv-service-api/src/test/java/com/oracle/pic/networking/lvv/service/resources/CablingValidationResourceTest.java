@@ -210,8 +210,8 @@ class CablingValidationResourceTest {
 
         when(validationFailureResultDao.getValidationFailuresByRack(rackSerial, true))
                 .thenReturn(results);
-        when(resourceModelTransformer.toModel(vfr1)).thenReturn(dto1);
-        when(resourceModelTransformer.toModel(vfr2)).thenReturn(dto2);
+        when(resourceModelTransformer.toModel(vfr1, false)).thenReturn(dto1);
+        when(resourceModelTransformer.toModel(vfr2, false)).thenReturn(dto2);
 
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);

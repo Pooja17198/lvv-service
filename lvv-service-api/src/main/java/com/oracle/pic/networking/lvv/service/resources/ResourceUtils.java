@@ -29,4 +29,11 @@ public class ResourceUtils {
             throw new InvalidParameterException(parameterName);
         }
     }
+
+    static String changeColonToHyphenInRackInfo(String rackInfo, boolean csvFriendly) {
+        if (rackInfo == null) {
+            return null;
+        }
+        return csvFriendly ? rackInfo.replace(":", " - ") : rackInfo;
+    }
 }

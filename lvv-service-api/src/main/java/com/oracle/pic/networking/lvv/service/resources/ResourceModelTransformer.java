@@ -1,5 +1,7 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
+import static com.oracle.pic.networking.lvv.service.resources.ResourceUtils.changeColonToHyphenInRackInfo;
+
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.oracle.pic.commons.util.Region;
@@ -48,19 +50,21 @@ public class ResourceModelTransformer {
                 .build();
     }
 
-    public ValidationFailureDisplayDTO toModel(ValidationFailureResult result) {
+    public ValidationFailureDisplayDTO toModel(
+            ValidationFailureResult result, boolean csvFriendly) {
         return ValidationFailureDisplayDTO.builder()
                 .rackSerial(result.getRackSerial())
-                .deviceARack(result.getDeviceARack())
+                .deviceARack(changeColonToHyphenInRackInfo(result.getDeviceARack(), csvFriendly))
                 .deviceAName(result.getLinkSource().getDeviceAName())
                 .deviceAPort(result.getLinkSource().getDeviceAPort())
-                .deviceBRack(result.getDeviceBRack())
+                .deviceBRack(changeColonToHyphenInRackInfo(result.getDeviceBRack(), csvFriendly))
                 .deviceBName(result.getDeviceBName())
                 .deviceBPort(result.getDeviceBPort())
                 .txPower(result.getTxPower())
                 .rxPower(result.getRxPower())
                 .lldpStatus(result.getLldpStatus().name())
-                .deviceBRackExpected(result.getDeviceBRackExpected())
+                .deviceBRackExpected(
+                        changeColonToHyphenInRackInfo(result.getDeviceBRackExpected(), csvFriendly))
                 .deviceBNameExpected(result.getDeviceBNameExpected())
                 .deviceBPortExpected(result.getDeviceBPortExpected())
                 .psuFailure(result.getPsuFailure())

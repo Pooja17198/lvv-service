@@ -125,7 +125,9 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                     validationFailureResultDao.getValidationFailuresByRack(rackSerial, true);
 
             List<ValidationFailureDisplayDTO> dtoList =
-                    rawResults.stream().map(resourceModelTransformer::toModel).toList();
+                    rawResults.stream()
+                            .map(r -> resourceModelTransformer.toModel(r, false))
+                            .toList();
 
             scope.recordSuccess();
             return dtoList;
@@ -151,7 +153,9 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                     validationFailureResultDao.getValidationFailuresByRack(rackSerial, true);
 
             List<ValidationFailureDisplayDTO> results =
-                    rawResults.stream().map(resourceModelTransformer::toModel).toList();
+                    rawResults.stream()
+                            .map(r -> resourceModelTransformer.toModel(r, true))
+                            .toList();
 
             StringWriter writer = new StringWriter();
             try {

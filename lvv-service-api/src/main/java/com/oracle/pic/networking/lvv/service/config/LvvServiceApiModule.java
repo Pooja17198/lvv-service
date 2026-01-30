@@ -32,13 +32,25 @@ import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.kiev.registry.data.ClientRegistryLocality;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceClient;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceHelper;
+import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.StoreKeeperHelper;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
-import com.oracle.pic.networking.lvv.service.kiev.*;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
+import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
+import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
+import com.oracle.pic.networking.lvv.service.kiev.KievHashBucketProvider;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
 import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
@@ -47,9 +59,8 @@ import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetr
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
-import com.oracle.pic.networking.lvv.service.service.RackDetailsService;
+import com.oracle.pic.networking.lvv.service.service.RacksService;
 import com.oracle.pic.networking.lvv.service.service.RegionsService;
-import com.oracle.pic.networking.lvv.service.service.StoreKeeperService;
 import com.oracle.pic.storekeeper.StoreKeeper;
 import com.oracle.pic.storekeeper.StoreKeeperClient;
 import com.oracle.pic.telemetry.overlay.metrics.MetricsModules;
@@ -66,12 +77,10 @@ public class LvvServiceApiModule extends AbstractModule {
 
     private static final int REFRESH_AUTH_TOKEN_BEFORE_SECONDS_TO_EXPIRE = 5;
     private static final String LOCAL = "dummyEndpoint";
-    private final Region region;
 
     private final LvvServiceApiConfiguration config;
 
     public LvvServiceApiModule(LvvServiceApiConfiguration config) {
-        this.region = config.getAvailabilityDomain().getRegion();
         this.config = config;
     }
 
@@ -86,15 +95,16 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(LvvServiceApiConfiguration.class).toInstance(config);
         bind(AuthConfig.class).toInstance(config.getAuthConfig());
 
-        bind(StoreKeeperService.class).in(Singleton.class);
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         bind(CablingValidationService.class).in(Singleton.class);
         bind(RegionsService.class).in(Singleton.class);
-        bind(RackDetailsService.class).in(Singleton.class);
+        bind(RacksService.class).in(Singleton.class);
 
         bind(NcpClientHelper.class).in(Singleton.class);
         bind(PlanServiceHelper.class).in(Singleton.class);
+        bind(JiraSDHelper.class).in(Singleton.class);
+        bind(StoreKeeperHelper.class).in(Singleton.class);
 
         bindProjectBucket();
         bindValidationFailureResultBucket();
@@ -285,7 +295,8 @@ public class LvvServiceApiModule extends AbstractModule {
 
     @Provides
     @Singleton
-    public JiraSDService getJiraSDService(SecretRetriever secretRetriever)
+    public JiraSDService getJiraSDService(
+            SecretRetriever secretRetriever, JiraSDHelper jiraSDHelper)
             throws URISyntaxException, SecretRetrieverException {
         JiraSDConfig jiraSDConfig = this.config.getJiraSDConfig();
         String jiraUsername = null;
@@ -314,7 +325,7 @@ public class LvvServiceApiModule extends AbstractModule {
         JiraRestClient jiraRestClient =
                 clientFactory.createWithBasicHttpAuthentication(
                         new URI(jiraSDConfig.getJiraSDEndpoint()), jiraUsername, jiraAccessPass);
-        JiraSDService jiraProxy = new JiraSDService(jiraRestClient);
+        JiraSDService jiraProxy = new JiraSDService(jiraRestClient, jiraSDHelper);
         return jiraProxy;
     }
 
@@ -341,17 +352,36 @@ public class LvvServiceApiModule extends AbstractModule {
     @Provides
     @Singleton
     public StoreKeeper skClient() {
-        BasicAuthenticationDetailsProvider authProvider;
+        final StoreKeeperClient skClient;
 
         if (config.getStage().equals("DEVELOPMENT")) {
-            authProvider = new MockAuthenticationDetailsProvider();
+            BasicAuthenticationDetailsProvider authProvider =
+                    new MockAuthenticationDetailsProvider();
+            skClient = new StoreKeeperClient(authProvider, null);
         } else {
-            authProvider = InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+            skClient =
+                    StoreKeeperClient.builder()
+                            .build(
+                                    S2SAuthenticationDetailsProvider.builder()
+                                            .useInstancePrincipals()
+                                            .build());
         }
-
-        final StoreKeeperClient skClient = new StoreKeeperClient(authProvider, null);
-        skClient.setEndpoint(this.config.getSkConfig().getEndpoint());
+        String endpoint = resolveStoreKeeperEndpoint();
+        log.info(
+                "Using StoreKeeper endpoint '{}' (availabilityDomain='{}', region='{}')",
+                endpoint,
+                this.config.getAvailabilityDomain().getName(),
+                this.config.getRegion().getPublicRegionName());
+        skClient.setEndpoint(endpoint);
         return skClient;
+    }
+
+    private String resolveStoreKeeperEndpoint() {
+        String configured = this.config.getSkConfig().getEndpoint();
+        if (configured == null || configured.isBlank()) {
+            throw new IllegalArgumentException("skConfig.endpoint must be configured");
+        }
+        return configured.trim();
     }
 
     @Provides

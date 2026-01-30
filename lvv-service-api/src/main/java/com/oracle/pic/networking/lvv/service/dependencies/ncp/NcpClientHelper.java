@@ -13,16 +13,34 @@ import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import com.oracle.pic.networking.lvv.service.utils.RetryHelper;
 import com.oracle.pic.networking.ncp.JobProgressClient;
 import com.oracle.pic.networking.ncp.JobResultsClient;
 import com.oracle.pic.networking.ncp.JobsClient;
-import com.oracle.pic.networking.ncp.model.*;
-import com.oracle.pic.networking.ncp.requests.*;
-import com.oracle.pic.networking.ncp.responses.*;
+import com.oracle.pic.networking.ncp.model.Job;
+import com.oracle.pic.networking.ncp.model.JobRequest;
+import com.oracle.pic.networking.ncp.model.JobTarget;
+import com.oracle.pic.networking.ncp.model.UnitProgress;
+import com.oracle.pic.networking.ncp.model.UnitProgressStatus;
+import com.oracle.pic.networking.ncp.requests.CreateJobRequest;
+import com.oracle.pic.networking.ncp.requests.GetJobRequest;
+import com.oracle.pic.networking.ncp.requests.GetJobResultRequest;
+import com.oracle.pic.networking.ncp.requests.ListJobUnitProgressRequest;
+import com.oracle.pic.networking.ncp.requests.ListJobUnitsRequest;
+import com.oracle.pic.networking.ncp.responses.CreateJobResponse;
+import com.oracle.pic.networking.ncp.responses.GetJobResponse;
+import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
+import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
+import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import lombok.Setter;
 import lombok.ToString;
@@ -82,6 +100,7 @@ public class NcpClientHelper {
                             getJobResultResponse.getInputStream(), ncpJobDetailsDao);
 
             scope.withDimension("jobId", jobId);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(region));
 
             jobResultProcessor.processJobResult(scope);
             scope.recordSuccess();
@@ -232,7 +251,7 @@ public class NcpClientHelper {
         JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
 
         // We create a max of MAX_BATCH jobs, and group the devices equally into each batch
-        int batchSize = (deviceNames.size() / MAX_BATCHES) + 1;
+        int batchSize = deviceNames.size() / MAX_BATCHES + 1;
 
         for (int i = 0; i < deviceNames.size(); i += batchSize) {
 

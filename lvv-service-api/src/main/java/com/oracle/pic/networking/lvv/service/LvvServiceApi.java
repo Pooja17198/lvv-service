@@ -24,9 +24,8 @@ import com.oracle.pic.networking.lvv.service.kiev.KievRateLimiter;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
-import com.oracle.pic.networking.lvv.service.resources.RackDetailsResource;
+import com.oracle.pic.networking.lvv.service.resources.RacksResource;
 import com.oracle.pic.networking.lvv.service.resources.RegionsResource;
-import com.oracle.pic.networking.lvv.service.resources.StoreKeeperResource;
 import com.oracle.pic.networking.lvv.service.schema.ApiSchemaUpdates;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
@@ -71,10 +70,9 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
             ImmutableList.<Class<?>>builder()
                     .add(ProjectResource.class)
                     .add(CablingTaskResource.class)
-                    .add(StoreKeeperResource.class)
                     .add(CablingValidationResource.class)
                     .add(RegionsResource.class)
-                    .add(RackDetailsResource.class)
+                    .add(RacksResource.class)
                     .build();
 
     /*

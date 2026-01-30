@@ -17,6 +17,7 @@ import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.lang.reflect.Field;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -121,7 +122,7 @@ class CablingValidationServiceTest {
         // Verify metrics interactions
         verify(metricsScope).withDimension("buildingName", building);
         verify(metricsScope).withDimension("rackLocation", rackUnit);
-        verify(metricsScope).withDimension("region", region);
+        verify(metricsScope).withDimension("region", GeneralUtils.getRegionInternalName(region));
         verify(metricsScope).emit(MetricNames.ValidateCables.ValidateCable.name(), 1.0);
     }
 

@@ -15,6 +15,7 @@ import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.ScanPage;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -118,7 +119,8 @@ public class ValidationFailureResultDao {
                             MetricsScope.create(
                                     MetricNames.MetricScopeNames.UPDATE_LINK_RESULTS.name())) {
                         updateTimeScope.withDimension("rackSerial", link.getRackSerial());
-                        updateTimeScope.withDimension("region", region);
+                        updateTimeScope.withDimension(
+                                "region", GeneralUtils.getRegionInternalName(region));
 
                         if (link.getLinkStatus() != LinkStatus.DOWN) {
                             // Any Validation Failure Result to be updated/added should have the
@@ -258,7 +260,7 @@ public class ValidationFailureResultDao {
     }
 
     public List<ValidationFailureResult> getValidationFailuresByRack(
-            @NonNull String rackSerial, @NonNull boolean onlyDown) {
+            @NonNull String rackSerial, boolean onlyDown) {
         ValidationFailureResult.RackSerialIndex prefix =
                 ValidationFailureResult.RackSerialIndex.builder().rackSerial(rackSerial).build();
 

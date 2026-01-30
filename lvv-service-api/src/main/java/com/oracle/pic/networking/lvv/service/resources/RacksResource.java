@@ -5,25 +5,25 @@ import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
-import com.oracle.pic.networking.lvv.service.api.AbstractRackDetailsResource;
+import com.oracle.pic.networking.lvv.service.api.AbstractRacksResource;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
-import com.oracle.pic.networking.lvv.service.model.Device;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
-import com.oracle.pic.networking.lvv.service.service.RackDetailsService;
+import com.oracle.pic.networking.lvv.service.model.ProjectRack;
+import com.oracle.pic.networking.lvv.service.service.RacksService;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 
-public class RackDetailsResource extends AbstractRackDetailsResource {
+public class RacksResource extends AbstractRacksResource {
 
-    RackDetailsService rackDetailsService;
+    RacksService racksService;
     ResourceModelTransformer resourceModelTransformer;
 
     @Inject
-    protected RackDetailsResource(
-            RackDetailsService rackDetailsService,
-            ResourceModelTransformer resourceModelTransformer) {
-        this.rackDetailsService = rackDetailsService;
+    protected RacksResource(
+            RacksService racksService, ResourceModelTransformer resourceModelTransformer) {
+        this.racksService = racksService;
         this.resourceModelTransformer = resourceModelTransformer;
     }
 
@@ -38,7 +38,6 @@ public class RackDetailsResource extends AbstractRackDetailsResource {
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.RACK_DETAILS.name())) {
-            List<Device> devices;
 
             // NULL Checks
             List<String> missing = new ArrayList<>();
@@ -66,16 +65,49 @@ public class RackDetailsResource extends AbstractRackDetailsResource {
                         "Missing or empty parameters: " + String.join(", ", missing));
             }
 
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
             scope.withDimension("building", building);
             scope.withDimension("rackNumber", rackNumber);
 
             List<DeviceDetails> deviceDetails =
-                    this.rackDetailsService.getDeviceDetailsInRack(
+                    this.racksService.getDeviceDetailsInRack(
                             rackSerialNumber, regionName, rackNumber, building, scope);
 
             scope.recordSuccess();
             return deviceDetails;
+        }
+    }
+
+    @Override
+    public List<ProjectRack> listProjectRacks(
+            String projectId,
+            String regionName,
+            String opcRequestId,
+            Principal principal,
+            AuthorizationRequest authorizationRequest) {
+
+        try (MetricsScope scope =
+                MetricsScope.create(MetricNames.MetricScopeNames.FETCH_RACKS.name())) {
+
+            if (projectId.isEmpty()) {
+                scope.emit(MetricNames.FetchRacks.ProjectIdNull.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.MissingParameter, "Project ID cannot be empty");
+            }
+
+            if (regionName.isEmpty()) {
+                scope.emit(MetricNames.FetchRacks.RegionNameNull.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.MissingParameter, "Region name cannot be empty");
+            }
+
+            scope.withDimension("projectId", projectId);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
+
+            List<ProjectRack> racks = this.racksService.listProjectRacks(projectId, scope);
+
+            scope.recordSuccess();
+            return racks;
         }
     }
 }

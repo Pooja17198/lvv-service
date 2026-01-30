@@ -15,6 +15,7 @@ import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.ScanPage;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -263,7 +264,7 @@ public class ProjectItemDao {
                 ProjectItem existingItem = getProjectItemForProjectId(projectId);
 
                 String regionName = existingItem.getRegionName();
-                scope.withDimension("region", regionName);
+                scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
                 scope.emit(MetricNames.DeleteProjectItem.DeleteProject.name(), 1.0);
 
                 this.projectItemStore.deleteItem(txn, existingItem.getProjectKey());

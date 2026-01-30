@@ -12,6 +12,7 @@ import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -23,16 +24,16 @@ import lombok.extern.slf4j.Slf4j;
 @Singleton
 @ToString
 public class ProjectService {
-    private final ProjectItemDao projectItemDao;
-    private final BlockDetailsDao blockDetailsDao;
+    @NonNull private final ProjectItemDao projectItemDao;
+    @NonNull private final BlockDetailsDao blockDetailsDao;
 
     @NonNull ResourceModelTransformer resourceModelTransformer;
 
     @Inject
     public ProjectService(
-            ProjectItemDao projectItemDao,
-            BlockDetailsDao blockDetailsDao,
-            ResourceModelTransformer resourceModelTransformer) {
+            @NonNull ProjectItemDao projectItemDao,
+            @NonNull BlockDetailsDao blockDetailsDao,
+            @NonNull ResourceModelTransformer resourceModelTransformer) {
         this.projectItemDao = projectItemDao;
         this.blockDetailsDao = blockDetailsDao;
         this.resourceModelTransformer = resourceModelTransformer;
@@ -165,7 +166,7 @@ public class ProjectService {
         }
 
         String regionName = projectItem.getRegionName();
-        scope.withDimension("region", regionName);
+        scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
         scope.withDimension("projectId", projectId);
         scope.emit(MetricNames.GetProjectItem.GetProject.name(), 1.0);
 

@@ -23,9 +23,11 @@ import java.util.Map;
  */
 public class LvvServiceApiDeepCheck extends Task {
     private static final String NAME = "deepcheck";
-    private static final String TEST_COMPARTMENT_ID =
-            "ocid1.compartment.oc1..aaaaaaaa26mceal7cypzsefhbm2l73xtb3yreplacemereplacemereplaceme";
-    private static final String TEST_DISPLAY_NAME = "projectTest";
+
+    //    private static final String TEST_COMPARTMENT_ID =
+    //
+    // "ocid1.compartment.oc1..aaaaaaaa26mceal7cypzsefhbm2l73xtb3yreplacemereplacemereplaceme";
+    //    private static final String TEST_DISPLAY_NAME = "projectTest";
 
     // private static final String projectId = "projectId";
 

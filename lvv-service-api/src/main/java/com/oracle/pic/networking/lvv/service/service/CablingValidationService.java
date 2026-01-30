@@ -10,8 +10,13 @@ import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
-import com.oracle.pic.networking.lvv.service.kiev.*;
+import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +61,7 @@ public class CablingValidationService {
         try {
             scope.withDimension("buildingName", building);
             scope.withDimension("rackLocation", rackLocation);
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
 
             String payload =
                     objectMapper.writeValueAsString(
@@ -151,7 +156,8 @@ public class CablingValidationService {
                                     MetricNames.MetricScopeNames.ADD_VALIDATION_RESULTS.name())) {
 
                         addResultsScope.withDimension("rackSerialNumber", rackSerialNumber);
-                        addResultsScope.withDimension("region", region);
+                        addResultsScope.withDimension(
+                                "region", GeneralUtils.getRegionInternalName(region));
 
                         // Parse the output to fetch the results
                         List<ValidationFailureResult> output =

@@ -6,7 +6,11 @@ import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
-import com.oracle.pic.networking.lvv.service.kiev.*;
+import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
+import com.oracle.pic.networking.lvv.service.kiev.LinkStatus;
+import com.oracle.pic.networking.lvv.service.kiev.LldpStatus;
+import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -213,7 +217,7 @@ public class NcpJobResultProcessor {
                 String devicePhys = node.get("device_phys").asText();
                 int colonIdx = devicePhys.indexOf(':');
                 String rackUnit =
-                        (colonIdx != -1 && colonIdx < devicePhys.length() - 1)
+                        colonIdx != -1 && colonIdx < devicePhys.length() - 1
                                 ? devicePhys.substring(colonIdx + 1)
                                 : devicePhys;
 

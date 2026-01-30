@@ -56,7 +56,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
                 ProjectItem projectItem = projectItemDao.getProjectItem(projectId);
 
                 String region = projectItem.getRegionName();
-                scope.withDimension("region", region);
+                scope.withDimension("region", GeneralUtils.getRegionInternalName(region));
                 scope.emit(MetricNames.CablingTasks.GetCablingTasksForProject.name(), 1.0);
 
                 collection = this.cablingTaskService.getCablingTasksForProject(projectId);
@@ -65,7 +65,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
                     && block != null
                     && !block.isEmpty()) {
 
-                scope.withDimension("region", regionName);
+                scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
                 scope.emit(MetricNames.CablingTasks.GetCablingTasksForBlock.name(), 1.0);
                 collection =
                         this.cablingTaskService.getCablingTasks(building, block, rackSerialNumber);
@@ -91,7 +91,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
                 MetricsScope.create(MetricNames.MetricScopeNames.CABLING_TASKS.name())) {
 
             String region = GeneralUtils.getRegionFromBuilding(building);
-            scope.withDimension("region", region);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(region));
 
             scope.emit(MetricNames.CablingTasks.GetClosedCablingTasks.name(), 1.0);
             CablingTaskCollection collection =
@@ -110,7 +110,7 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.CABLING_TASKS.name())) {
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
             scope.emit(MetricNames.CablingTasks.ResolveCablingTask.name(), 1.0);
 
             this.cablingTaskService.resolveValidationFailureTask(cablingTaskId);

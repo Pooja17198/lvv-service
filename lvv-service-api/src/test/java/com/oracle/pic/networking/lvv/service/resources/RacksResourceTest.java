@@ -11,7 +11,8 @@ import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
-import com.oracle.pic.networking.lvv.service.service.RackDetailsService;
+import com.oracle.pic.networking.lvv.service.model.ProjectRack;
+import com.oracle.pic.networking.lvv.service.service.RacksService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,15 +23,15 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class RackDetailsResourceTest {
+class RacksResourceTest {
 
-    @Mock RackDetailsService rackDetailsService;
+    @Mock RacksService rackDetailsService;
     @Mock ResourceModelTransformer resourceModelTransformer;
     @Mock MetricsScope metricsScope;
     @Mock Principal principal;
     @Mock AuthorizationRequest authorizationRequest;
 
-    RackDetailsResource resource;
+    RacksResource resource;
 
     final String regionName = "us-region-1";
     final String building = "HQ1";
@@ -40,7 +41,7 @@ class RackDetailsResourceTest {
 
     @BeforeEach
     void setup() {
-        resource = new RackDetailsResource(rackDetailsService, resourceModelTransformer);
+        resource = new RacksResource(rackDetailsService, resourceModelTransformer);
     }
 
     @Test
@@ -280,6 +281,21 @@ class RackDetailsResourceTest {
                                             authorizationRequest));
             assertEquals(ErrorCode.MissingParameter, ex2.getErrorCode());
             assertTrue(ex2.getMessage().contains("regionName"));
+
+            RenderableException ex3 =
+                    assertThrows(
+                            RenderableException.class,
+                            () ->
+                                    resource.listDevicesInRack(
+                                            rackSerialNumber,
+                                            rackNumber,
+                                            building,
+                                            "",
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+            assertEquals(ErrorCode.MissingParameter, ex3.getErrorCode());
+            assertTrue(ex3.getMessage().contains("regionName"));
         }
     }
 
@@ -347,6 +363,104 @@ class RackDetailsResourceTest {
                             eq(rackNumber),
                             eq(building),
                             eq(metricsScope));
+            verify(metricsScope, never()).recordSuccess();
+        }
+    }
+
+    // -------- Tests for listProjectRacks --------
+
+    @Test
+    void listProjectRacks_success_returnsFromService_andRecordsSuccess() {
+        String projectId = "proj-123";
+        List<ProjectRack> expected = List.of(mock(ProjectRack.class), mock(ProjectRack.class));
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            when(rackDetailsService.listProjectRacks(eq(projectId), any(MetricsScope.class)))
+                    .thenReturn(expected);
+
+            List<ProjectRack> result =
+                    resource.listProjectRacks(
+                            projectId, regionName, opcRequestId, principal, authorizationRequest);
+
+            assertEquals(expected, result);
+            verify(rackDetailsService).listProjectRacks(eq(projectId), eq(metricsScope));
+            verify(metricsScope).withDimension(eq("projectId"), eq(projectId));
+            verify(metricsScope).withDimension(eq("region"), eq(regionName));
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void listProjectRacks_emptyProjectId_throws_andEmitsMetric_andNoServiceCall() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+
+            RenderableException ex =
+                    assertThrows(
+                            RenderableException.class,
+                            () ->
+                                    resource.listProjectRacks(
+                                            "",
+                                            regionName,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+            assertEquals(ErrorCode.MissingParameter, ex.getErrorCode());
+            assertTrue(ex.getMessage().contains("Project ID cannot be empty"));
+
+            verify(metricsScope).emit(eq(MetricNames.FetchRacks.ProjectIdNull.name()), eq(1.0));
+            verifyNoInteractions(rackDetailsService);
+        }
+    }
+
+    @Test
+    void listProjectRacks_nullProjectId_throwsNullPointer_andNoServiceCall() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+
+            assertThrows(
+                    NullPointerException.class,
+                    () ->
+                            resource.listProjectRacks(
+                                    null,
+                                    regionName,
+                                    opcRequestId,
+                                    principal,
+                                    authorizationRequest));
+
+            verifyNoInteractions(rackDetailsService);
+        }
+    }
+
+    @Test
+    void listProjectRacks_serviceThrows_propagates_andNoSuccessRecorded() {
+        String projectId = "proj-err";
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+
+            when(rackDetailsService.listProjectRacks(eq(projectId), any(MetricsScope.class)))
+                    .thenThrow(new RuntimeException("backend failure"));
+
+            RuntimeException ex =
+                    assertThrows(
+                            RuntimeException.class,
+                            () ->
+                                    resource.listProjectRacks(
+                                            projectId,
+                                            regionName,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+            assertEquals("backend failure", ex.getMessage());
+
+            verify(rackDetailsService).listProjectRacks(eq(projectId), eq(metricsScope));
             verify(metricsScope, never()).recordSuccess();
         }
     }

@@ -11,6 +11,7 @@ import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.PutProjectRequest;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.List;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
@@ -61,7 +62,9 @@ public class ProjectResource extends AbstractProjectsResource {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.ADD_PROJECT_ITEM.name())
                         .withDimension("projectId", value.getProject().getProjectId())
-                        .withDimension("region", value.getProject().getRegion())
+                        .withDimension(
+                                "region",
+                                GeneralUtils.getRegionInternalName(value.getProject().getRegion()))
                         .withDimension("createdBy", value.getProject().getCreatedBy())) {
 
             log.info("Creating project {}", value);
@@ -97,7 +100,9 @@ public class ProjectResource extends AbstractProjectsResource {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.UPDATE_PROJECT_ITEM.name())
                         .withDimension("projectId", value.getProject().getProjectId())
-                        .withDimension("region", value.getProject().getRegion())
+                        .withDimension(
+                                "region",
+                                GeneralUtils.getRegionInternalName(value.getProject().getRegion()))
                         .withDimension("createdBy", value.getProject().getCreatedBy())) {
 
             log.info("Updating project {}", value);
@@ -199,13 +204,13 @@ public class ProjectResource extends AbstractProjectsResource {
                 projects = projectService.getProjectListByVendor(vendorName);
             } else if (!hasVendor && hasRegion) {
                 log.info("Fetching projects for region {}", regionName);
-                scope.withDimension("regionName", regionName);
+                scope.withDimension("regionName", GeneralUtils.getRegionInternalName(regionName));
                 scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
                 projects = projectService.getProjectListByRegion(regionName);
             } else {
                 log.info("Fetching projects for vendor {} in region {}", vendorName, regionName);
                 scope.withDimension("vendorName", vendorName);
-                scope.withDimension("regionName", regionName);
+                scope.withDimension("regionName", GeneralUtils.getRegionInternalName(regionName));
                 scope.emit(MetricNames.GetProjectItem.GetProjectsForVendor.name(), 1.0);
                 projects = projectService.getProjectListByVendorAndRegion(vendorName, regionName);
             }
@@ -237,7 +242,7 @@ public class ProjectResource extends AbstractProjectsResource {
 
             } else {
                 log.info("Fetching projects for region {}", regionName);
-                scope.withDimension("regionName", regionName);
+                scope.withDimension("regionName", GeneralUtils.getRegionInternalName(regionName));
                 scope.emit(MetricNames.GetProjectItem.GetAllProjects.name(), 1.0);
                 projects = projectService.getProjectListByRegion(regionName);
             }

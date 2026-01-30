@@ -17,6 +17,7 @@ public class MetricNames {
         UPDATE_LINK_RESULTS,
         FETCH_REGIONS,
         RACK_DETAILS,
+        FETCH_RACKS,
         NCP_JOB_DETAILS
     }
 
@@ -131,5 +132,14 @@ public class MetricNames {
         MissingParameters,
         FetchDevices,
         FetchDevicesFailed
+    }
+
+    public enum FetchRacks {
+        ProjectIdNull,
+        RegionNameNull,
+        ProjectNotFound,
+        NoBlocksInProject,
+        FetchRacks,
+        FetchRacksFailed
     }
 }

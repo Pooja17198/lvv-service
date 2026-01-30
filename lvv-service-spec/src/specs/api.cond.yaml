@@ -632,150 +632,9 @@ paths:
           schema:
             $ref: '#/definitions/Error'
 
-
-  /buildings:
-    get:
-      tags: [ 'storekeeper' ]
-      x-obmcs-splat:
-        operationType: LIST
-        apiType: Synchronous
-        # Maximum number of invocation attempts that should be made to the downstream service.
-        # Any non-5xx response ends the attempts.
-        maximumAttemptCount: 3
-        allowAllRequestHeaders: true
-
-        # specify the routing strategy
-        # strategy: route-to-any-ad OR route-to-inferred-ad
-        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
-        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
-        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
-        routing:
-          strategy: route-to-any-ad
-        serviceList: [ 'lvv-api-beta' ]
-
-      summary: List buildings
-      operationId: ListBuildings
-      parameters:
-        - $ref: '#/parameters/RegionNameQueryParam'
-      responses:
-        200:
-          description: List of buildings
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/Building'
-        default:
-          description: Unexpected error
-          schema:
-            $ref: '#/definitions/Error'
-
-  /blocks:
-    get:
-      tags: [ 'storekeeper' ]
-      x-obmcs-splat:
-        operationType: LIST
-        apiType: Synchronous
-        # Maximum number of invocation attempts that should be made to the downstream service.
-        # Any non-5xx response ends the attempts.
-        maximumAttemptCount: 3
-        allowAllRequestHeaders: true
-
-        # specify the routing strategy
-        # strategy: route-to-any-ad OR route-to-inferred-ad
-        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
-        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
-        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
-        routing:
-          strategy: route-to-any-ad
-        serviceList: [ 'lvv-api-beta' ]
-
-      summary: List blocks
-      operationId: ListBlocks
-      parameters:
-        - $ref: '#/parameters/BuildingNameQueryParam'
-      responses:
-        200:
-          description: List of buildings
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/Block'
-        default:
-          description: Unexpected error
-          schema:
-            $ref: '#/definitions/Error'
-
-  /assets/show:
-    get:
-      tags: [ 'storekeeper' ]
-      x-obmcs-splat:
-        operationType: LIST
-        apiType: Synchronous
-        # Maximum number of invocation attempts that should be made to the downstream service.
-        # Any non-5xx response ends the attempts.
-        maximumAttemptCount: 3
-        allowAllRequestHeaders: true
-
-        # specify the routing strategy
-        # strategy: route-to-any-ad OR route-to-inferred-ad
-        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
-        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
-        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
-        routing:
-          strategy: route-to-any-ad
-        serviceList: [ 'lvv-api-beta' ]
-
-      summary: Show asset
-      operationId: GetAsset
-      parameters:
-        - $ref: '#/parameters/StorekeeperIdParam'
-      responses:
-        200:
-          description: Asset
-          schema:
-            $ref: '#/definitions/LvvAsset'
-
-  /racks:
-    get:
-      tags: [ 'storekeeper' ]
-      x-obmcs-splat:
-        operationType: LIST
-        apiType: Synchronous
-        # Maximum number of invocation attempts that should be made to the downstream service.
-        # Any non-5xx response ends the attempts.
-        maximumAttemptCount: 3
-        allowAllRequestHeaders: true
-
-        # specify the routing strategy
-        # strategy: route-to-any-ad OR route-to-inferred-ad
-        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
-        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
-        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
-        routing:
-          strategy: route-to-any-ad
-        serviceList: [ 'lvv-api-beta' ]
-
-
-      summary: List rack locations map
-      operationId: ListRacks
-      parameters:
-        - $ref: '#/parameters/BuildingNameQueryParam'
-        - $ref: '#/parameters/BlockNameQueryParam'
-      responses:
-        200:
-          description: List of rack locations map
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/LvvRack'
-        default:
-          description: Unexpected error
-          schema:
-            $ref: '#/definitions/Error'
-
   /allDevicesInRack:
     get:
-      tags: [ 'rackDetails' ]
+      tags: [ 'racks' ]
       x-obmcs-splat:
         operationType: LIST
         apiType: Synchronous
@@ -813,6 +672,48 @@ paths:
           description: Unexpected error
           schema:
             $ref: '#/definitions/Error'
+
+  /racksInProject:
+    get:
+      tags: [ 'racks' ]
+      x-obmcs-splat:
+        operationType: LIST
+        apiType: Synchronous
+        # Maximum number of invocation attempts that should be made to the downstream service.
+        # Any non-5xx response ends the attempts.
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+
+        # specify the routing strategy
+        # strategy: route-to-any-ad OR route-to-inferred-ad
+        # route-to-any-ad: Splat will route to any AD, appropriate for regional services
+        # route-to-inferred-ad: Splat supports routing based on request (body, path, query params)
+        # E.g. how to infer AD from the request body https://bitbucket.oci.oraclecorp.com/projects/CIM/repos/instance-agent-service/browse/instance-agent-service-spec/specs/service-api.yaml#63
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+
+      summary: List racks for blocks assigned to a project
+      operationId: ListProjectRacks
+      parameters:
+        - $ref: '#/parameters/ProjectIdentifierQueryParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Racks in the project’s assigned blocks
+          schema:
+            type: array
+            items: { $ref: '#/definitions/ProjectRack' }
+        400:
+          description: Missing/invalid project identifier
+          schema: { $ref: '#/definitions/Error' }
+        404:
+          description: Project not found
+          schema: { $ref: '#/definitions/Error' }
+        default:
+          description: Unexpected error
+          schema: { $ref: '#/definitions/Error' }
 
 #==========[ Definitions ]================================================================================================
 
@@ -853,44 +754,6 @@ definitions:
       psuId:
         type: string
 
-  # RackLocationMap in sk yaml
-  LvvRack:
-    type: object
-    required:
-      - rack_number
-    properties:
-      availability_domain_name:
-        type: string
-      region_name:
-        type: string
-      rack_number:
-        type: string
-      ticket_number:
-        type: string
-      storekeeper_id:
-        type: string
-      actual_rack_serial:
-        type: string
-      rack_state:
-        type: string
-      power_status:
-        type: boolean
-      infrastructure_status:
-        type: boolean
-      activation_status:
-        type: boolean
-      rack_serial:
-        type: string
-      power_allocation:
-        type: number
-        format: float
-      network_ports_allocation:
-        type: integer
-        format: int32
-      platform_name:
-        type: string
-      platform_type:
-        type: string
   LvvAsset:
     type: object
     required:
@@ -1116,6 +979,20 @@ definitions:
           minLength: 1
           maxLength: 50
 
+  ProjectRack:
+    type: object
+    properties:
+      building: { type: string }
+      block: { type: string }
+      rackSerialNumber: {type: string}
+      rackLocation: {type: string}
+      resolveEnabled: { type: boolean }
+      resolveDisabledReason: { type: string }
+      ticketId: { type: string }
+      ticketType: { type: string }
+      rackState: { type: string }
+      platformName: { type: string }
+
   PutProjectRequest:
     description: A request to create or update a project
     properties:
@@ -1333,7 +1210,6 @@ parameters:
     schema:
       $ref: '#/definitions/PutProjectRequest'
     description: Information required for creating or updating a project
-
   ProjectIdentifierPathParam:
     name: projectId
     type: string

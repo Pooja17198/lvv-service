@@ -3,7 +3,6 @@ package com.oracle.pic.networking.lvv.service.kiev;
 import static com.oracle.pic.kiev.mapping.annotations.ColumnType.STRING;
 
 import com.oracle.pic.kiev.mapping.annotations.Column;
-import com.oracle.pic.kiev.mapping.annotations.ColumnType;
 import com.oracle.pic.kiev.mapping.annotations.HashKey;
 import com.oracle.pic.kiev.mapping.annotations.KievEntity;
 import com.oracle.pic.kiev.mapping.annotations.KievIndex;
@@ -64,7 +63,7 @@ public class BlockDetails {
             projectId = null;
         }
 
-        @Column(type = ColumnType.STRING, length = 64, name = PROJECT_ID_COLUMN_NAME)
+        @Column(type = STRING, length = 64, name = PROJECT_ID_COLUMN_NAME)
         String projectId;
     }
 }

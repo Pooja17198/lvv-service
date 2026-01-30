@@ -16,6 +16,7 @@ import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
+import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,6 @@ public class CablingValidationResource extends AbstractCablingValidationResource
 
     private final CablingValidationService cablingValidationService;
     private final ValidationFailureResultDao validationFailureResultDao;
-
     private final ResourceModelTransformer resourceModelTransformer;
 
     @Context
@@ -117,7 +117,7 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                         ErrorCode.InvalidParameter, "Rack Serial cannot be empty");
             }
 
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
             scope.withDimension("rackSerial", rackSerial);
             scope.emit(MetricNames.GetValidationResults.GetValidationResult.name(), 1.0);
 
@@ -146,7 +146,7 @@ public class CablingValidationResource extends AbstractCablingValidationResource
                 MetricsScope.create(
                         MetricNames.MetricScopeNames.DOWNLOAD_VALIDATION_RESULTS.name())) {
 
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
             scope.emit(MetricNames.ValidateCables.DownloadCsv.name(), 1.0);
 
             List<ValidationFailureResult> rawResults =
@@ -196,7 +196,7 @@ public class CablingValidationResource extends AbstractCablingValidationResource
 
             log.info("Fetching NCP Validation Job Status for rack {}", rackSerialNumber);
 
-            scope.withDimension("region", regionName);
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
 
             if (rackSerialNumber == null || rackSerialNumber.isEmpty()) {
                 scope.emit(MetricNames.GetValidationJobStatus.RackSerialNull.name(), 1.0);

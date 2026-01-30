@@ -13,21 +13,24 @@ import com.atlassian.jira.rest.client.api.domain.input.IssueInputBuilder;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
 import com.oracle.pic.commons.metrics.MetricsScope;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class JiraSDService {
 
-    private final JiraRestClient jiraRestClient;
+    private final JiraSDHelper jiraSDHelper;
     private final IssueRestClient issueRestClient;
     private final SearchRestClient searchRestClient;
 
     @Inject
-    public JiraSDService(JiraRestClient jiraRestClient) {
-        this.jiraRestClient = jiraRestClient;
+    public JiraSDService(JiraRestClient jiraRestClient, JiraSDHelper jiraSDHelper) {
         this.issueRestClient = jiraRestClient.getIssueClient();
         this.searchRestClient = jiraRestClient.getSearchClient();
+        this.jiraSDHelper = jiraSDHelper;
     }
 
     public SearchResult searchJiraSD(String jql) {
@@ -115,5 +118,54 @@ public class JiraSDService {
             this.issueRestClient.updateIssue(issueKey, issueInput).claim();
             scope.recordSuccess();
         }
+    }
+
+    public Map<String, JiraTicket> findOpenTicketsBySerialForBlock(String building, String block) {
+
+        if (building == null || building.isBlank() || block == null || block.isBlank()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, JiraTicket> openTicketBySerial = new HashMap<>();
+
+        for (JiraTicketCategory category : JiraTicketCategory.values()) {
+            String jql = String.format(JiraQueries.JQL + category.getJqlSuffix(), building, block);
+            SearchResult result;
+            try {
+                result = searchJiraSD(jql);
+            } catch (RuntimeException e) {
+                log.warn("Runtime Exception while running jql {} {}", jql, e.getMessage());
+                continue;
+            }
+
+            if (result == null || result.getIssues() == null) {
+                log.info("No tickets found for building {} block {}", building, block);
+                continue;
+            }
+
+            for (Issue issue : result.getIssues()) {
+
+                log.info(
+                        "Found ticket {} for building {} block {}",
+                        issue.getKey(),
+                        building,
+                        block);
+
+                String serial = jiraSDHelper.extractSerialNumber(issue);
+                if (serial == null) {
+                    log.info("No rack serial found for ticket {}", issue.getKey());
+                    continue;
+                }
+
+                JiraTicket jiraTicket =
+                        JiraTicket.builder()
+                                .ticketId(issue.getKey())
+                                .ticketCategory(category.getTicketType())
+                                .build();
+                openTicketBySerial.put(serial, jiraTicket);
+            }
+        }
+
+        return openTicketBySerial;
     }
 }

@@ -1,0 +1,121 @@
+package com.oracle.pic.networking.lvv.service.dependencies.storekeeper;
+
+import com.google.inject.Inject;
+import com.oracle.pic.commons.exceptions.server.ErrorCode;
+import com.oracle.pic.commons.exceptions.server.RenderableException;
+import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.storekeeper.StoreKeeper;
+import com.oracle.pic.storekeeper.model.RackLocationMap;
+import com.oracle.pic.storekeeper.requests.ListRackLocationsMapRequest;
+import com.oracle.pic.storekeeper.responses.ListRackLocationsMapResponse;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@ToString
+public class StoreKeeperHelper {
+
+    private final StoreKeeper storeKeeperClient;
+    private static final List<String> RACK_STATES = List.of("DELIVERED", "RECEIVED", "AVAILABLE");
+    private static final int RACK_LIST_SIZE = 1000;
+
+    @Inject
+    public StoreKeeperHelper(StoreKeeper storeKeeperClient) {
+        this.storeKeeperClient = storeKeeperClient;
+    }
+
+    private String getRackSerial(RackLocationMap rack) {
+        if (rack == null) {
+            return null;
+        }
+        if (rack.getActualRackSerial() != null && !rack.getActualRackSerial().isEmpty()) {
+            return rack.getActualRackSerial();
+        }
+        if (rack.getRackSerial() != null && !rack.getRackSerial().isEmpty()) {
+            return rack.getRackSerial();
+        }
+        return null;
+    }
+
+    public List<Rack> listRacks(String blockName, String buildingName, MetricsScope scope) {
+        List<Rack> rackList = new ArrayList<>();
+
+        String pageToken = null;
+
+        log.info("Fetching racks in building {} block {}", buildingName, blockName);
+        try {
+            do {
+                ListRackLocationsMapRequest listRacksRequest =
+                        ListRackLocationsMapRequest.builder()
+                                .buildingName(buildingName)
+                                .numResults(RACK_LIST_SIZE)
+                                .pageToken(pageToken)
+                                .blockName(blockName)
+                                .build();
+                ListRackLocationsMapResponse rackResponse =
+                        this.storeKeeperClient.listRackLocationsMap(listRacksRequest);
+                if (rackResponse == null
+                        || rackResponse.getListRackLocationsMap() == null
+                        || rackResponse.getListRackLocationsMap().getRackLocations() == null) {
+                    scope.emit(MetricNames.FetchRacks.FetchRacksFailed, 1.0);
+                    throw new RenderableException(
+                            ErrorCode.ExternalServerInvalidResponse,
+                            "Empty response from Storekeeper for list of racks in building {} block {}",
+                            buildingName,
+                            blockName);
+                }
+                pageToken = rackResponse.getListRackLocationsMap().getNextPageToken();
+
+                log.info("Page token {}", pageToken);
+                for (RackLocationMap rl :
+                        rackResponse.getListRackLocationsMap().getRackLocations()) {
+                    log.info(
+                            "{} {} state is {}",
+                            rl.getRackNumber(),
+                            getRackSerial(rl),
+                            rl.getRackState());
+                }
+
+                rackList.addAll(
+                        rackResponse.getListRackLocationsMap().getRackLocations().stream()
+                                .filter(
+                                        rackLocationMap ->
+                                                rackLocationMap.getRackState() != null
+                                                        && RACK_STATES.contains(
+                                                                rackLocationMap.getRackState()))
+                                .map(
+                                        rackLocationMap ->
+                                                Rack.builder()
+                                                        .building(buildingName)
+                                                        .block(blockName)
+                                                        .rackLocation(
+                                                                rackLocationMap.getRackNumber())
+                                                        .rackSerial(getRackSerial(rackLocationMap))
+                                                        .rackState(rackLocationMap.getRackState())
+                                                        .platformName(
+                                                                rackLocationMap.getPlatformName())
+                                                        .build())
+                                .toList());
+
+            } while (pageToken != null);
+
+            log.info("Filtered Racks list {}", rackList);
+        } catch (Exception e) {
+            log.error(
+                    "Fetching listRackLocationsMap from StoreKeeper failed for buildingName={} blockName={}",
+                    buildingName,
+                    blockName,
+                    e);
+            scope.emit(MetricNames.FetchRacks.FetchRacksFailed, 1.0);
+            throw new RenderableException(
+                    ErrorCode.ExternalServerInvalidResponse,
+                    "Fetching listRackLocationsMap from StoreKeeper failed for buildingName={} blockName={}",
+                    buildingName,
+                    blockName);
+        }
+        return rackList;
+    }
+}

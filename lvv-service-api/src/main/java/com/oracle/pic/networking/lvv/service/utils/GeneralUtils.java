@@ -1,11 +1,9 @@
 package com.oracle.pic.networking.lvv.service.utils;
 
 import com.oracle.pic.commons.util.Region;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Objects;
 
 public class GeneralUtils {
 
@@ -35,7 +33,14 @@ public class GeneralUtils {
         }
     }
 
-    public static String inputStreamToString(InputStream is) throws IOException {
-        return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+    // In grafana for us-phoenix-1 the name used to filter is r2
+    public static String getRegionInternalName(String publicName) {
+        if (publicName == null || publicName.isEmpty()) {
+            return null;
+        }
+        if (Objects.equals(publicName, "us-phoenix-1")) {
+            return "r2";
+        }
+        return publicName;
     }
 }

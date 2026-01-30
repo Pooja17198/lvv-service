@@ -6,11 +6,18 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraTicket;
+import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.Rack;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
-import com.oracle.pic.networking.lvv.service.model.*;
+import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
+import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
+import com.oracle.pic.networking.lvv.service.model.Project;
+import com.oracle.pic.networking.lvv.service.model.ProjectRack;
+import com.oracle.pic.networking.lvv.service.model.RegionObject;
+import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -120,5 +127,21 @@ public class ResourceModelTransformer {
         }
 
         return deviceValidationStatuses;
+    }
+
+    public ProjectRack toModel(Rack rack, JiraTicket jiraTicket) {
+
+        return ProjectRack.builder()
+                .building(rack.getBuilding())
+                .block(rack.getBlock())
+                .rackLocation(rack.getRackLocation())
+                .rackSerialNumber(rack.getRackSerial())
+                .ticketId(jiraTicket.getTicketId())
+                .ticketType(jiraTicket.getTicketCategory())
+                .resolveEnabled(jiraTicket.isResolveEnabled())
+                .resolveDisabledReason(jiraTicket.getResolveDisabledReason())
+                .rackState(rack.getRackState())
+                .platformName(rack.getPlatformName())
+                .build();
     }
 }

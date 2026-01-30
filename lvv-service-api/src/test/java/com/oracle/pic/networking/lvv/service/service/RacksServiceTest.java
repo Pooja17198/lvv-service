@@ -4,12 +4,21 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
+import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraTicket;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceHelper;
+import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.Rack;
+import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.StoreKeeperHelper;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
+import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
+import com.oracle.pic.networking.lvv.service.model.ProjectRack;
 import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,15 +28,19 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class RackDetailsServiceTest {
+class RacksServiceTest {
 
     @Mock PlanServiceHelper planServiceHelper;
     @Mock NcpJobDetailsDao ncpJobDetailsDao;
     @Mock CablingValidationService cablingValidationService;
     @Mock ResourceModelTransformer resourceModelTransformer;
+    @Mock ProjectItemDao projectItemDao;
+    @Mock BlockDetailsDao blockDetailsDao;
+    @Mock StoreKeeperHelper storeKeeperHelper;
+    @Mock JiraSDService jiraSDService;
     @Mock MetricsScope metricsScope;
 
-    RackDetailsService service;
+    RacksService service;
 
     final String region = "us-region";
     final String rackNumber = "RACK1";
@@ -37,11 +50,15 @@ class RackDetailsServiceTest {
     @BeforeEach
     void setup() {
         service =
-                new RackDetailsService(
+                new RacksService(
                         planServiceHelper,
                         ncpJobDetailsDao,
                         cablingValidationService,
-                        resourceModelTransformer);
+                        resourceModelTransformer,
+                        projectItemDao,
+                        blockDetailsDao,
+                        storeKeeperHelper,
+                        jiraSDService);
     }
 
     private Device mockDeviceWithName(String name) {
@@ -313,5 +330,231 @@ class RackDetailsServiceTest {
                 .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
         inOrder.verify(resourceModelTransformer).toModel(status, devices);
         inOrder.verifyNoMoreInteractions();
+    }
+
+    // -------- Helpers for listProjectRacks tests --------
+    private BlockDetails makeBlock(String building, String block, String projectId) {
+        return BlockDetails.builder()
+                .block(BlockDetails.Block.builder().building(building).blockNumber(block).build())
+                .projectId(projectId)
+                .build();
+    }
+
+    private Rack makeRack(String building, String block, String serial) {
+        return Rack.builder()
+                .building(building)
+                .block(block)
+                .rackLocation("L1")
+                .rackSerial(serial)
+                .rackState("ACTIVE")
+                .platformName("PLATFORM-X")
+                .build();
+    }
+
+    @Test
+    void listProjectRacks_projectNotFound_emitsMetric_andThrows() {
+        String projectId = "proj-missing";
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(null);
+
+        assertThrows(
+                RenderableException.class, () -> service.listProjectRacks(projectId, metricsScope));
+
+        verify(metricsScope)
+                .emit(
+                        com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames
+                                .FetchRacks.ProjectNotFound.name(),
+                        1.0);
+        verifyNoInteractions(
+                blockDetailsDao, storeKeeperHelper, jiraSDService, resourceModelTransformer);
+    }
+
+    @Test
+    void listProjectRacks_noBlocks_emitsMetric_andThrows() {
+        String projectId = "proj-empty";
+        // minimal non-null project item
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(Collections.emptyList());
+
+        assertThrows(
+                RenderableException.class, () -> service.listProjectRacks(projectId, metricsScope));
+
+        verify(metricsScope)
+                .emit(
+                        com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames
+                                .FetchRacks.NoBlocksInProject.name(),
+                        1.0);
+        verifyNoInteractions(storeKeeperHelper, jiraSDService, resourceModelTransformer);
+    }
+
+    @Test
+    void listProjectRacks_blockWithNoRacks_skipsAndReturnsEmpty() {
+        String projectId = "proj-noracks";
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
+
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1"))
+                .thenReturn(Collections.emptyMap());
+        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope)).thenReturn(null); // or empty
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(jiraSDService).findOpenTicketsBySerialForBlock("B1", "BLK1");
+        verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
+        verifyNoInteractions(resourceModelTransformer);
+    }
+
+    @Test
+    void listProjectRacks_rackWithMatchingJiraTicket_enablesResolve_andUsesTransformer() {
+        String projectId = "proj-ok";
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
+
+        // Racks: one with matching serial, one with no match
+        Rack r1 = makeRack("B1", "BLK1", "S1");
+        Rack r2 = makeRack("B1", "BLK1", "S2");
+        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope)).thenReturn(List.of(r1, r2));
+
+        // Tickets map: S1 has an open ticket (initially disabled), S2 absent -> default
+        JiraTicket open =
+                JiraTicket.builder()
+                        .ticketId("T-1")
+                        .ticketCategory("Cat")
+                        .resolveEnabled(false)
+                        .resolveDisabledReason("initial")
+                        .build();
+        Map<String, JiraTicket> blockTickets = new HashMap<>();
+        blockTickets.put("S1", open);
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1")).thenReturn(blockTickets);
+
+        ProjectRack pr1 = mock(ProjectRack.class);
+        ProjectRack pr2 = mock(ProjectRack.class);
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
+                .thenReturn(pr1, pr2);
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertEquals(2, result.size());
+        assertEquals(List.of(pr1, pr2), result);
+
+        // Verify calls
+        verify(jiraSDService).findOpenTicketsBySerialForBlock("B1", "BLK1");
+        verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
+
+        // Capture and assert JiraTicket mutation and default creation
+        ArgumentCaptor<Rack> rackCap = ArgumentCaptor.forClass(Rack.class);
+        ArgumentCaptor<JiraTicket> ticketCap = ArgumentCaptor.forClass(JiraTicket.class);
+        verify(resourceModelTransformer, times(2)).toModel(rackCap.capture(), ticketCap.capture());
+
+        List<Rack> racksPassed = rackCap.getAllValues();
+        List<JiraTicket> ticketsPassed = ticketCap.getAllValues();
+
+        // For r1 -> matching ticket should be enabled + reason null
+        int idxR1 = racksPassed.indexOf(r1);
+        assertTrue(idxR1 >= 0);
+        JiraTicket t1 = ticketsPassed.get(idxR1);
+        assertEquals("T-1", t1.getTicketId());
+        assertTrue(t1.isResolveEnabled());
+        assertNull(t1.getResolveDisabledReason());
+
+        // For r2 -> default ticket since no open Jira
+        int idxR2 = racksPassed.indexOf(r2);
+        assertTrue(idxR2 >= 0);
+        JiraTicket t2 = ticketsPassed.get(idxR2);
+        assertNull(t2.getTicketId());
+        assertFalse(t2.isResolveEnabled());
+        assertEquals("No open ticket", t2.getResolveDisabledReason());
+    }
+
+    @Test
+    void listProjectRacks_handlesNullRackSerial_byUsingDefaultTicket() {
+        String projectId = "proj-null-serial";
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B2", "BLK2", projectId)));
+
+        Rack rNull = makeRack("B2", "BLK2", null);
+        when(storeKeeperHelper.listRacks("BLK2", "B2", metricsScope)).thenReturn(List.of(rNull));
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B2", "BLK2"))
+                .thenReturn(Collections.emptyMap());
+
+        ProjectRack pr = mock(ProjectRack.class);
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
+                .thenReturn(pr);
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertEquals(1, result.size());
+
+        ArgumentCaptor<JiraTicket> ticketCap = ArgumentCaptor.forClass(JiraTicket.class);
+        verify(resourceModelTransformer).toModel(eq(rNull), ticketCap.capture());
+        JiraTicket jt = ticketCap.getValue();
+        assertFalse(jt.isResolveEnabled());
+        assertEquals("No open ticket", jt.getResolveDisabledReason());
+    }
+
+    @Test
+    void listProjectRacks_multipleBlocks_aggregatesFromEachBlock() {
+        String projectId = "proj-multi";
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(
+                        List.of(
+                                makeBlock("B1", "BLK1", projectId),
+                                makeBlock("B2", "BLK2", projectId)));
+
+        // Block 1
+        Rack r1 = makeRack("B1", "BLK1", "S1");
+        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope)).thenReturn(List.of(r1));
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1"))
+                .thenReturn(Collections.emptyMap());
+
+        // Block 2
+        Rack r2 = makeRack("B2", "BLK2", "S2");
+        when(storeKeeperHelper.listRacks("BLK2", "B2", metricsScope)).thenReturn(List.of(r2));
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B2", "BLK2"))
+                .thenReturn(Collections.emptyMap());
+
+        ProjectRack pr1 = mock(ProjectRack.class);
+        ProjectRack pr2 = mock(ProjectRack.class);
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
+                .thenReturn(pr1, pr2);
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertEquals(2, result.size());
+        assertEquals(List.of(pr1, pr2), result);
+
+        verify(jiraSDService).findOpenTicketsBySerialForBlock("B1", "BLK1");
+        verify(jiraSDService).findOpenTicketsBySerialForBlock("B2", "BLK2");
+        verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
+        verify(storeKeeperHelper).listRacks("BLK2", "B2", metricsScope);
+        verify(resourceModelTransformer, times(2)).toModel(any(Rack.class), any(JiraTicket.class));
     }
 }

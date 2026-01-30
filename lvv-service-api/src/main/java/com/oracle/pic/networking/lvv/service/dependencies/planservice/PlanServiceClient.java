@@ -33,7 +33,7 @@ public class PlanServiceClient {
                         .delayStrategy(new ExponentialBackoffDelayStrategy(5000L))
                         .retryCondition(
                                 (BmcException e) ->
-                                        (e.getStatusCode() == 429) || (e.getStatusCode() == 500))
+                                        e.getStatusCode() == 429 || e.getStatusCode() == 500)
                         .build();
         return ClientConfiguration.builder()
                 .connectionTimeoutMillis(config.getConnectTimeoutInMs())

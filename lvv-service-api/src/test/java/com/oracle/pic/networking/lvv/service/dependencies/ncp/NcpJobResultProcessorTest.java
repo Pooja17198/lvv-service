@@ -6,17 +6,13 @@ import static org.mockito.Mockito.*;
 
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
-import com.oracle.pic.networking.lvv.service.kiev.LinkStatus;
-import com.oracle.pic.networking.lvv.service.kiev.LldpStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,11 +24,9 @@ class NcpJobResultProcessorTest {
     @BeforeEach
     void setup() {
         metricsScope = mock(MetricsScope.class);
-        // Be permissive on emit signature (enum or string)
-        doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
-        doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
-        when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
-        when(metricsScope.recordSuccess()).thenReturn(metricsScope);
+        // Make emit invocations lenient and chain-safe if needed
+        when(metricsScope.emit(any(Enum.class), anyDouble())).thenReturn(metricsScope);
+        when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
 
         ncpJobDetailsDao = mock(NcpJobDetailsDao.class);
     }
@@ -43,366 +37,274 @@ class NcpJobResultProcessorTest {
     }
 
     @Test
-    void testParseDeviceString_wellFormed() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        NcpJobResultProcessor.DevicePortInfo info =
-                p.parseDeviceString("device1:Ethernet1/3:foo:bar:rackUnit");
-        assertEquals("device1", info.getDeviceName());
-        assertEquals("Ethernet1/3", info.getPort());
-        assertEquals("bar:rackUnit", info.getRackUnit());
-    }
-
-    @Test
-    void testParseDeviceString_moreThanFiveParts_usesLastTwoAsRackUnit() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        NcpJobResultProcessor.DevicePortInfo info = p.parseDeviceString("a:b:c:d:e:f");
-        assertEquals("a", info.getDeviceName());
-        assertEquals("b", info.getPort());
-        assertEquals("e:f", info.getRackUnit());
-    }
-
-    @Test
-    void testParseDeviceString_nullInput() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        NcpJobResultProcessor.DevicePortInfo info = p.parseDeviceString(null);
-        assertEquals("Unknown", info.getDeviceName());
-        assertEquals("Unknown", info.getPort());
-        assertEquals("Unknown", info.getRackUnit());
-    }
-
-    @Test
-    void testParseDeviceString_emptyInput() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        NcpJobResultProcessor.DevicePortInfo info = p.parseDeviceString("");
-        assertEquals("Unknown", info.getDeviceName());
-        assertEquals("Unknown", info.getPort());
-        assertEquals("Unknown", info.getRackUnit());
-    }
-
-    @Test
-    void testParseDeviceString_tooFewParts() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        NcpJobResultProcessor.DevicePortInfo info = p.parseDeviceString("a:b:c");
-        assertEquals("Unknown", info.getDeviceName());
-        assertEquals("Unknown", info.getPort());
-        assertEquals("Unknown", info.getRackUnit());
-    }
-
-    @Test
-    void testExtractLldpErrors_goodJson_setsMismatch() {
-        String msg =
-                "Failed: {\"message\": \"LLDP Failures: 1\", \"errors_object\":"
-                        + " [{\"current_origin\": \"devA:Eth1/1:x:y:u1\","
-                        + "   \"current_destination\": \"devB:Eth2/2:a:b:u2\","
-                        + "   \"expected_destination\": \"devC:Eth3/3:c:d:u3\"}]}";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.extractLldpErrors(msg, "devA", metricsScope);
-
-        // Build and assert
-        List<ValidationFailureResult> results =
-                p.buildValidationFailureResults("rackSerial", "rackUnitFallback");
-        assertEquals(1, results.size());
-        ValidationFailureResult r = results.get(0);
-        assertEquals("devA", r.getLinkSource().getDeviceAName());
-        assertEquals("Eth1/1", r.getLinkSource().getDeviceAPort());
-        assertEquals(LldpStatus.MISMATCH, r.getLldpStatus());
-        assertEquals(LinkStatus.DOWN, r.getLinkStatus());
-        assertEquals("devB", r.getDeviceBName());
-        assertEquals("Eth2/2", r.getDeviceBPort());
-        assertEquals(
-                "a:b:u2".substring("a:".length()),
-                r.getDeviceBRack()); // y:u1 from origin, a:b:u2 from dest
-        assertEquals("devC", r.getDeviceBNameExpected());
-        assertEquals("Eth3/3", r.getDeviceBPortExpected());
-    }
-
-    @Test
-    void testExtractLldpErrors_goodJson_cryptoSetsUnsupported() {
-        String msg =
-                "Failed: {\"message\": \"LLDP Failures: 1\", \"errors_object\":"
-                        + " [{\"current_origin\": \"devX:Eth1/1:x:y:u1\","
-                        + "   \"current_destination\": \"cryptoB:Eth2/2:a:b:u2\","
-                        + "   \"expected_destination\": \"devC:Eth3/3:c:d:u3\"}]}";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.extractLldpErrors(msg, "devX", metricsScope);
-
-        List<ValidationFailureResult> results =
-                p.buildValidationFailureResults("rackSerial", "rackUnitFallback");
-        assertEquals(1, results.size());
-        assertEquals(LldpStatus.UNSUPPORTED, results.get(0).getLldpStatus());
-    }
-
-    @Test
-    void testExtractLldpErrors_badJson_createsUnknownEntry() {
-        String bad = "Failed: not_json";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        assertDoesNotThrow(() -> p.extractLldpErrors(bad, "devZ", metricsScope));
-
-        // Should create Unknown entry for the device
-        Map<NcpJobResultProcessor.DevicePortInfo, ValidationFailureResult.Builder> map =
-                p.getResultBuilder();
-        assertFalse(map.isEmpty());
-        NcpJobResultProcessor.DevicePortInfo key =
-                new NcpJobResultProcessor.DevicePortInfo("devZ", "Unknown", "Unknown");
-        assertTrue(map.containsKey(key));
-        ValidationFailureResult res = map.get(key).rackSerial("rs").build();
-        assertEquals(LldpStatus.UNKNOWN, res.getLldpStatus());
-        assertEquals(LinkStatus.DOWN, res.getLinkStatus());
-        assertEquals("devZ", res.getLinkSource().getDeviceAName());
-        assertEquals("UNKNOWN", res.getLinkSource().getDeviceAPort());
-    }
-
-    @Test
-    void testExtractLldpErrors_nonFailedPrefix_noop() {
-        String msg =
-                "Something else Failed: {\"message\": \"LLDP Failures: 1\", \"errors_object\": []}";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.extractLldpErrors(msg, "devA", metricsScope);
-
-        assertTrue(p.getResultBuilder().isEmpty());
-    }
-
-    Map<String, LldpStatus> createLldpErrorMap() {
-        Map<String, LldpStatus> lldpErrorMap = new HashMap<>();
-        lldpErrorMap.put(
-                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord7-c0-b60-t0-r9:Ethernet1/14:ord7:6037:42\", \"current_destination\": \"Unknown:Unknown:Unknown\", \"expected_destination\": \"ord7-c1-b60-t1-r2:Ethernet17/1:ord7:5925:24\"}]}",
-                LldpStatus.UNKNOWN);
-        lldpErrorMap.put(
-                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord7-c0-b60-t0-r9:Ethernet1/13:ord7:6037:42\", \"current_destination\": \"ord7-c1-b60-t1-r4:Ethernet17/1:ord7:5925:26\", \"expected_destination\": \"ord7-c1-b60-t1-r1:Ethernet17/1:ord7:5925:23\"}]}",
-                LldpStatus.MISMATCH);
-        lldpErrorMap.put(
-                "Failed: {\"message\": \"LLDP Failures: \\nTotal error count: 1\", \"errors_object\": [{\"current_origin\": \"ord15-j1-crypto5:Ethernet1/13:ord7:6037:42\", \"current_destination\": \"devB:portB:x:y:unitB\", \"expected_destination\": \"devC:portC:x:y:unitC\"}]}",
-                LldpStatus.UNSUPPORTED);
-
-        return lldpErrorMap;
-    }
-
-    @Test
-    void testExtractLldpErrors_lldpStatus() {
-        Map<String, LldpStatus> lldpErrorMap = createLldpErrorMap();
-        for (Map.Entry<String, LldpStatus> entry : lldpErrorMap.entrySet()) {
-            NcpJobResultProcessor p = newProcessorWithJson("{}");
-            // Device name argument is used only for fallback on bad JSON; for well-formed messages
-            // it is ignored.
-            p.extractLldpErrors(entry.getKey(), "device", metricsScope);
-            List<ValidationFailureResult> validationFailureResults =
-                    p.buildValidationFailureResults("rackSerialNumber", "rackUnit");
-            assertFalse(validationFailureResults.isEmpty());
-            ValidationFailureResult result = validationFailureResults.get(0);
-            assertEquals(entry.getValue(), result.getLldpStatus());
-        }
-    }
-
-    @Test
-    void testExtractLldpErrors_messageNotLldpFailures_noop() {
-        String msg = "Failed: {\"message\": \"Other\", \"errors_object\": []}";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.extractLldpErrors(msg, "devA", metricsScope);
-
-        assertTrue(p.getResultBuilder().isEmpty());
-    }
-
-    @Test
-    void testExtractOpticErrors_goodJson_withPrefix_lldpPassed_setsMatch() {
-        String msg =
-                "Failed: {\"errors_object\": [{\"device\": \"dev1\", \"intf_name\": \"port1\","
-                        + " \"input_power\": \"-5\", \"output_power\": \"1.2\", \"device_phys\": \"rack:U42\"}]}";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        assertDoesNotThrow(() -> p.extractOpticErrors(msg, true, metricsScope));
-
-        List<ValidationFailureResult> results =
-                p.buildValidationFailureResults("serial", "fallbackRU");
-        assertEquals(1, results.size());
-        ValidationFailureResult r = results.get(0);
-        assertEquals("dev1", r.getLinkSource().getDeviceAName());
-        assertEquals("port1", r.getLinkSource().getDeviceAPort());
-        assertEquals(LldpStatus.MATCH, r.getLldpStatus());
-        assertEquals(LinkStatus.DOWN, r.getLinkStatus());
-        assertEquals("U42", r.getDeviceARack());
-        assertEquals("-5", r.getRxPower());
-        assertEquals("1.2", r.getTxPower());
-    }
-
-    @Test
-    void testExtractOpticErrors_goodJson_withoutPrefix_appendsToExisting_andUntested() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        // Seed existing entry with same device/port/rackUnit computed from device_phys below
-        // ("x:y:unit1" -> "y:unit1")
-        NcpJobResultProcessor.DevicePortInfo info =
-                new NcpJobResultProcessor.DevicePortInfo("dev2", "Eth0/1", "y:unit1");
-        ValidationFailureResult.Builder builder =
-                ValidationFailureResult.builder()
-                        .linkSource(
-                                ValidationFailureResult.LinkSource.builder()
-                                        .deviceAName("dev2")
-                                        .deviceAPort("Eth0/1")
-                                        .build())
-                        .lldpStatus(LldpStatus.MISMATCH) // should be preserved on append
-                        .deviceARack("y:unit1");
-        p.getResultBuilder().put(info, builder);
-
-        String msg =
-                "{\"errors_object\": [{\"device\": \"dev2\", \"intf_name\": \"Eth0/1\","
-                        + " \"input_power\": \"-7.1\", \"output_power\": \"0.9\","
-                        + " \"device_phys\": \"x:y:unit1\"}]}";
-
-        assertDoesNotThrow(() -> p.extractOpticErrors(msg, false, metricsScope));
-
-        // On append path, only tx/rx updated; lldpStatus preserved (MISMATCH)
-        List<ValidationFailureResult> results =
-                p.buildValidationFailureResults("serial", "fallbackRU");
-        assertEquals(1, results.size());
-        ValidationFailureResult r = results.get(0);
-        assertEquals("dev2", r.getLinkSource().getDeviceAName());
-        assertEquals("Eth0/1", r.getLinkSource().getDeviceAPort());
-        assertEquals(LldpStatus.MISMATCH, r.getLldpStatus());
-        assertEquals("y:unit1", r.getDeviceARack());
-        assertEquals("-7.1", r.getRxPower());
-        assertEquals("0.9", r.getTxPower());
-    }
-
-    @Test
-    void testExtractOpticErrors_badJson_throwsAndEmitsMetric() {
-        String msg = "Failed: not_json";
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        assertThrows(
-                RenderableException.class, () -> p.extractOpticErrors(msg, false, metricsScope));
-    }
-
-    @Test
-    void testUpdatePowerErrors_existingDevice_appendsPsuFailure() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-        // Seed with two entries, one matching device
-        NcpJobResultProcessor.DevicePortInfo d1 =
-                new NcpJobResultProcessor.DevicePortInfo("D", "P", "RU");
-        NcpJobResultProcessor.DevicePortInfo d2 =
-                new NcpJobResultProcessor.DevicePortInfo("X", "P2", "RU2");
-        ValidationFailureResult.Builder b1 =
-                ValidationFailureResult.builder()
-                        .linkSource(
-                                ValidationFailureResult.LinkSource.builder()
-                                        .deviceAName("D")
-                                        .deviceAPort("P")
-                                        .build());
-        ValidationFailureResult.Builder b2 =
-                ValidationFailureResult.builder()
-                        .linkSource(
-                                ValidationFailureResult.LinkSource.builder()
-                                        .deviceAName("X")
-                                        .deviceAPort("P2")
-                                        .build());
-        p.getResultBuilder().put(d1, b1);
-        p.getResultBuilder().put(d2, b2);
-
-        p.updatePowerErrors("D", true);
-
-        // Size unchanged, b1 should have psuFailure
-        assertEquals(2, p.getResultBuilder().size());
-        ValidationFailureResult r1 = p.getResultBuilder().get(d1).rackSerial("rs").build();
-        assertNotNull(r1.getPsuFailure());
-        // lldpStatus should remain unset here (append path doesn't modify it)
-        assertNull(r1.getLldpStatus());
-        // d2 untouched
-        ValidationFailureResult r2 = p.getResultBuilder().get(d2).rackSerial("rs").build();
-        assertNull(r2.getPsuFailure());
-    }
-
-    @Test
-    void testUpdatePowerErrors_noExistingEntry_createsOne_matchWhenLldpPassed() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.updatePowerErrors("DevNew", true);
-
-        assertFalse(p.getResultBuilder().isEmpty());
-        NcpJobResultProcessor.DevicePortInfo key =
-                new NcpJobResultProcessor.DevicePortInfo("DevNew", "Unknown", "Unknown");
-        assertTrue(p.getResultBuilder().containsKey(key));
-        ValidationFailureResult r = p.getResultBuilder().get(key).rackSerial("rs").build();
-        assertEquals("DevNew", r.getLinkSource().getDeviceAName());
-        assertEquals("UNKNOWN", r.getLinkSource().getDeviceAPort());
-        assertEquals(LinkStatus.DOWN, r.getLinkStatus());
-        assertNotNull(r.getPsuFailure());
-        assertEquals(LldpStatus.MATCH, r.getLldpStatus());
-    }
-
-    @Test
-    void testUpdatePowerErrors_noExistingEntry_createsOne_untestedWhenLldpUnknown() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
-
-        p.updatePowerErrors("DevNew2", false);
-
-        NcpJobResultProcessor.DevicePortInfo key =
-                new NcpJobResultProcessor.DevicePortInfo("DevNew2", "Unknown", "Unknown");
-        ValidationFailureResult r = p.getResultBuilder().get(key).rackSerial("rs").build();
-        assertEquals(LldpStatus.UNTESTED, r.getLldpStatus());
-    }
-
-    @Test
-    void testProcessJobResult_invalidJson_throwsAndEmitsMetric() {
+    void processJobResult_invalidJson_throws_and_emits_metric() {
         NcpJobResultProcessor p = newProcessorWithJson("not_json");
+
         assertThrows(RenderableException.class, () -> p.processJobResult(metricsScope));
-        // We refrain from verifying exact metric enum type to avoid signature coupling
-        verify(metricsScope, atLeastOnce()).emit(any(Enum.class), anyDouble());
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.JsonParseFail), anyDouble());
     }
 
     @Test
-    void testProcessJobResult_jsonMissingTestResultsThrows() {
-        String json = "{\"foo\": 1}";
+    void processJobResult_missingTestResults_throws_and_emits_metric() {
+        String json = "{\"foo\":1}";
         NcpJobResultProcessor p = newProcessorWithJson(json);
+
         assertThrows(RenderableException.class, () -> p.processJobResult(metricsScope));
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.NoTestResultFound), anyDouble());
     }
 
     @Test
-    void testProcessJobResult_deviceUnreachable_updatesDaoAndSkips() {
+    void processJobResult_deviceUnreachable_updatesDao_and_skips_results() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "device1": {
-                      "healthCheckReport": {
-                        "testCases": [{
-                          "testCase": "test_lldp",
-                          "status": "FAILED",
-                          "message": "Unable to connect to device"
-                        }]
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "device1": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "Unable to connect to device x" }
+                                ]
+                              }
+                            },
+                            "device2": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
+
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
         verify(ncpJobDetailsDao, times(1))
                 .updateNcpJobStatus(eq("device1"), eq(JobStatus.DEVICE_UNREACHABLE));
-        assertTrue(p.getResultBuilder().isEmpty());
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        assertFalse(results.containsKey("device1"), "Unreachable device should not have results");
+        assertTrue(results.containsKey("device2"));
+        assertTrue(results.get("device2").isEmpty(), "All pass should record an empty map");
     }
 
     @Test
-    void testProcessJobResult_allPass_insertsUpEntry() {
+    void processJobResult_allPass_recordsEmptyMap_and_emitsPass() {
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "deviceA": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        assertTrue(results.containsKey("deviceA"));
+        assertTrue(results.get("deviceA").isEmpty(), "No failures should overwrite with empty map");
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_failures_allThree_populatesResults_and_emitsErrorMetrics() {
+        String lldpMsg =
+                "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"devX:Eth1/1:x:y:u1\\\",\\\"current_destination\\\":\\\"devY:Eth2/2:a:b:u2\\\",\\\"expected_destination\\\":\\\"devZ:Eth3/3:c:d:u3\\\"}]}";
+        String opticsMsg =
+                "Failed: {\\\"errors_object\\\":[{\\\"device\\\":\\\"devX\\\",\\\"intf_name\\\":\\\"Eth1/1\\\",\\\"input_power\\\":\\\"-5.0\\\",\\\"output_power\\\":\\\"1.2\\\",\\\"device_phys\\\":\\\"rack:U42\\\"}]}";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devX": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_optics", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_power", "status": "FAILED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(lldpMsg, opticsMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        Map<String, List<Map<String, String>>> perDev = results.get("devX");
+        assertNotNull(perDev);
+
+        // LLDP Errors
+        List<Map<String, String>> lldp = perDev.get("LLDP Errors");
+        assertNotNull(lldp);
+        assertEquals(1, lldp.size());
+        Map<String, String> lldpEntry = lldp.get(0);
+        assertEquals("devX", lldpEntry.get("Device A Name"));
+        assertEquals("Eth1/1", lldpEntry.get("Device A Port"));
+        assertEquals("MISMATCH", lldpEntry.get("LLDP Status"));
+
+        // Optic Errors
+        List<Map<String, String>> optics = perDev.get("Optic Errors");
+        assertNotNull(optics);
+        assertEquals(1, optics.size());
+        Map<String, String> opticEntry = optics.get(0);
+        assertEquals("devX", opticEntry.get("Device Name"));
+        assertEquals("Eth1/1", opticEntry.get("Device Port"));
+        assertEquals("1.2", opticEntry.get("Tx Power"));
+        assertEquals("-5.0", opticEntry.get("Rx Power"));
+
+        // Power Errors
+        List<Map<String, String>> power = perDev.get("Power Errors");
+        assertNotNull(power);
+        assertEquals(1, power.size());
+        assertEquals("devX", power.get(0).get("Device A Name"));
+
+        // Metrics for each failure branch
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.LldpError), anyDouble());
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.OpticError), anyDouble());
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.PsuError), anyDouble());
+    }
+
+    @Test
+    void processJobResult_lldpMalformed_createsUnknown_and_emitsExtractorMetric() {
+        // LLDP with malformed JSON after "Failed:" should create UNKNOWN entry via extractor
+        String lldpMsg = "Failed: not_json";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devL": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(lldpMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        Map<String, List<Map<String, String>>> perDev = results.get("devL");
+        assertNotNull(perDev);
+
+        List<Map<String, String>> lldp = perDev.get("LLDP Errors");
+        assertNotNull(lldp);
+        assertEquals(1, lldp.size());
+        assertEquals("Unknown", lldp.get(0).get("LLDP Status"));
+
+        // Extractor emits format unexpected metric
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.LldpErrorFormatUnexpected), anyDouble());
+    }
+
+    @Test
+    void processJobResult_opticsMalformed_throws_and_emitsExtractorMetric() {
+        // Optics extractor throws RenderableException on malformed, which should bubble up
+        String opticsMsg = "Failed: not_json";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devO": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(opticsMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+
+        RenderableException ex =
+                assertThrows(RenderableException.class, () -> p.processJobResult(metricsScope));
+        assertTrue(
+                ex.getMessage().toLowerCase().contains("optic error in unexpected format"),
+                "Exception should indicate optics unexpected format");
+
+        // Extractor emits format unexpected metric
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.OpticErrorFormatUnexpected), anyDouble());
+    }
+
+    @Test
+    void processJobResult_emptyTestResults_noDevices_noMetricsOrDao() {
+        String json =
+                """
+                {
+                  "testResults": { }
+                }
+                """;
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        assertTrue(p.getDeviceResults().isEmpty(), "No devices should be recorded");
+        verifyNoInteractions(ncpJobDetailsDao);
+        verify(metricsScope, never()).emit(any(Enum.class), anyDouble());
+        verify(metricsScope, never()).emit(anyString(), anyDouble());
+    }
+
+    @Test
+    void processJobResult_missingHealthCheckReport_skipsDevice_withoutMetrics() {
         String json =
                 """
                 {
                   "testResults": {
-                    "device1": {
+                    "devX": { }
+                  }
+                }
+                """;
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        assertFalse(p.getDeviceResults().containsKey("devX"), "Device should be skipped");
+        verifyNoInteractions(ncpJobDetailsDao);
+        verify(metricsScope, never()).emit(any(Enum.class), anyDouble());
+        verify(metricsScope, never()).emit(anyString(), anyDouble());
+    }
+
+    @Test
+    void processJobResult_testCasesNotArray_skipsDevice_withoutMetrics() {
+        String json =
+                """
+                {
+                  "testResults": {
+                    "devY": {
                       "healthCheckReport": {
-                        "testCases": [{
-                          "testCase": "test_lldp",
-                          "status": "PASSED"
-                        }, {
-                          "testCase": "test_optics",
-                          "status": "PASSED"
-                        }, {
-                          "testCase": "test_power",
-                          "status": "PASSED"
-                        }]
+                        "testCases": { "not": "an array" }
                       }
                     }
                   }
@@ -411,64 +313,157 @@ class NcpJobResultProcessorTest {
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
-        List<ValidationFailureResult> results = p.buildValidationFailureResults("serial", "RU");
-        assertEquals(1, results.size());
-        ValidationFailureResult r = results.get(0);
-        assertEquals("device1", r.getLinkSource().getDeviceAName());
-        assertEquals(LinkStatus.UP, r.getLinkStatus());
-        // lldpStatus may not be set for pass case
-        assertNull(r.getLldpStatus());
+        assertFalse(p.getDeviceResults().containsKey("devY"), "Device should be skipped");
+        verifyNoInteractions(ncpJobDetailsDao);
+        verify(metricsScope, never()).emit(any(Enum.class), anyDouble());
+        verify(metricsScope, never()).emit(anyString(), anyDouble());
     }
 
     @Test
-    void testProcessJobResult_failures_allThreeBranches() {
+    void processJobResult_emptyTestCasesArray_treatedAsPass_and_emitsPass() {
         String json =
                 """
                 {
                   "testResults": {
-                    "deviceX": {
+                    "devE": {
                       "healthCheckReport": {
-                        "testCases": [{
-                          "testCase": "test_lldp",
-                          "status": "FAILED",
-                          "message": "Failed: {\\\"message\\\": \\\"LLDP Failures: \\\","
-                            + "\\\"errors_object\\\": [{\\\"current_origin\\\": \\\"d:p:x:y:unit\\\","
-                            + " \\\"current_destination\\\": \\\"d2:p2:x:y:u2\\\", \\\"expected_destination\\\":"
-                            + " \\\"d3:p3:x:y:u3\\\"}]}"
-                        }, {
-                          "testCase": "test_optics",
-                          "status": "FAILED",
-                          "message": "Failed: {\\\"errors_object\\\": [{\\\"device\\\": \\\"d\\\","
-                            + " \\\"intf_name\\\": \\\"p\\\", \\\"input_power\\\": \\\"-5\\\", \\\"output_power\\\": \\\"1\\\","
-                            + " \\\"device_phys\\\": \\\"x:y:unit\\\"}]}"
-                        }, {
-                          "testCase": "test_power",
-                          "status": "FAILED"
-                        }]
+                        "testCases": []
                       }
                     }
                   }
                 }
                 """;
-        // The above string contains concatenations inside a JSON text block; rebuild properly:
-        json =
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        assertTrue(results.containsKey("devE"));
+        assertTrue(
+                results.get("devE").isEmpty(),
+                "Empty test cases should result in empty map (pass)");
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_lldpFailureNonStandardMessage_addsEmptyLldpList_and_emitsLldpMetric() {
+        String json =
                 """
                 {
                   "testResults": {
-                    "deviceX": {
+                    "devNS": {
                       "healthCheckReport": {
-                        "testCases": [{
-                          "testCase": "test_lldp",
-                          "status": "FAILED",
-                          "message": "Failed: {\\\"message\\\": \\\"LLDP Failures: \\\", \\\"errors_object\\\": [{\\\"current_origin\\\": \\\"d:p:x:y:unit\\\", \\\"current_destination\\\": \\\"d2:p2:x:y:u2\\\", \\\"expected_destination\\\": \\\"d3:p3:x:y:u3\\\"}]}"
-                        }, {
-                          "testCase": "test_optics",
-                          "status": "FAILED",
-                          "message": "Failed: {\\\"errors_object\\\": [{\\\"device\\\": \\\"d\\\", \\\"intf_name\\\": \\\"p\\\", \\\"input_power\\\": \\\"-5\\\", \\\"output_power\\\": \\\"1\\\", \\\"device_phys\\\": \\\"x:y:unit\\\"}]}"
-                        }, {
-                          "testCase": "test_power",
-                          "status": "FAILED"
-                        }]
+                        "testCases": [
+                          { "testCase": "test_lldp", "status": "FAILED", "message": "LLDP failure without Failed prefix" },
+                          { "testCase": "test_optics", "status": "PASSED" },
+                          { "testCase": "test_power", "status": "PASSED" }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """;
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devNS");
+        assertNotNull(perDev, "Device entry should exist");
+        assertTrue(perDev.containsKey("LLDP Errors"), "LLDP Errors key should be created");
+        assertEquals(
+                0,
+                perDev.get("LLDP Errors").size(),
+                "LLDP list should be empty for non-standard message");
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.LldpError), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_lldpUnsupported_whenCryptoInName_setsUnsupportedStatus() {
+        String lldpMsg =
+                "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"cryptoDev:Eth1/1:x:y:U10\\\",\\\"current_destination\\\":\\\"devB:Eth2/2:a:b:U20\\\",\\\"expected_destination\\\":\\\"devZ:Eth3/3:c:d:U30\\\"}]}";
+        String json =
+                """
+                {
+                  "testResults": {
+                    "devC": {
+                      "healthCheckReport": {
+                        "testCases": [
+                          { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                          { "testCase": "test_optics", "status": "PASSED" },
+                          { "testCase": "test_power", "status": "PASSED" }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """
+                        .formatted(lldpMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devC");
+        assertNotNull(perDev);
+        List<Map<String, String>> lldp = perDev.get("LLDP Errors");
+        assertNotNull(lldp);
+        assertEquals(1, lldp.size());
+        assertEquals("UNSUPPORTED", lldp.get(0).get("LLDP Status"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.LldpError), anyDouble());
+    }
+
+    @Test
+    void processJobResult_lldpInterfaceDown_whenDestinationUnknown_setsInterfaceDownStatus() {
+        String lldpMsg =
+                "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"devA:Eth1/1:x:y:U10\\\",\\\"current_destination\\\":\\\"devB:Eth2/2\\\",\\\"expected_destination\\\":\\\"devZ:Eth3/3:c:d:U30\\\"}]}";
+        String json =
+                """
+                {
+                  "testResults": {
+                    "devID": {
+                      "healthCheckReport": {
+                        "testCases": [
+                          { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                          { "testCase": "test_optics", "status": "PASSED" },
+                          { "testCase": "test_power", "status": "PASSED" }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """
+                        .formatted(lldpMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devID");
+        assertNotNull(perDev);
+        List<Map<String, String>> lldp = perDev.get("LLDP Errors");
+        assertNotNull(lldp);
+        assertEquals(1, lldp.size());
+        assertEquals("INTERFACE_DOWN", lldp.get(0).get("LLDP Status"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.LldpError), anyDouble());
+    }
+
+    @Test
+    void processJobResult_opticsRawJsonEmptyArray_addsEmptyOpticsList_and_emitsOpticMetric() {
+        String json =
+                """
+                {
+                  "testResults": {
+                    "devORaw": {
+                      "healthCheckReport": {
+                        "testCases": [
+                          { "testCase": "test_lldp", "status": "PASSED" },
+                          { "testCase": "test_optics", "status": "FAILED", "message": "{\\"errors_object\\":[]}" },
+                          { "testCase": "test_power", "status": "PASSED" }
+                        ]
                       }
                     }
                   }
@@ -476,94 +471,53 @@ class NcpJobResultProcessorTest {
                 """;
 
         NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
 
-        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devORaw");
+        assertNotNull(perDev);
+        List<Map<String, String>> optics = perDev.get("Optic Errors");
+        assertNotNull(optics, "Optic Errors key should exist");
+        assertEquals(0, optics.size(), "Optic list should be empty when errors_object is empty");
 
-        // Build final results with rack fallback (for PSU-only entries)
-        List<ValidationFailureResult> results = p.buildValidationFailureResults("serial", "RU");
-        // Expect two entries: one for origin device d:p (LLDP/Optics), another PSU-only for deviceX
-        assertTrue(results.size() >= 2);
-
-        ValidationFailureResult origin =
-                results.stream()
-                        .filter(
-                                r ->
-                                        Objects.equals(r.getLinkSource().getDeviceAName(), "d")
-                                                && Objects.equals(
-                                                        r.getLinkSource().getDeviceAPort(), "p"))
-                        .findFirst()
-                        .orElse(null);
-        assertNotNull(origin);
-        assertEquals(LldpStatus.MISMATCH, origin.getLldpStatus());
-        assertEquals(LinkStatus.DOWN, origin.getLinkStatus());
-        assertEquals("-5", origin.getRxPower());
-        assertEquals("1", origin.getTxPower());
-        assertEquals("d2", origin.getDeviceBName());
-        assertEquals("p2", origin.getDeviceBPort());
-        assertEquals("d3", origin.getDeviceBNameExpected());
-        assertEquals("p3", origin.getDeviceBPortExpected());
-
-        ValidationFailureResult psuOnly =
-                results.stream()
-                        .filter(r -> Objects.equals(r.getLinkSource().getDeviceAName(), "deviceX"))
-                        .findFirst()
-                        .orElse(null);
-        assertNotNull(psuOnly);
-        assertNotNull(psuOnly.getPsuFailure());
-        // Since LLDP failed on deviceX, PSU entry should be UNTESTED
-        assertEquals(LldpStatus.UNTESTED, psuOnly.getLldpStatus());
-        assertEquals(
-                "RU", psuOnly.getDeviceARack()); // set via buildValidationFailureResults fallback
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.OpticError), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
     }
 
     @Test
-    void testBuildValidationFailureResults_setsRackUnitIfMissing_andPreservesIfPresent() {
-        NcpJobResultProcessor p = newProcessorWithJson("{}");
+    void processJobResult_onlyPowerFailure_emitsPsuOnly_and_recordsPowerError() {
+        String json =
+                """
+                {
+                  "testResults": {
+                    "devP": {
+                      "healthCheckReport": {
+                        "testCases": [
+                          { "testCase": "test_lldp", "status": "PASSED" },
+                          { "testCase": "test_optics", "status": "PASSED" },
+                          { "testCase": "test_power", "status": "FAILED" }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """;
 
-        // Entry 1: missing deviceARack (PSU only)
-        NcpJobResultProcessor.DevicePortInfo info1 =
-                new NcpJobResultProcessor.DevicePortInfo("dev1", "Unknown", "Unknown");
-        ValidationFailureResult.Builder b1 =
-                ValidationFailureResult.builder()
-                        .psuFailure("Power supply failure detected")
-                        .linkSource(
-                                ValidationFailureResult.LinkSource.builder()
-                                        .deviceAName("dev1")
-                                        .deviceAPort("UNKNOWN")
-                                        .build())
-                        .linkStatus(LinkStatus.DOWN);
-        p.getResultBuilder().put(info1, b1);
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
 
-        // Entry 2: already has deviceARack set
-        NcpJobResultProcessor.DevicePortInfo info2 =
-                new NcpJobResultProcessor.DevicePortInfo("dev2", "Eth1/1", "y:unit2");
-        ValidationFailureResult.Builder b2 =
-                ValidationFailureResult.builder()
-                        .deviceARack("y:unit2")
-                        .linkSource(
-                                ValidationFailureResult.LinkSource.builder()
-                                        .deviceAName("dev2")
-                                        .deviceAPort("Eth1/1")
-                                        .build())
-                        .linkStatus(LinkStatus.DOWN);
-        p.getResultBuilder().put(info2, b2);
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devP");
+        assertNotNull(perDev);
+        List<Map<String, String>> power = perDev.get("Power Errors");
+        assertNotNull(power);
+        assertEquals(1, power.size());
+        assertEquals("devP", power.get(0).get("Device A Name"));
 
-        List<ValidationFailureResult> results =
-                p.buildValidationFailureResults("serial", "RU-FALLBACK");
-        assertEquals(2, results.size());
-
-        ValidationFailureResult r1 =
-                results.stream()
-                        .filter(r -> r.getLinkSource().getDeviceAName().equals("dev1"))
-                        .findFirst()
-                        .orElseThrow();
-        ValidationFailureResult r2 =
-                results.stream()
-                        .filter(r -> r.getLinkSource().getDeviceAName().equals("dev2"))
-                        .findFirst()
-                        .orElseThrow();
-
-        assertEquals("RU-FALLBACK", r1.getDeviceARack());
-        assertEquals("y:unit2", r2.getDeviceARack());
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.PsuError), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.LldpError), anyDouble());
+        verify(metricsScope, never())
+                .emit(eq(MetricNames.ProcessNcpResult.OpticError), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
     }
 }

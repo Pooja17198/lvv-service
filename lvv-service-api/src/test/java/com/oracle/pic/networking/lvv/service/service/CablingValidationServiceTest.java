@@ -1,6 +1,7 @@
 package com.oracle.pic.networking.lvv.service.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -15,7 +16,7 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.lang.reflect.Field;
@@ -32,11 +33,7 @@ class CablingValidationServiceTest {
 
     @Mock private NcpClientHelper ncpClientHelper;
     @Mock private JiraSDService jiraSDService;
-
-    @Mock
-    private com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao
-            validationFailureResultDao;
-
+    @Mock private ValidationFailureResultDao validationFailureResultDao;
     @Mock private NcpJobDetailsDao ncpJobDetailsDao;
     @Mock private MetricsScope metricsScope;
 
@@ -56,15 +53,32 @@ class CablingValidationServiceTest {
     // ========== validateCablingTasks ==========
 
     @Test
-    void validateCablingTasks_withNonEmptyDevices_usesHealthCheckPayload_andPersistsJobs() {
-        String region = "reg";
-        String building = "bld";
+    void validateCablingTasks_withNonEmptyDevices_filtersInProgress_andCreatesHealthCheck() {
+        String region = "reg1";
+        String building = "bld1";
         String rackSerial = "RSN-1";
         String rackUnit = "RU-42";
         List<String> devices = List.of("dev1", "dev2");
 
+        // dev1 is IN_PROGRESS -> should be filtered; dev2 is COMPLETED -> should remain
+        NcpJobDetails j1 =
+                NcpJobDetails.builder()
+                        .rackSerial(rackSerial)
+                        .deviceName("dev1")
+                        .jobId("jid-1")
+                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .build();
+        NcpJobDetails j2 =
+                NcpJobDetails.builder()
+                        .rackSerial(rackSerial)
+                        .deviceName("dev2")
+                        .jobId("jid-2")
+                        .jobStatus(JobStatus.COMPLETED)
+                        .build();
+        when(ncpJobDetailsDao.getNcpJobDetails("dev1")).thenReturn(j1);
+        when(ncpJobDetailsDao.getNcpJobDetails("dev2")).thenReturn(j2);
+
         HashMap<String, String> jobs = new HashMap<>();
-        jobs.put("dev1", "job-1");
         jobs.put("dev2", "job-2");
 
         ArgumentCaptor<String> jobTypeCap = ArgumentCaptor.forClass(String.class);
@@ -83,38 +97,21 @@ class CablingValidationServiceTest {
                         regionCap.capture()))
                 .thenReturn(jobs);
 
-        // DAO returns device names
-        NcpJobDetails j1 =
-                NcpJobDetails.builder()
-                        .rackSerial(rackSerial)
-                        .deviceName("dev1")
-                        .jobId(null)
-                        .jobStatus(JobStatus.IN_PROGRESS)
-                        .build();
-        NcpJobDetails j2 =
-                NcpJobDetails.builder()
-                        .rackSerial(rackSerial)
-                        .deviceName("dev2")
-                        .jobId(null)
-                        .jobStatus(JobStatus.COMPLETED)
-                        .build();
-        when(ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of(j1, j2));
-        when(ncpJobDetailsDao.getNcpJobDetails("dev1")).thenReturn(j1);
-        when(ncpJobDetailsDao.getNcpJobDetails("dev2")).thenReturn(j2);
-
         service.validateCablingTasks(region, building, rackSerial, rackUnit, devices, metricsScope);
 
         // Verify job creation args
         assertEquals(JobType.HEALTH_CHECK, jobTypeCap.getValue());
         assertEquals(rackSerial, rackSerialCap.getValue());
         assertEquals(region, regionCap.getValue());
-        assertEquals(1, devicesCap.getValue().size());
-        assertEquals("dev2", devicesCap.getValue().get(0));
+        assertEquals(List.of("dev2"), devicesCap.getValue());
 
         String payload = payloadCap.getValue();
-        assertTrue(payload.contains("\"testSuites\""));
-        assertTrue(payload.contains("\"rackNumber\":\"" + rackUnit + "\""));
-        assertTrue(payload.contains("\"building\":\"" + building + "\""));
+        // Basic payload assertions
+        org.junit.jupiter.api.Assertions.assertTrue(payload.contains("\"testSuites\""));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"rackNumber\":\"" + rackUnit + "\""));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"building\":\"" + building + "\""));
 
         // Verify persistence of jobs
         verify(ncpJobDetailsDao).addUpdateNcpJobDetails(jobs, rackSerial, metricsScope);
@@ -128,31 +125,31 @@ class CablingValidationServiceTest {
 
     @Test
     void validateCablingTasks_withEmptyDevices_fetchesFromDao_thenUsesHealthCheck() {
-        String region = "reg";
-        String building = "bld";
+        String region = "reg2";
+        String building = "bld2";
         String rackSerial = "RSN-2";
         String rackUnit = "RU-7";
 
-        // DAO returns device names
         NcpJobDetails j1 =
                 NcpJobDetails.builder()
                         .rackSerial(rackSerial)
                         .deviceName("d1")
-                        .jobId(null)
-                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .jobId("jid-1")
+                        .jobStatus(JobStatus.COMPLETED)
                         .build();
         NcpJobDetails j2 =
                 NcpJobDetails.builder()
                         .rackSerial(rackSerial)
                         .deviceName("d2")
-                        .jobId(null)
-                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .jobId("jid-2")
+                        .jobStatus(JobStatus.IN_PROGRESS) // will be filtered out
                         .build();
         when(ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of(j1, j2));
+        when(ncpJobDetailsDao.getNcpJobDetails("d1")).thenReturn(j1);
+        when(ncpJobDetailsDao.getNcpJobDetails("d2")).thenReturn(j2);
 
         HashMap<String, String> jobs = new HashMap<>();
         jobs.put("d1", "job-a");
-        jobs.put("d2", "job-b");
 
         ArgumentCaptor<String> jobTypeCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<List<String>> devicesCap = ArgumentCaptor.forClass(List.class);
@@ -171,27 +168,29 @@ class CablingValidationServiceTest {
                 region, building, rackSerial, rackUnit, new ArrayList<>(), metricsScope);
 
         assertEquals(JobType.HEALTH_CHECK, jobTypeCap.getValue());
-        assertEquals(List.of("d1", "d2"), devicesCap.getValue());
+        // After filtering, only d1 remains
+        assertEquals(List.of("d1"), devicesCap.getValue());
 
         String payload = payloadCap.getValue();
-        assertTrue(payload.contains("\"testSuites\""));
-        assertTrue(payload.contains("\"rackNumber\":\"" + rackUnit + "\""));
-        assertTrue(payload.contains("\"building\":\"" + building + "\""));
+        org.junit.jupiter.api.Assertions.assertTrue(payload.contains("\"testSuites\""));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"rackNumber\":\"" + rackUnit + "\""));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"building\":\"" + building + "\""));
 
         verify(ncpJobDetailsDao).addUpdateNcpJobDetails(jobs, rackSerial, metricsScope);
     }
 
     @Test
     void validateCablingTasks_withEmptyDevicesAndDaoEmpty_usesPerRackPayload_dryRunTrue() {
-        String region = "reg";
-        String building = "bld";
+        String region = "reg3";
+        String building = "bld3";
         String rackSerial = "RSN-3";
         String rackUnit = "RU-9";
 
         when(ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of());
 
         HashMap<String, String> jobs = new HashMap<>();
-        // For per-rack job, key is rack serial usually
         jobs.put(rackSerial, "job-per-rack");
 
         ArgumentCaptor<String> jobTypeCap = ArgumentCaptor.forClass(String.class);
@@ -213,22 +212,82 @@ class CablingValidationServiceTest {
         assertEquals(JobType.PER_RACK_VALIDATION_JOB, jobTypeCap.getValue());
 
         String payload = payloadCap.getValue();
-        assertTrue(payload.contains("\"rack_number\":\"" + rackUnit + "\""));
-        assertTrue(payload.contains("\"building\":\"" + building + "\""));
-        assertTrue(payload.contains("\"dry_run\":true"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"rack_number\":\"" + rackUnit + "\""));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                payload.contains("\"building\":\"" + building + "\""));
+        org.junit.jupiter.api.Assertions.assertTrue(payload.contains("\"dry_run\":true"));
 
-        assertTrue(devicesCap.getValue().isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(devicesCap.getValue().isEmpty());
 
         verify(ncpJobDetailsDao).addUpdateNcpJobDetails(jobs, rackSerial, metricsScope);
     }
 
     @Test
+    void validateCablingTasks_perRackJobAlreadyInProgress_skipsCreateJobs() {
+        String region = "reg4";
+        String building = "bld4";
+        String rackSerial = "RSN-4";
+        String rackUnit = "RU-10";
+
+        // No devices provided and none in DAO -> PER_RACK job type
+        when(ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of());
+
+        // Existing rack-level job is IN_PROGRESS -> should early return
+        NcpJobDetails rackJob =
+                NcpJobDetails.builder()
+                        .rackSerial(rackSerial)
+                        .deviceName(rackSerial) // keyed by rack serial for rack-level job
+                        .jobId("jid-rack")
+                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .build();
+        when(ncpJobDetailsDao.getNcpJobDetails(rackSerial)).thenReturn(rackJob);
+
+        service.validateCablingTasks(
+                region, building, rackSerial, rackUnit, List.of(), metricsScope);
+
+        verify(ncpClientHelper, never()).createJobs(any(), any(), any(), anyList(), any(), any());
+        verify(ncpJobDetailsDao, never()).addUpdateNcpJobDetails(any(), anyString(), any());
+    }
+
+    @Test
+    void validateCablingTasks_allDevicesFilteredByInProgress_skipsCreateJobs() {
+        String region = "reg5";
+        String building = "bld5";
+        String rackSerial = "RSN-5";
+        String rackUnit = "RU-11";
+
+        List<String> devices = List.of("d1", "d2");
+        NcpJobDetails d1 =
+                NcpJobDetails.builder()
+                        .rackSerial(rackSerial)
+                        .deviceName("d1")
+                        .jobId("jid-1")
+                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .build();
+        NcpJobDetails d2 =
+                NcpJobDetails.builder()
+                        .rackSerial(rackSerial)
+                        .deviceName("d2")
+                        .jobId("jid-2")
+                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .build();
+        when(ncpJobDetailsDao.getNcpJobDetails("d1")).thenReturn(d1);
+        when(ncpJobDetailsDao.getNcpJobDetails("d2")).thenReturn(d2);
+
+        service.validateCablingTasks(region, building, rackSerial, rackUnit, devices, metricsScope);
+
+        verify(ncpClientHelper, never()).createJobs(any(), any(), any(), anyList(), any(), any());
+        verify(ncpJobDetailsDao, never()).addUpdateNcpJobDetails(any(), anyString(), any());
+    }
+
+    @Test
     void validateCablingTasks_onJsonError_throwsRenderableException_InternalError()
             throws Exception {
-        String region = "reg";
-        String building = "bld";
-        String rackSerial = "RSN-4";
-        String rackUnit = "RU-11";
+        String region = "reg6";
+        String building = "bld6";
+        String rackSerial = "RSN-6";
+        String rackUnit = "RU-12";
         List<String> devices = List.of("d1");
 
         // Swap out the internal ObjectMapper to force a JsonProcessingException
@@ -293,21 +352,19 @@ class CablingValidationServiceTest {
                         .jobStatus(JobStatus.IN_PROGRESS)
                         .build();
 
-        // First getNcpJobDetails returns curr; after processing results, guard check calls it
-        // again.
         when(ncpJobDetailsDao.getNcpJobDetails(device))
-                .thenReturn(curr) // top-level retrieval
+                .thenReturn(curr) // initial
                 .thenReturn(
                         NcpJobDetails.builder()
                                 .rackSerial("RSN")
                                 .deviceName(device)
                                 .jobId("jid-123")
-                                .jobStatus(
-                                        JobStatus.IN_PROGRESS) // not DEVICE_UNREACHABLE -> should
-                                // mark COMPLETED
+                                .jobStatus(JobStatus.IN_PROGRESS) // not DEVICE_UNREACHABLE
                                 .build());
 
-        List<ValidationFailureResult> output = List.of();
+        // Build output structure matching service expectations
+        Map<String, Map<String, List<Map<String, String>>>> output = new HashMap<>();
+        output.put(device, Map.of("test", List.of(Map.of("k", "v"))));
         when(ncpClientHelper.getNcpJobOutput("jid-123", "reg", "RSN", "RU")).thenReturn(output);
 
         MetricsScope addResultsScope = mock(MetricsScope.class);
@@ -324,10 +381,10 @@ class CablingValidationServiceTest {
             service.updateValidationJobStatus(status, "RSN", "reg", "RU", false, metricsScope);
 
             verify(validationFailureResultDao)
-                    .addUpdateValidationFailureResultsForDevices(output, addResultsScope, "reg");
+                    .addUpdateValidationFailureResultsForDevices(
+                            eq("RSN"), eq(output), eq(addResultsScope));
             verify(metricsScope).recordSuccess();
 
-            // After guard, should mark as COMPLETED
             ArgumentCaptor<NcpJobDetails> updated = ArgumentCaptor.forClass(NcpJobDetails.class);
             verify(ncpJobDetailsDao).updateNcpJobDetails(updated.capture());
             assertEquals(JobStatus.COMPLETED, updated.getValue().getJobStatus());
@@ -354,10 +411,12 @@ class CablingValidationServiceTest {
                                 .rackSerial("RSN")
                                 .deviceName(device)
                                 .jobId("jid-999")
-                                .jobStatus(JobStatus.DEVICE_UNREACHABLE) // guard prevents overwrite
+                                .jobStatus(JobStatus.DEVICE_UNREACHABLE)
                                 .build());
 
-        when(ncpClientHelper.getNcpJobOutput("jid-999", "reg", "RSN", "RU")).thenReturn(List.of());
+        Map<String, Map<String, List<Map<String, String>>>> output = new HashMap<>();
+        output.put(device, Map.of());
+        when(ncpClientHelper.getNcpJobOutput("jid-999", "reg", "RSN", "RU")).thenReturn(output);
 
         MetricsScope addResultsScope = mock(MetricsScope.class);
         try (MockedStatic<MetricsScope> metricsScopeMocked =
@@ -372,13 +431,10 @@ class CablingValidationServiceTest {
 
             service.updateValidationJobStatus(status, "RSN", "reg", "RU", false, metricsScope);
 
-            // Results were updated
             verify(validationFailureResultDao)
                     .addUpdateValidationFailureResultsForDevices(
-                            anyList(), eq(addResultsScope), eq("reg"));
-            verify(metricsScope).recordSuccess();
-
-            // But final status wasn't overwritten to COMPLETED
+                            eq("RSN"), eq(output), eq(addResultsScope));
+            // Final status shouldn't be overwritten to COMPLETED
             verify(ncpJobDetailsDao, never())
                     .updateNcpJobDetails(argThat(n -> n.getJobStatus() == JobStatus.COMPLETED));
         }
@@ -450,17 +506,14 @@ class CablingValidationServiceTest {
     // ========== getValidationJobStatus ==========
 
     @Test
-    void getValidationJobStatus_fetchesAndReturnsMap_fromDao() {
+    void getValidationJobStatus_fetchesAndReturnsMap_fromDao_andCallsUpdate() {
         String region = "reg";
         String rackSerial = "RSN-10";
         String rackUnit = "RU-55";
 
-        // ncpClientHelper returns some raw status (it will be passed into
-        // updateValidationJobStatus)
         when(ncpClientHelper.fetchJobStatus(rackSerial, region))
                 .thenReturn(Map.of("dev1", JobStatus.IN_PROGRESS));
 
-        // Provide current job details for device to avoid null during updateValidationJobStatus
         when(ncpJobDetailsDao.getNcpJobDetails("dev1"))
                 .thenReturn(
                         NcpJobDetails.builder()
@@ -470,7 +523,6 @@ class CablingValidationServiceTest {
                                 .jobStatus(JobStatus.IN_PROGRESS)
                                 .build());
 
-        // Return final statuses from DAO for response mapping
         NcpJobDetails d1 =
                 NcpJobDetails.builder()
                         .rackSerial(rackSerial)
@@ -487,7 +539,6 @@ class CablingValidationServiceTest {
                         .build();
         when(ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of(d1, d2));
 
-        // Use a spy to assert updateValidationJobStatus is invoked with the right arguments
         CablingValidationService spyService =
                 Mockito.spy(
                         new CablingValidationService(
@@ -513,5 +564,22 @@ class CablingValidationServiceTest {
                         eq(rackUnit),
                         eq(false),
                         eq(metricsScope));
+    }
+
+    // ========== getValidationFailuresByRack ==========
+
+    @Test
+    void getValidationFailuresByRack_wrapsDaoResult() {
+        String rackSerial = "RSN-20";
+        Map<String, Object> daoResult = Map.of("devX", Map.of("k", "v"));
+
+        when(validationFailureResultDao.getValidationFailuresByRack(rackSerial))
+                .thenReturn(daoResult);
+
+        Object resultObj = service.getValidationFailuresByRack(rackSerial);
+        assertEquals(
+                Map.of(rackSerial, daoResult),
+                resultObj,
+                "Service should wrap DAO result under rackSerial key");
     }
 }

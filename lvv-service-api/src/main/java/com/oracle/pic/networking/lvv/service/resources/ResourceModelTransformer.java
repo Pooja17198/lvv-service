@@ -1,7 +1,5 @@
 package com.oracle.pic.networking.lvv.service.resources;
 
-import static com.oracle.pic.networking.lvv.service.resources.ResourceUtils.changeColonToHyphenInRackInfo;
-
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.oracle.pic.commons.util.Region;
@@ -11,13 +9,11 @@ import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.Rack;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.ProjectRack;
 import com.oracle.pic.networking.lvv.service.model.RegionObject;
-import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,27 +52,6 @@ public class ResourceModelTransformer {
                 .blocks(blocks)
                 .building(building)
                 .region(region)
-                .build();
-    }
-
-    public ValidationFailureDisplayDTO toModel(
-            ValidationFailureResult result, boolean csvFriendly) {
-        return ValidationFailureDisplayDTO.builder()
-                .rackSerial(result.getRackSerial())
-                .deviceARack(changeColonToHyphenInRackInfo(result.getDeviceARack(), csvFriendly))
-                .deviceAName(result.getLinkSource().getDeviceAName())
-                .deviceAPort(result.getLinkSource().getDeviceAPort())
-                .deviceBRack(changeColonToHyphenInRackInfo(result.getDeviceBRack(), csvFriendly))
-                .deviceBName(result.getDeviceBName())
-                .deviceBPort(result.getDeviceBPort())
-                .txPower(result.getTxPower())
-                .rxPower(result.getRxPower())
-                .lldpStatus(result.getLldpStatus().name())
-                .deviceBRackExpected(
-                        changeColonToHyphenInRackInfo(result.getDeviceBRackExpected(), csvFriendly))
-                .deviceBNameExpected(result.getDeviceBNameExpected())
-                .deviceBPortExpected(result.getDeviceBPortExpected())
-                .psuFailure(result.getPsuFailure())
                 .build();
     }
 

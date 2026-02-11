@@ -11,7 +11,6 @@ import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import com.oracle.pic.networking.lvv.service.utils.RetryHelper;
@@ -83,7 +82,7 @@ public class NcpClientHelper {
     private BiFunction<InputStream, NcpJobDetailsDao, NcpJobResultProcessor>
             jobResultProcessorFactory = NcpJobResultProcessor::new;
 
-    public List<ValidationFailureResult> getNcpJobOutput(
+    public Map<String, Map<String, List<Map<String, String>>>> getNcpJobOutput(
             String jobId, String region, String rackSerialNumber, String rackUnit) {
 
         try (MetricsScope scope =
@@ -104,7 +103,7 @@ public class NcpClientHelper {
 
             jobResultProcessor.processJobResult(scope);
             scope.recordSuccess();
-            return jobResultProcessor.buildValidationFailureResults(rackSerialNumber, rackUnit);
+            return jobResultProcessor.getDeviceResults();
         }
     }
 

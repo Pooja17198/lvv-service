@@ -12,12 +12,25 @@ import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
+import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 import com.oracle.pic.networking.lvv.service.utils.RetryHelper;
-import com.oracle.pic.networking.ncp.*;
-import com.oracle.pic.networking.ncp.model.*;
-import com.oracle.pic.networking.ncp.requests.*;
-import com.oracle.pic.networking.ncp.responses.*;
+import com.oracle.pic.networking.ncp.JobProgressClient;
+import com.oracle.pic.networking.ncp.JobResultsClient;
+import com.oracle.pic.networking.ncp.JobsClient;
+import com.oracle.pic.networking.ncp.model.Job;
+import com.oracle.pic.networking.ncp.model.JobRequest;
+import com.oracle.pic.networking.ncp.model.UnitProgress;
+import com.oracle.pic.networking.ncp.model.UnitProgressStatus;
+import com.oracle.pic.networking.ncp.requests.CreateJobRequest;
+import com.oracle.pic.networking.ncp.requests.GetJobRequest;
+import com.oracle.pic.networking.ncp.requests.GetJobResultRequest;
+import com.oracle.pic.networking.ncp.requests.ListJobUnitProgressRequest;
+import com.oracle.pic.networking.ncp.requests.ListJobUnitsRequest;
+import com.oracle.pic.networking.ncp.responses.CreateJobResponse;
+import com.oracle.pic.networking.ncp.responses.GetJobResponse;
+import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
+import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
+import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -53,7 +66,8 @@ class NcpClientHelperTest {
         when(mockJobResultResp.getInputStream()).thenReturn(resultInputStream);
         when(mockClientSetup.getNcpJobResultsClient(mockConfig, region))
                 .thenReturn(mockJobResultsClient);
-        when(mockJobResultsClient.getJobResult(any())).thenReturn(mockJobResultResp);
+        when(mockJobResultsClient.getJobResult(any(GetJobResultRequest.class)))
+                .thenReturn(mockJobResultResp);
     }
 
     @BeforeEach
@@ -72,15 +86,19 @@ class NcpClientHelperTest {
         stubJobResultsClient(region, resultInputStream);
 
         NcpJobResultProcessor mockResultProcessor = mock(NcpJobResultProcessor.class);
-        doNothing().when(mockResultProcessor).processJobResult(any());
-        when(mockResultProcessor.buildValidationFailureResults(rackSerial, rackUnit))
-                .thenReturn(List.of());
+        doNothing().when(mockResultProcessor).processJobResult(any(MetricsScope.class));
+
+        Map<String, Map<String, List<Map<String, String>>>> expected = new HashMap<>();
+        expected.put("dev1", new HashMap<>());
+        when(mockResultProcessor.getDeviceResults()).thenReturn(expected);
 
         helper.setJobResultProcessorFactory((is, dao) -> mockResultProcessor);
 
-        List<ValidationFailureResult> results =
+        Map<String, Map<String, List<Map<String, String>>>> results =
                 helper.getNcpJobOutput(jobId, region, rackSerial, rackUnit);
-        assertNotNull(results);
+
+        assertEquals(expected, results);
+        verify(mockResultProcessor, times(1)).processJobResult(any(MetricsScope.class));
     }
 
     @Test
@@ -96,7 +114,7 @@ class NcpClientHelperTest {
         NcpJobResultProcessor mockResultProcessor = mock(NcpJobResultProcessor.class);
         doThrow(new RuntimeException("processing fails"))
                 .when(mockResultProcessor)
-                .processJobResult(any());
+                .processJobResult(any(MetricsScope.class));
 
         helper.setJobResultProcessorFactory((is, dao) -> mockResultProcessor);
         assertThrows(
@@ -112,7 +130,7 @@ class NcpClientHelperTest {
         String rackUnit = "RU1";
         when(mockClientSetup.getNcpJobResultsClient(mockConfig, region))
                 .thenReturn(mockJobResultsClient);
-        when(mockJobResultsClient.getJobResult(any()))
+        when(mockJobResultsClient.getJobResult(any(GetJobResultRequest.class)))
                 .thenThrow(new RuntimeException("client error"));
         helper.setJobResultProcessorFactory((is, dao) -> mock(NcpJobResultProcessor.class));
         assertThrows(
@@ -144,11 +162,29 @@ class NcpClientHelperTest {
 
             Map<String, String> jobList =
                     helper.createJobs(
-                            "HEALTH_CHECK", "RSN1", payload, deviceNames, mockScope, region);
+                            JobType.HEALTH_CHECK, "RSN1", payload, deviceNames, mockScope, region);
 
             assertNotNull(jobList);
             assertEquals(numDevices, jobList.size());
         }
+    }
+
+    @Test
+    void testCreateJobs_healthCheck_emptyDeviceList_returnsEmpty() throws Exception {
+        String payload = "{}";
+        String region = "us-phx";
+        MetricsScope mockScope = mock(MetricsScope.class);
+
+        when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
+
+        // No RetryHelper should be invoked, and no createJob call should be made
+        Map<String, String> jobList =
+                helper.createJobs(
+                        JobType.HEALTH_CHECK, "RSN1", payload, List.of(), mockScope, region);
+
+        assertNotNull(jobList);
+        assertTrue(jobList.isEmpty());
+        verify(mockJobsClient, never()).createJob(any(CreateJobRequest.class));
     }
 
     @Test
@@ -173,7 +209,7 @@ class NcpClientHelperTest {
 
             Map<String, String> jobList =
                     helper.createJobs(
-                            "PER_RACK_VALIDATION_JOB",
+                            JobType.PER_RACK_VALIDATION_JOB,
                             "RSN1",
                             payload,
                             List.of(),
@@ -206,7 +242,7 @@ class NcpClientHelperTest {
                             RenderableException.class,
                             () ->
                                     helper.createJobs(
-                                            "PER_RACK_VALIDATION_JOB",
+                                            JobType.PER_RACK_VALIDATION_JOB,
                                             "RSN1",
                                             payload,
                                             List.of(),
@@ -219,25 +255,26 @@ class NcpClientHelperTest {
     }
 
     @Test
-    void testFetchJobStatus_allStates() {
+    void testFetchJobStatus_allStates_failed() {
         String rackSerial = "RSN1";
         String region = "us-phx";
         NcpJobDetails inProgressDetail = mock(NcpJobDetails.class);
         when(inProgressDetail.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
         when(inProgressDetail.getDeviceName()).thenReturn("DeviceA");
+        when(inProgressDetail.getJobId()).thenReturn("j1");
 
         List<NcpJobDetails> jobDetails = List.of(inProgressDetail);
 
         when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(jobDetails);
 
         JobRequest jobRequest = mock(JobRequest.class);
-        when(jobRequest.getJobType()).thenReturn("HEALTH_CHECK");
+        when(jobRequest.getJobType()).thenReturn(JobType.HEALTH_CHECK);
         Job mockJob = mock(Job.class);
         when(mockJob.getRequest()).thenReturn(jobRequest);
         when(mockJob.getState()).thenReturn(Job.State.Failed);
 
         when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
-        when(mockJobsClient.getJob(any()))
+        when(mockJobsClient.getJob(any(GetJobRequest.class)))
                 .thenReturn(GetJobResponse.builder().job(mockJob).build());
 
         Map<String, JobStatus> jobStatusMap = helper.fetchJobStatus(rackSerial, region);
@@ -246,27 +283,64 @@ class NcpClientHelperTest {
     }
 
     @Test
+    void testFetchJobStatus_healthCheck_pending_and_succeeded() {
+        String rackSerial = "RSN2";
+        String region = "us-phx";
+
+        NcpJobDetails detailPending = mock(NcpJobDetails.class);
+        when(detailPending.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
+        when(detailPending.getJobId()).thenReturn("jobPending");
+        when(detailPending.getDeviceName()).thenReturn("DevP");
+
+        NcpJobDetails detailSucceeded = mock(NcpJobDetails.class);
+        when(detailSucceeded.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
+        when(detailSucceeded.getJobId()).thenReturn("jobSuccess");
+        when(detailSucceeded.getDeviceName()).thenReturn("DevS");
+
+        when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial))
+                .thenReturn(List.of(detailPending, detailSucceeded));
+
+        when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
+
+        JobRequest jobRequest = mock(JobRequest.class);
+        when(jobRequest.getJobType()).thenReturn(JobType.HEALTH_CHECK);
+
+        Job jobPending = mock(Job.class);
+        when(jobPending.getRequest()).thenReturn(jobRequest);
+        when(jobPending.getState()).thenReturn(Job.State.Pending);
+
+        Job jobSucceeded = mock(Job.class);
+        when(jobSucceeded.getRequest()).thenReturn(jobRequest);
+        when(jobSucceeded.getState()).thenReturn(Job.State.Succeeded);
+
+        // First call for jobPending, second for jobSuccess
+        when(mockJobsClient.getJob(any(GetJobRequest.class)))
+                .thenReturn(GetJobResponse.builder().job(jobPending).build())
+                .thenReturn(GetJobResponse.builder().job(jobSucceeded).build());
+
+        Map<String, JobStatus> status = helper.fetchJobStatus(rackSerial, region);
+        assertEquals(JobStatus.IN_PROGRESS, status.get("DevP"));
+        assertEquals(JobStatus.COMPLETED, status.get("DevS"));
+    }
+
+    @Test
     void testFetchJobStatus_perRackValidation_triggersHealthCheck() {
-        // Setup
         String rackSerial = "RSN1";
         String region = "us-phx";
 
-        // Mocked job details for the device (IN_PROGRESS state, jobId 'prvJob')
         NcpJobDetails inProgressDetail = mock(NcpJobDetails.class);
         when(inProgressDetail.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
         when(inProgressDetail.getDeviceName()).thenReturn("DeviceA");
         when(inProgressDetail.getJobId()).thenReturn("prvJob");
         List<NcpJobDetails> jobDetails = List.of(inProgressDetail);
 
-        // Use class-level mocks
         when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(jobDetails);
         when(mockClientSetup.getNcpClient(any(), eq(region))).thenReturn(mockJobsClient);
         when(mockClientSetup.getNcpJobProgressClient(any(), eq(region)))
                 .thenReturn(mockJobProgressClient);
 
-        // Mock getJob to return a PER_RACK_VALIDATION_JOB in Succeeded state
         JobRequest jobRequest = mock(JobRequest.class);
-        when(jobRequest.getJobType()).thenReturn("PER_RACK_VALIDATION_JOB");
+        when(jobRequest.getJobType()).thenReturn(JobType.PER_RACK_VALIDATION_JOB);
 
         Job mockJob = mock(Job.class);
         when(mockJob.getRequest()).thenReturn(jobRequest);
@@ -275,19 +349,17 @@ class NcpClientHelperTest {
         when(mockJobsClient.getJob(any(GetJobRequest.class)))
                 .thenReturn(GetJobResponse.builder().job(mockJob).build());
 
-        // CRITICAL PART: Mock job units response to empty, so getValidationJobId() will return null
+        // No JobUnits - so getValidationJobId() returns null
         ListJobUnitsResponse jobUnitsResponse =
                 ListJobUnitsResponse.builder()
                         .items(Collections.emptyList())
-                        .opcNextPage(null) // No pagination
+                        .opcNextPage(null)
                         .build();
         when(mockJobProgressClient.listJobUnits(any(ListJobUnitsRequest.class)))
                 .thenReturn(jobUnitsResponse);
 
-        // Execute
         Map<String, JobStatus> jobStatusMap = helper.fetchJobStatus(rackSerial, region);
 
-        // Verify
         assertEquals(JobStatus.FAILED, jobStatusMap.get("DeviceA"));
     }
 
@@ -297,20 +369,17 @@ class NcpClientHelperTest {
         String rackSerial = "RSN1";
         String region = "us-phx";
 
-        // Mock details
         NcpJobDetails inProgressDetail = mock(NcpJobDetails.class);
         when(inProgressDetail.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
         when(inProgressDetail.getJobId()).thenReturn("prvJob");
         List<NcpJobDetails> jobDetails = List.of(inProgressDetail);
 
-        // Use class-level mocks
         when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(jobDetails);
 
-        // Mock JobsClient
         when(mockClientSetup.getNcpClient(eq(mockConfig), eq(region))).thenReturn(mockJobsClient);
 
         JobRequest jobRequest = mock(JobRequest.class);
-        when(jobRequest.getJobType()).thenReturn("PER_RACK_VALIDATION_JOB");
+        when(jobRequest.getJobType()).thenReturn(JobType.PER_RACK_VALIDATION_JOB);
 
         Job mockJob = mock(Job.class);
         when(mockJob.getRequest()).thenReturn(jobRequest);
@@ -319,13 +388,9 @@ class NcpClientHelperTest {
         when(mockJobsClient.getJob(any(GetJobRequest.class)))
                 .thenReturn(GetJobResponse.builder().job(mockJob).build());
 
-        // ====== Mocks for getValidationJobId ======
-
-        // Mock JobProgressClient for listJobUnits and listJobUnitProgress
         when(mockClientSetup.getNcpJobProgressClient(eq(mockConfig), eq(region)))
                 .thenReturn(mockJobProgressClient);
 
-        // 1. listJobUnits returns a StartValidation unit
         UnitProgress startValidationUnit = mock(UnitProgress.class);
         when(startValidationUnit.getUnitName()).thenReturn("StartValidation");
         ListJobUnitsResponse jobUnitsResponse =
@@ -336,14 +401,11 @@ class NcpClientHelperTest {
         when(mockJobProgressClient.listJobUnits(any(ListJobUnitsRequest.class)))
                 .thenReturn(jobUnitsResponse);
 
-        // 2. listJobUnitProgress returns a UnitProgressStatus with "Validation Started: ..."
-        // message
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode jobIdNode = objectMapper.createObjectNode();
         jobIdNode.put("validationJobId", "hJobId");
         String verboseMessage = "Validation Started: " + jobIdNode.toString();
 
-        // Use RETURNS_DEEP_STUBS to mock getMessage().getVerboseMessage()
         UnitProgressStatus status = mock(UnitProgressStatus.class, RETURNS_DEEP_STUBS);
         when(status.getUnitName()).thenReturn("StartValidation");
         when(status.getMessage().getVerboseMessage()).thenReturn(verboseMessage);
@@ -353,10 +415,8 @@ class NcpClientHelperTest {
         when(mockJobProgressClient.listJobUnitProgress(any(ListJobUnitProgressRequest.class)))
                 .thenReturn(unitProgressResponse);
 
-        // ====== Execute ======
         helper.fetchJobStatus(rackSerial, region);
 
-        // ====== Verify ======
         verify(mockNcpJobDetailsDao, times(1)).updateNcpJobDetails(inProgressDetail);
         verify(inProgressDetail, times(1)).setJobId("hJobId");
     }
@@ -389,16 +449,51 @@ class NcpClientHelperTest {
         when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(jobDetails);
 
         when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
-        when(mockJobsClient.getJob(any())).thenThrow(new RuntimeException("client error"));
+        when(mockJobsClient.getJob(any(GetJobRequest.class)))
+                .thenThrow(new RuntimeException("err"));
 
         assertThrows(RenderableException.class, () -> helper.fetchJobStatus(rackSerial, region));
     }
 
-    // Edge tests for getValidationJobId error branches (simulate JSON error, missing jobId,
-    // specific verboseMessage content)
+    @Test
+    void testFetchJobStatus_jobMemoization_singleGetCallForSameJob() {
+        String rackSerial = "RSN3";
+        String region = "us-phx";
+
+        NcpJobDetails d1 = mock(NcpJobDetails.class);
+        when(d1.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
+        when(d1.getJobId()).thenReturn("sameJob");
+        when(d1.getDeviceName()).thenReturn("Dev1");
+
+        NcpJobDetails d2 = mock(NcpJobDetails.class);
+        when(d2.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
+        when(d2.getJobId()).thenReturn("sameJob");
+        when(d2.getDeviceName()).thenReturn("Dev2");
+
+        when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(List.of(d1, d2));
+        when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
+
+        JobRequest jobRequest = mock(JobRequest.class);
+        when(jobRequest.getJobType()).thenReturn(JobType.HEALTH_CHECK);
+
+        Job jobPending = mock(Job.class);
+        when(jobPending.getRequest()).thenReturn(jobRequest);
+        when(jobPending.getState()).thenReturn(Job.State.Pending);
+
+        when(mockJobsClient.getJob(any(GetJobRequest.class)))
+                .thenReturn(GetJobResponse.builder().job(jobPending).build());
+
+        helper.fetchJobStatus(rackSerial, region);
+
+        // Should only call client once due to memoization
+        verify(mockJobsClient, times(1)).getJob(any(GetJobRequest.class));
+    }
+
+    // Edge tests for getValidationJobId error branches (simulate JSON error, missing jobId, etc.)
     @MockitoSettings(strictness = Strictness.LENIENT)
     @Test
-    void testGetValidationJobId_prefixParsingAndMissingJobId() throws Exception {
+    void testGetValidationJobId_prefixParsingAndMissingJobId_orMaintenancePrecheck()
+            throws Exception {
         String jobId = "prvJob";
         String region = "us-phx";
 
@@ -408,12 +503,10 @@ class NcpClientHelperTest {
         NcpJobDetailsDao mockDao = mock(NcpJobDetailsDao.class);
         NcpClientHelper localHelper = new NcpClientHelper(mockConfig, mockClientSetup, mockDao);
 
-        // Mocks for ProgressClient and RetryHelper flows
         JobProgressClient mockJobProgressClient = mock(JobProgressClient.class);
         when(mockClientSetup.getNcpJobProgressClient(eq(mockConfig), eq(region)))
                 .thenReturn(mockJobProgressClient);
 
-        // Setup unit progresses: StartValidation and PreChecks
         UnitProgress up1 = mock(UnitProgress.class);
         when(up1.getUnitName()).thenReturn("StartValidation");
         UnitProgress up2 = mock(UnitProgress.class);
@@ -424,7 +517,6 @@ class NcpClientHelperTest {
         when(listJobUnitsResponse.getItems()).thenReturn(unitProgresses);
         when(listJobUnitsResponse.getOpcNextPage()).thenReturn(null);
 
-        // PreChecks: with maintenance message (should trigger the specific RenderableException)
         UnitProgressStatus upsPrechecks = mock(UnitProgressStatus.class, RETURNS_DEEP_STUBS);
         when(upsPrechecks.getUnitName()).thenReturn("PreChecks");
         when(upsPrechecks.getMessage().getVerboseMessage())
@@ -435,7 +527,6 @@ class NcpClientHelperTest {
         ListJobUnitProgressResponse ljpr = mock(ListJobUnitProgressResponse.class);
         when(ljpr.getItems()).thenReturn(precheckStatus);
 
-        // Mocks for RetryHelper
         RetryHelper<ListJobUnitsResponse> unitRh = mock(RetryHelper.class);
         when(unitRh.run()).thenReturn(listJobUnitsResponse);
 
@@ -447,7 +538,6 @@ class NcpClientHelperTest {
                     .when(() -> RetryHelper.newRetryHelper(any(), anyInt(), any()))
                     .thenReturn(unitRh, unitProgRh);
 
-            // Private method reflectively called; Should throw on prechecks/maintenance
             Method m = privateMethod(localHelper, "getValidationJobId", String.class, String.class);
             InvocationTargetException thrown =
                     assertThrows(
@@ -466,7 +556,6 @@ class NcpClientHelperTest {
         String jobId = "prvJob";
         String region = "us-phx";
 
-        // Setup
         LvvServiceApiConfiguration mockConfig = mock(LvvServiceApiConfiguration.class);
         NcpClientSetup mockClientSetup = mock(NcpClientSetup.class);
         NcpJobDetailsDao mockDao = mock(NcpJobDetailsDao.class);
@@ -477,7 +566,6 @@ class NcpClientHelperTest {
         when(mockClientSetup.getNcpJobProgressClient(eq(mockConfig), eq(region)))
                 .thenReturn(mockJobProgressClient);
 
-        // StartValidation unit
         UnitProgress up1 = mock(UnitProgress.class);
         when(up1.getUnitName()).thenReturn("StartValidation");
         List<UnitProgress> unitProgresses = List.of(up1);
@@ -486,7 +574,6 @@ class NcpClientHelperTest {
         when(listJobUnitsResponse.getItems()).thenReturn(unitProgresses);
         when(listJobUnitsResponse.getOpcNextPage()).thenReturn(null);
 
-        // StartValidation status with malformed JSON message
         UnitProgressStatus upsStartValidation = mock(UnitProgressStatus.class, RETURNS_DEEP_STUBS);
         when(upsStartValidation.getUnitName()).thenReturn("StartValidation");
         when(upsStartValidation.getMessage().getVerboseMessage())
@@ -496,7 +583,6 @@ class NcpClientHelperTest {
         ListJobUnitProgressResponse ljpr = mock(ListJobUnitProgressResponse.class);
         when(ljpr.getItems()).thenReturn(statusList);
 
-        // Mocks for RetryHelper
         RetryHelper<ListJobUnitsResponse> unitRh = mock(RetryHelper.class);
         when(unitRh.run()).thenReturn(listJobUnitsResponse);
 
@@ -513,14 +599,45 @@ class NcpClientHelperTest {
                     assertThrows(
                             InvocationTargetException.class,
                             () -> m.invoke(localHelper, jobId, region));
-            // exception cause is RenderableException
             Throwable cause = ex.getCause();
             assertTrue(cause.getMessage().contains("Error while fetching validation job ID"));
         }
     }
 
-    // If allowed by test utils, test getTargetsForDevices (public for testability) with empty and
-    // filled device lists
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    @Test
+    void testGetValidationJobId_fetchUnitsFailure() throws Exception {
+        String jobId = "prvJob";
+        String region = "us-phx";
+
+        LvvServiceApiConfiguration mockConfig = mock(LvvServiceApiConfiguration.class);
+        NcpClientSetup mockClientSetup = mock(NcpClientSetup.class);
+        NcpJobDetailsDao mockDao = mock(NcpJobDetailsDao.class);
+
+        NcpClientHelper localHelper = new NcpClientHelper(mockConfig, mockClientSetup, mockDao);
+
+        JobProgressClient mockJobProgressClient = mock(JobProgressClient.class);
+        when(mockClientSetup.getNcpJobProgressClient(eq(mockConfig), eq(region)))
+                .thenReturn(mockJobProgressClient);
+
+        RetryHelper<ListJobUnitsResponse> unitRh = mock(RetryHelper.class);
+        when(unitRh.run()).thenThrow(new RuntimeException("fail units"));
+
+        try (MockedStatic<RetryHelper> mockedHelper = Mockito.mockStatic(RetryHelper.class)) {
+            mockedHelper
+                    .when(() -> RetryHelper.newRetryHelper(any(), anyInt(), any()))
+                    .thenReturn(unitRh);
+
+            Method m = privateMethod(localHelper, "getValidationJobId", String.class, String.class);
+            InvocationTargetException ex =
+                    assertThrows(
+                            InvocationTargetException.class,
+                            () -> m.invoke(localHelper, jobId, region));
+            Throwable cause = ex.getCause();
+            assertTrue(cause.getMessage().contains("Failed to fetch job units"));
+        }
+    }
+
     @Test
     void testGetTargetsForDevices() throws Exception {
         var localHelper = new NcpClientHelper(mockConfig, mockClientSetup, mockNcpJobDetailsDao);
@@ -529,7 +646,6 @@ class NcpClientHelperTest {
         var result = method1.invoke(localHelper, devices, "region1");
         assertNotNull(result);
         assertEquals(2, ((List<?>) result).size());
-        // Empty list returns one region type
         var method2 = privateMethod(localHelper, "getTargetsForDevices", List.class, String.class);
         var result2 = method2.invoke(localHelper, List.of(), "region2");
         assertNotNull(result2);

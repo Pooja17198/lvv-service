@@ -3,12 +3,8 @@ package com.oracle.pic.networking.lvv.service.resources;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
-import com.oracle.pic.networking.lvv.service.kiev.LldpStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult.LinkSource;
 import com.oracle.pic.networking.lvv.service.model.Project;
-import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -38,85 +34,44 @@ class ResourceModelTransformerTest {
         assertEquals("Alpha", result.getBuilding());
     }
 
-    @Test
-    void testToModelValidationFailureDisplayDTO() {
-        // Create the necessary nested mock data
-        LinkSource linkSource =
-                LinkSource.builder().deviceAName("devA").deviceAPort("portA").build();
-
-        ValidationFailureResult result =
-                ValidationFailureResult.builder()
-                        .rackSerial("RS1")
-                        .deviceARack("rackA")
-                        .linkSource(linkSource)
-                        .deviceBRack("rackB")
-                        .deviceBName("devB")
-                        .deviceBPort("portB")
-                        .txPower("1.2")
-                        .rxPower("2.3")
-                        .lldpStatus(LldpStatus.MISMATCH)
-                        .deviceBRackExpected("rackB-exp")
-                        .deviceBNameExpected("devB-exp")
-                        .deviceBPortExpected("portB-exp")
-                        .psuFailure("failure")
-                        .build();
-
-        ValidationFailureDisplayDTO dto = transformer.toModel(result, false);
-
-        assertEquals("RS1", dto.getRackSerial());
-        assertEquals("rackA", dto.getDeviceARack());
-        assertEquals("devA", dto.getDeviceAName());
-        assertEquals("portA", dto.getDeviceAPort());
-        assertEquals("rackB", dto.getDeviceBRack());
-        assertEquals("devB", dto.getDeviceBName());
-        assertEquals("portB", dto.getDeviceBPort());
-        assertEquals("1.2", dto.getTxPower());
-        assertEquals("2.3", dto.getRxPower());
-        assertEquals("MISMATCH", dto.getLldpStatus());
-        assertEquals("rackB-exp", dto.getDeviceBRackExpected());
-        assertEquals("devB-exp", dto.getDeviceBNameExpected());
-        assertEquals("portB-exp", dto.getDeviceBPortExpected());
-        assertEquals("failure", dto.getPsuFailure());
-    }
-
-    @Test
-    void testToModelCsvFriendlyValidationFailureDisplayDTO() {
-        // Create the necessary nested mock data
-        LinkSource linkSource =
-                LinkSource.builder().deviceAName("devA").deviceAPort("portA").build();
-
-        ValidationFailureResult result =
-                ValidationFailureResult.builder()
-                        .rackSerial("RS1")
-                        .deviceARack("rackA:A")
-                        .linkSource(linkSource)
-                        .deviceBRack("rackB:B")
-                        .deviceBName("devB")
-                        .deviceBPort("portB")
-                        .txPower("1.2")
-                        .rxPower("2.3")
-                        .lldpStatus(LldpStatus.MISMATCH)
-                        .deviceBRackExpected("rackB-exp:B")
-                        .deviceBNameExpected("devB-exp")
-                        .deviceBPortExpected("portB-exp")
-                        .psuFailure("failure")
-                        .build();
-
-        ValidationFailureDisplayDTO dto = transformer.toModel(result, true);
-
-        assertEquals("RS1", dto.getRackSerial());
-        assertEquals("rackA - A", dto.getDeviceARack());
-        assertEquals("devA", dto.getDeviceAName());
-        assertEquals("portA", dto.getDeviceAPort());
-        assertEquals("rackB - B", dto.getDeviceBRack());
-        assertEquals("devB", dto.getDeviceBName());
-        assertEquals("portB", dto.getDeviceBPort());
-        assertEquals("1.2", dto.getTxPower());
-        assertEquals("2.3", dto.getRxPower());
-        assertEquals("MISMATCH", dto.getLldpStatus());
-        assertEquals("rackB-exp - B", dto.getDeviceBRackExpected());
-        assertEquals("devB-exp", dto.getDeviceBNameExpected());
-        assertEquals("portB-exp", dto.getDeviceBPortExpected());
-        assertEquals("failure", dto.getPsuFailure());
-    }
+    //    @Test
+    //    void testToModelCsvFriendlyValidationFailureDisplayDTO() {
+    //        // Create the necessary nested mock data
+    //        LinkSource linkSource =
+    //                LinkSource.builder().deviceAName("devA").deviceAPort("portA").build();
+    //
+    //        ValidationFailureResult result =
+    //                ValidationFailureResult.builder()
+    //                        .rackSerial("RS1")
+    //                        .deviceARack("rackA:A")
+    //                        .linkSource(linkSource)
+    //                        .deviceBRack("rackB:B")
+    //                        .deviceBName("devB")
+    //                        .deviceBPort("portB")
+    //                        .txPower("1.2")
+    //                        .rxPower("2.3")
+    //                        .lldpStatus(LldpStatus.MISMATCH)
+    //                        .deviceBRackExpected("rackB-exp:B")
+    //                        .deviceBNameExpected("devB-exp")
+    //                        .deviceBPortExpected("portB-exp")
+    //                        .psuFailure("failure")
+    //                        .build();
+    //
+    //        ValidationFailureDisplayDTO dto = transformer.toModel(result, true);
+    //
+    //        assertEquals("RS1", dto.getRackSerial());
+    //        assertEquals("rackA - A", dto.getDeviceARack());
+    //        assertEquals("devA", dto.getDeviceAName());
+    //        assertEquals("portA", dto.getDeviceAPort());
+    //        assertEquals("rackB - B", dto.getDeviceBRack());
+    //        assertEquals("devB", dto.getDeviceBName());
+    //        assertEquals("portB", dto.getDeviceBPort());
+    //        assertEquals("1.2", dto.getTxPower());
+    //        assertEquals("2.3", dto.getRxPower());
+    //        assertEquals("MISMATCH", dto.getLldpStatus());
+    //        assertEquals("rackB-exp - B", dto.getDeviceBRackExpected());
+    //        assertEquals("devB-exp", dto.getDeviceBNameExpected());
+    //        assertEquals("portB-exp", dto.getDeviceBPortExpected());
+    //        assertEquals("failure", dto.getPsuFailure());
+    //    }
 }

@@ -10,21 +10,21 @@ import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
-import com.oracle.pic.networking.lvv.service.model.ValidationFailureDisplayDTO;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-@ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
+@ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CablingValidationResourceTest {
 
@@ -57,9 +57,8 @@ class CablingValidationResourceTest {
     void testValidateCables_success_invokesService_andRecordsSuccess() {
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
-            // Avoid overload ambiguity and allow chaining
+            // allow chaining
             doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
-            doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
             doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
             doReturn(metricsScope).when(metricsScope).recordSuccess();
 
@@ -86,11 +85,10 @@ class CablingValidationResourceTest {
     }
 
     @Test
-    void testValidateCables_throwsOnMissingParams_includingRegion_andEmitsMetric() {
+    void testValidateCables_throwsOnMissingParams_andEmitsMetric() {
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
             doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
-            doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
 
             // Blank building
             RenderableException ex1 =
@@ -156,7 +154,6 @@ class CablingValidationResourceTest {
                                             authorizationRequest));
             assertTrue(ex4.getMessage().contains("regionName"));
 
-            // MissingParameters metric emitted at least once
             verify(metricsScope, atLeastOnce())
                     .emit(eq(MetricNames.ValidateCables.MissingParameters.name()), eq(1.0));
         }
@@ -167,7 +164,6 @@ class CablingValidationResourceTest {
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
             doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
-            doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
 
             RenderableException ex =
                     assertThrows(
@@ -188,44 +184,22 @@ class CablingValidationResourceTest {
     @Test
     void testGetValidationFailures_success_emitsMetrics_andRecordsSuccess() {
         String rackSerial = "rack001";
-        ValidationFailureResult.LinkSource ls1 =
-                ValidationFailureResult.LinkSource.builder()
-                        .deviceAName("devA")
-                        .deviceAPort("Eth1/1")
-                        .build();
-        ValidationFailureResult.LinkSource ls2 =
-                ValidationFailureResult.LinkSource.builder()
-                        .deviceAName("devB")
-                        .deviceAPort("Eth2/2")
-                        .build();
-        ValidationFailureResult vfr1 =
-                ValidationFailureResult.builder().rackSerial(rackSerial).linkSource(ls1).build();
-        ValidationFailureResult vfr2 =
-                ValidationFailureResult.builder().rackSerial(rackSerial).linkSource(ls2).build();
+        Object expected = List.of("a", "b");
 
-        List<ValidationFailureResult> results = List.of(vfr1, vfr2);
-
-        ValidationFailureDisplayDTO dto1 = mock(ValidationFailureDisplayDTO.class);
-        ValidationFailureDisplayDTO dto2 = mock(ValidationFailureDisplayDTO.class);
-
-        when(validationFailureResultDao.getValidationFailuresByRack(rackSerial, true))
-                .thenReturn(results);
-        when(resourceModelTransformer.toModel(vfr1, false)).thenReturn(dto1);
-        when(resourceModelTransformer.toModel(vfr2, false)).thenReturn(dto2);
+        when(cablingValidationService.getValidationFailuresByRack(rackSerial)).thenReturn(expected);
 
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
             doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
-            doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
             doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
             doReturn(metricsScope).when(metricsScope).recordSuccess();
 
-            List<ValidationFailureDisplayDTO> out =
+            Object out =
                     resource.getValidationFailures(
                             region, rackSerial, opcRequestId, principal, authorizationRequest);
-            assertEquals(List.of(dto1, dto2), out);
+            assertEquals(expected, out);
 
-            verify(validationFailureResultDao).getValidationFailuresByRack(rackSerial, true);
+            verify(cablingValidationService).getValidationFailuresByRack(rackSerial);
             verify(metricsScope)
                     .emit(eq(MetricNames.GetValidationResults.GetValidationResult.name()), eq(1.0));
             verify(metricsScope).recordSuccess();
@@ -233,9 +207,9 @@ class CablingValidationResourceTest {
     }
 
     @Test
-    void testGetValidationFailures_emptyList_returnsEmpty_andEmitsMetrics() {
+    void testGetValidationFailures_emptyList_returnsEmpty_andRecordsSuccess() {
         String rackSerial = "rack-xyz";
-        when(validationFailureResultDao.getValidationFailuresByRack(rackSerial, true))
+        when(cablingValidationService.getValidationFailuresByRack(rackSerial))
                 .thenReturn(List.of());
 
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
@@ -244,11 +218,11 @@ class CablingValidationResourceTest {
             doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
             doReturn(metricsScope).when(metricsScope).recordSuccess();
 
-            List<ValidationFailureDisplayDTO> out =
+            Object out =
                     resource.getValidationFailures(
                             region, rackSerial, opcRequestId, principal, authorizationRequest);
             assertNotNull(out);
-            assertTrue(out.isEmpty());
+            assertTrue(((List<?>) out).isEmpty());
 
             verify(metricsScope).recordSuccess();
         }
@@ -279,7 +253,7 @@ class CablingValidationResourceTest {
     }
 
     @Test
-    void testGetValidationJobStatus_nullRackNumber_throwsAndEmitsMetric() {
+    void testGetValidationJobStatus_emptyRackNumber_throwsAndEmitsMetric() {
         try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
             doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
@@ -347,5 +321,188 @@ class CablingValidationResourceTest {
                     .emit(eq(MetricNames.GetValidationJobStatus.GetJobStatus.name()), eq(1.0));
             verify(metricsScope).recordSuccess();
         }
+    }
+
+    @Test
+    void testValidateCables_serviceThrows_propagates_andNoSuccessRecorded() {
+        doThrow(
+                        new RenderableException(
+                                com.oracle.pic.commons.exceptions.server.ErrorCode.InternalError,
+                                "boom"))
+                .when(cablingValidationService)
+                .validateCablingTasks(
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        anyList(),
+                        any(MetricsScope.class));
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+
+            assertThrows(
+                    RenderableException.class,
+                    () ->
+                            resource.validateCables(
+                                    region,
+                                    building,
+                                    rackSerialNumber,
+                                    rackNumber,
+                                    deviceNames,
+                                    opcRequestId,
+                                    principal,
+                                    authorizationRequest));
+
+            verify(metricsScope, never()).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetValidationFailures_regionPhoenix_mappedToR2() {
+        String rackSerial = "rack001";
+        when(cablingValidationService.getValidationFailuresByRack(rackSerial))
+                .thenReturn(List.of());
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            Object out =
+                    resource.getValidationFailures(
+                            "us-phoenix-1",
+                            rackSerial,
+                            opcRequestId,
+                            principal,
+                            authorizationRequest);
+            assertNotNull(out);
+            verify(metricsScope).withDimension(eq("region"), eq("r2"));
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetValidationFailures_nullRegion_setsNullDimension_andRecordsSuccess() {
+        String rackSerial = "rack001";
+        when(cablingValidationService.getValidationFailuresByRack(rackSerial))
+                .thenReturn(List.of());
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            // allow null value for region dimension
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), any());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            Object out =
+                    resource.getValidationFailures(
+                            null, rackSerial, opcRequestId, principal, authorizationRequest);
+            assertNotNull(out);
+            verify(metricsScope).withDimension(eq("region"), isNull());
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetValidationFailures_serviceReturnsNull_returnsNull_andRecordsSuccess() {
+        String rackSerial = "rack001";
+        when(cablingValidationService.getValidationFailuresByRack(rackSerial)).thenReturn(null);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            Object out =
+                    resource.getValidationFailures(
+                            region, rackSerial, opcRequestId, principal, authorizationRequest);
+            assertNull(out);
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetValidationJobStatus_regionPhoenix_mappedToR2() {
+        Map<String, JobStatus> jobStatusMap = Map.of("sw1", JobStatus.IN_PROGRESS);
+        List<DeviceValidationStatus> transformed = List.of(mock(DeviceValidationStatus.class));
+        when(cablingValidationService.getValidationJobStatus(
+                        any(MetricsScope.class),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        anyBoolean()))
+                .thenReturn(jobStatusMap);
+        when(resourceModelTransformer.toModel(jobStatusMap)).thenReturn(transformed);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            List<DeviceValidationStatus> out =
+                    resource.getValidationJobStatus(
+                            "us-phoenix-1",
+                            rackSerialNumber,
+                            rackNumber,
+                            Boolean.TRUE,
+                            opcRequestId,
+                            principal,
+                            authorizationRequest);
+            assertEquals(transformed, out);
+            verify(metricsScope).withDimension(eq("region"), eq("r2"));
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testGetValidationJobStatus_lastAttemptFalse_passedThrough() {
+        Map<String, JobStatus> jobStatusMap = Map.of();
+        List<DeviceValidationStatus> transformed = List.of();
+        when(cablingValidationService.getValidationJobStatus(
+                        any(MetricsScope.class),
+                        eq(region),
+                        eq(rackSerialNumber),
+                        eq(rackNumber),
+                        eq(Boolean.FALSE)))
+                .thenReturn(jobStatusMap);
+        when(resourceModelTransformer.toModel(jobStatusMap)).thenReturn(transformed);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            List<DeviceValidationStatus> out =
+                    resource.getValidationJobStatus(
+                            region,
+                            rackSerialNumber,
+                            rackNumber,
+                            Boolean.FALSE,
+                            opcRequestId,
+                            principal,
+                            authorizationRequest);
+            assertEquals(transformed, out);
+            verify(cablingValidationService)
+                    .getValidationJobStatus(
+                            eq(metricsScope),
+                            eq(region),
+                            eq(rackSerialNumber),
+                            eq(rackNumber),
+                            eq(Boolean.FALSE));
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testDownloadValidationFailures_noop_doesNotThrow() {
+        resource.downloadValidationFailures(
+                "rack001", region, opcRequestId, principal, authorizationRequest);
     }
 }

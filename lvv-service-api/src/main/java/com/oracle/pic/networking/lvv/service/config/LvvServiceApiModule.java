@@ -149,27 +149,18 @@ public class LvvServiceApiModule extends AbstractModule {
     }
 
     private void bindValidationFailureResultBucket() {
-        KievHashBucketProvider<ValidationFailureResult.LinkSource, ValidationFailureResult>
-                validationResultProvider =
-                        new KievHashBucketProvider<>(
-                                "cableValidationsStore",
-                                "Bucket to store validation failure results",
-                                ValidationFailureResult.LinkSource.class,
-                                ValidationFailureResult.class);
+        KievHashBucketProvider<String, ValidationFailureResult> validationResultProvider =
+                new KievHashBucketProvider<>(
+                        "cableResultJsonStore",
+                        "Bucket to store validation failure results",
+                        String.class,
+                        ValidationFailureResult.class);
 
-        bind(new TypeLiteral<
-                        MappedHashBucket<
-                                ValidationFailureResult.LinkSource, ValidationFailureResult>>() {})
+        bind(new TypeLiteral<MappedHashBucket<String, ValidationFailureResult>>() {})
                 .toProvider(validationResultProvider);
 
-        bind(new TypeLiteral<
-                        ConfigurationStore<
-                                ValidationFailureResult.LinkSource, ValidationFailureResult>>() {})
-                .to(
-                        new TypeLiteral<
-                                KievConfigurationStore<
-                                        ValidationFailureResult.LinkSource,
-                                        ValidationFailureResult>>() {});
+        bind(new TypeLiteral<ConfigurationStore<String, ValidationFailureResult>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, ValidationFailureResult>>() {});
     }
 
     private void bindBlockDetailsBucket() {

@@ -13,7 +13,6 @@ import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.models.ncp.JobType;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
@@ -160,7 +159,7 @@ public class CablingValidationService {
                                 "region", GeneralUtils.getRegionInternalName(region));
 
                         // Parse the output to fetch the results
-                        List<ValidationFailureResult> output =
+                        Map<String, Map<String, List<Map<String, String>>>> output =
                                 ncpClientHelper.getNcpJobOutput(
                                         currJobDetails.getJobId(),
                                         region,
@@ -169,7 +168,7 @@ public class CablingValidationService {
 
                         // Update the results to the Database
                         validationFailureResultDao.addUpdateValidationFailureResultsForDevices(
-                                output, addResultsScope, region);
+                                rackSerialNumber, output, addResultsScope);
                         scope.recordSuccess();
                     }
 
@@ -181,7 +180,7 @@ public class CablingValidationService {
                     }
 
                 } else if (entry.getValue().equals(JobStatus.IN_PROGRESS)) {
-                    // We don't do anything here,a nd just wait for job to complete
+                    // We don't do anything here,and just wait for job to complete
                     // But, if it's the last attempt of polling the job, that means we've been
                     // waiting for the job to complete for quite some time,
                     // And we mark the device as Unreachable
@@ -222,5 +221,14 @@ public class CablingValidationService {
                 .collect(
                         Collectors.toMap(
                                 NcpJobDetails::getDeviceName, NcpJobDetails::getJobStatus));
+    }
+
+    public Object getValidationFailuresByRack(String rackSerialNumber) {
+        Object result = validationFailureResultDao.getValidationFailuresByRack(rackSerialNumber);
+
+        Map<String, Object> validationResultsForRack = new HashMap<>();
+        validationResultsForRack.put(rackSerialNumber, result);
+
+        return validationResultsForRack;
     }
 }

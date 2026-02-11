@@ -1,5 +1,7 @@
 package com.oracle.pic.networking.lvv.service.kiev;
 
+import static com.oracle.pic.kiev.mapping.annotations.ColumnType.INT;
+import static com.oracle.pic.kiev.mapping.annotations.ColumnType.JSON_CLOB;
 import static com.oracle.pic.kiev.mapping.annotations.ColumnType.STRING;
 import static com.oracle.pic.kiev.mapping.annotations.ColumnType.TIMESTAMP;
 
@@ -8,9 +10,10 @@ import com.oracle.pic.kiev.mapping.annotations.ColumnType;
 import com.oracle.pic.kiev.mapping.annotations.HashKey;
 import com.oracle.pic.kiev.mapping.annotations.KievEntity;
 import com.oracle.pic.kiev.mapping.annotations.KievIndex;
-import com.oracle.pic.kiev.mapping.annotations.KievNestedEntity;
 import com.oracle.pic.networking.lvv.service.utils.KievConstants;
 import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -42,65 +45,28 @@ import lombok.Value;
 @ToString
 public class ValidationFailureResult {
 
-    public static final String RACK_SERIAL_COLUMN_NAME = "rackSlNumCol";
+    public static final String RACK_SERIAL_COLUMN_NAME = "rackSlColumn";
 
     @NonNull
     @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, name = RACK_SERIAL_COLUMN_NAME)
     private String rackSerial;
 
+    @NonNull
     @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH)
-    private String deviceARack;
+    @HashKey
+    private String deviceName;
 
-    @NonNull @HashKey @KievNestedEntity private LinkSource linkSource;
+    @NonNull
+    @Column(type = JSON_CLOB)
+    private Map<String, List<Map<String, String>>> validationResults;
 
-    @Value
-    @KievEntity(builderClass = LinkSource.Builder.class, builderPrefix = "")
-    @AllArgsConstructor
-    @lombok.Builder(builderClassName = "Builder")
-    public static class LinkSource {
+    @NonNull
+    @Column(type = INT)
+    private Integer numberOfValidations;
 
-        @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, index = 1)
-        String deviceAName;
-
-        @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, index = 2)
-        String deviceAPort;
-    }
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBRack;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBName;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBPort;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBRackExpected;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBNameExpected;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String deviceBPortExpected;
-
-    @Column(type = ColumnType.ENUM_STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private LldpStatus lldpStatus;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String txPower;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String rxPower;
-
-    @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private String psuFailure;
-
-    @Column(type = ColumnType.ENUM_STRING, length = KievConstants.MAX_NAME_LENGTH, nullable = true)
-    private LinkStatus linkStatus;
-
+    @NonNull
     @Column(type = TIMESTAMP)
-    private Timestamp lastValidatedTime;
+    private Timestamp firstValidatedTime;
 
     @Value
     @KievEntity

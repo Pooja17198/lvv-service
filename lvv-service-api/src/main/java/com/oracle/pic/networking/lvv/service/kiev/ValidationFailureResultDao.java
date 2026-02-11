@@ -1,6 +1,5 @@
 package com.oracle.pic.networking.lvv.service.kiev;
 
-import com.google.api.client.util.Lists;
 import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -15,14 +14,12 @@ import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.ScanPage;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
-import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -32,10 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 public class ValidationFailureResultDao {
     private static final int DEFAULT_PAGE_SIZE = 1000;
-    private final ConfigurationStore<ValidationFailureResult.LinkSource, ValidationFailureResult>
-            validationResultStore;
-    private final MappedHashBucket<ValidationFailureResult.LinkSource, ValidationFailureResult>
-            validationResultProvider;
+    private final ConfigurationStore<String, ValidationFailureResult> validationResultStore;
+    private final MappedHashBucket<String, ValidationFailureResult> validationResultProvider;
 
     private PaginationTokenSerializer serializer;
 
@@ -46,13 +41,9 @@ public class ValidationFailureResultDao {
 
     @Inject
     public ValidationFailureResultDao(
-            @NonNull
-                    ConfigurationStore<ValidationFailureResult.LinkSource, ValidationFailureResult>
-                            validationResultStore,
+            @NonNull ConfigurationStore<String, ValidationFailureResult> validationResultStore,
             @NonNull PaginationTokenSerializer serializer,
-            @NonNull
-                    MappedHashBucket<ValidationFailureResult.LinkSource, ValidationFailureResult>
-                            validationResultProvider) {
+            @NonNull MappedHashBucket<String, ValidationFailureResult> validationResultProvider) {
         this.validationResultStore = validationResultStore;
         this.validationResultProvider = validationResultProvider;
         this.serializer = serializer;
@@ -62,209 +53,99 @@ public class ValidationFailureResultDao {
                         ValidationFailureResult.RackSerialIndex.class);
     }
 
-    private void updateExistingLinksStatusToUp(List<ValidationFailureResult> existingLinks) {
-        log.info("Updating the following links status to UP: {}", existingLinks);
-        if (existingLinks.isEmpty()) {
-            log.info("No existing links found for device");
-            return;
-        }
+    public void addValidationFailureResultForDevice(
+            String rackSerial,
+            String deviceName,
+            Map<String, List<Map<String, String>>> result,
+            MetricsScope scope) {
+        try (Transaction txn = validationResultStore.beginTransaction(deviceName)) {
 
-        for (int i = 0; i < existingLinks.size(); i += BATCH_SIZE) {
-            int end = Math.min(i + BATCH_SIZE, existingLinks.size());
-            List<ValidationFailureResult> batch = existingLinks.subList(i, end);
+            log.info("Adding results for device {}. Result: {}", deviceName, result);
 
-            try (Transaction txn = validationResultStore.beginTransaction(batch.toString())) {
-                for (ValidationFailureResult existingLink : batch) {
-                    if (existingLink == null || existingLink.getLinkSource() == null) {
-                        log.warn(
-                                "Skipping UP status update; missing entity or key: {}",
-                                existingLink);
-                        continue;
-                    }
-                    // Update the instance we already have to avoid an extra read and NPE risk
-                    existingLink.setLinkStatus(LinkStatus.UP);
-                    validationResultStore.updateItem(txn, existingLink);
-                }
-                try {
-                    txn.commit();
-                } catch (CommitConflictException | DuplicateKeyException e) {
-                    String message = "Failed to update existing links to UP";
-                    handleException(txn, e, message);
-                    throw new RenderableException(
-                            ErrorCode.ExternalServerInvalidResponse,
-                            "DB transaction failed. Please try again.");
-                }
+            ValidationFailureResult validationFailureResult =
+                    ValidationFailureResult.builder()
+                            .deviceName(deviceName)
+                            .validationResults(result)
+                            .firstValidatedTime(Timestamp.from(Instant.now()))
+                            .numberOfValidations(1)
+                            .rackSerial(rackSerial)
+                            .build();
+
+            validationResultStore.createItem(txn, validationFailureResult);
+
+            try {
+                txn.commit();
+                log.info("Validation result for device {} has been added successfully", deviceName);
+            } catch (CommitConflictException | DuplicateKeyException exception) {
+                String message = "Failed to add validation result for device " + deviceName;
+                scope.emit(MetricNames.AddValidationResults.KievResultUpdateFailure.name(), 1.0);
+                handleException(txn, exception, message);
+                throw new RenderableException(
+                        ErrorCode.ExternalServerInvalidResponse,
+                        "Failed to add validation result in Kiev. Please try again.");
             }
         }
     }
 
-    private void updateOrAddDownLinks(
-            List<ValidationFailureResult> links,
-            Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks,
-            MetricsScope scope,
-            String region) {
-        log.info("Adding/Updating the following links {}", links);
-        if (links.isEmpty()) {
-            scope.emit(MetricNames.AddValidationResults.NoMoreFailures, 1.0);
-            return;
-        }
+    public void updateValidationFailureResultsForDevice(
+            ValidationFailureResult existingResult,
+            String deviceName,
+            Map<String, List<Map<String, String>>> result,
+            MetricsScope scope) {
+        try (Transaction txn = validationResultStore.beginTransaction(deviceName)) {
 
-        for (int i = 0; i < links.size(); i += BATCH_SIZE) {
-            int end = Math.min(i + BATCH_SIZE, links.size());
-            List<ValidationFailureResult> batch = links.subList(i, end);
+            log.info("Updating results for device {}. Result: {}", deviceName, result);
 
-            try (Transaction txn = validationResultStore.beginTransaction(batch.toString())) {
-                for (ValidationFailureResult link : batch) {
-                    try (MetricsScope updateTimeScope =
-                            MetricsScope.create(
-                                    MetricNames.MetricScopeNames.UPDATE_LINK_RESULTS.name())) {
-                        updateTimeScope.withDimension("rackSerial", link.getRackSerial());
-                        updateTimeScope.withDimension(
-                                "region", GeneralUtils.getRegionInternalName(region));
+            existingResult.setValidationResults(result);
+            existingResult.setNumberOfValidations(existingResult.getNumberOfValidations() + 1);
 
-                        if (link.getLinkStatus() != LinkStatus.DOWN) {
-                            // Any Validation Failure Result to be updated/added should have the
-                            // link
-                            // status as DOWN
-                            throw new RenderableException(
-                                    ErrorCode.InternalError,
-                                    "Validation Failed link doesn't have Link Status set to DOWN");
-                        }
+            validationResultStore.updateItem(txn, existingResult);
 
-                        if (!existingLinks.containsKey(link.getLinkSource())) {
-                            Timestamp currValidationTime = Timestamp.from(Instant.now());
-                            link.setLastValidatedTime(currValidationTime);
-                            validationResultStore.createItem(txn, link);
-                            log.info("Adding link result {}", link);
-                        } else {
-                            ValidationFailureResult existingLink =
-                                    existingLinks.get(link.getLinkSource());
-                            Timestamp prevValidationTime = existingLink.getLastValidatedTime();
-                            Timestamp currValidationTime = Timestamp.from(Instant.now());
-                            long timeDiffFromLastValidation =
-                                    (currValidationTime.getTime() - prevValidationTime.getTime())
-                                            / 1000
-                                            / 60;
-                            updateTimeScope.withDimension(
-                                    "linkSource", link.getLinkSource().toString());
-                            updateTimeScope.emit(
-                                    MetricNames.UpdateLinkResults.TimeFromLastValidation.name(),
-                                    timeDiffFromLastValidation);
-                            link.setLastValidatedTime(currValidationTime);
-                            validationResultStore.updateItem(txn, link);
-                            log.info("{} Link Result being updated to: {}", existingLink, link);
-                        }
-                    }
-                }
-                try {
-                    txn.commit();
-                } catch (CommitConflictException | DuplicateKeyException e) {
-                    String message = "Failed to add/update existing links to DOWN";
-                    scope.emit(
-                            MetricNames.AddValidationResults.KievResultUpdateFailure.name(), 1.0);
-                    handleException(txn, e, message);
-                    throw new RenderableException(
-                            ErrorCode.ExternalServerInvalidResponse,
-                            "DB transaction failed. Please try again.");
-                }
+            try {
+                txn.commit();
+                log.info(
+                        "Validation result for device {} has been updated successfully",
+                        deviceName);
+            } catch (CommitConflictException | DuplicateKeyException exception) {
+                String message = "Failed to update validation result for device " + deviceName;
+                scope.emit(MetricNames.AddValidationResults.KievResultUpdateFailure.name(), 1.0);
+                handleException(txn, exception, message);
+                throw new RenderableException(
+                        ErrorCode.ExternalServerInvalidResponse,
+                        "Failed to update validation result in Kiev. Please try again.");
             }
         }
     }
 
     public void addUpdateValidationFailureResultsForDevices(
-            @NonNull List<ValidationFailureResult> results, MetricsScope scope, String region) {
+            String rackSerial,
+            @NonNull Map<String, Map<String, List<Map<String, String>>>> results,
+            MetricsScope scope) {
 
-        Map<String, List<ValidationFailureResult>> newLinks =
-                results.stream()
-                        .collect(Collectors.groupingBy(l -> l.getLinkSource().getDeviceAName()));
+        results.forEach(
+                (String deviceName, Map<String, List<Map<String, String>>> result) -> {
+                    ValidationFailureResult existingDeviceResult = null;
 
-        log.info(
-                "Loop through the results of all the devices we want to validate: {}",
-                newLinks.keySet());
-        for (Map.Entry<String, List<ValidationFailureResult>> entry : newLinks.entrySet()) {
-            String deviceName = entry.getKey();
-            List<ValidationFailureResult> newDeviceLinks = entry.getValue();
+                    try {
+                        existingDeviceResult = validationResultStore.getItem(deviceName);
+                    } catch (RuntimeException e) {
+                        log.info("Result for device {} doesn't exist. Adding one", deviceName);
+                    }
 
-            Map<ValidationFailureResult.LinkSource, ValidationFailureResult> existingLinks =
-                    getValidationFailuresByDevice(deviceName, false).stream()
-                            .collect(
-                                    Collectors.toMap(
-                                            ValidationFailureResult::getLinkSource, l -> l));
-            // First, we update all the links from the device to UP, and then based on the new
-            // results we get, we either update a link to DOWN or add a new link with DOWN status
-            updateExistingLinksStatusToUp(new ArrayList<>(existingLinks.values()));
-
-            // We check if the first link on the device has the status DOWN, and only update those
-            // devices
-            // Devices with no links DOWN, will have the placeholder link which is a minimal
-            // ValidationFailureResult object with the device name and Link Status as UP
-            if (!newDeviceLinks.isEmpty()
-                    && newDeviceLinks.get(0).getLinkStatus().equals(LinkStatus.DOWN)) {
-                updateOrAddDownLinks(newDeviceLinks, existingLinks, scope, region);
-            }
-        }
+                    if (existingDeviceResult == null) {
+                        addValidationFailureResultForDevice(rackSerial, deviceName, result, scope);
+                    } else {
+                        updateValidationFailureResultsForDevice(
+                                existingDeviceResult, deviceName, result, scope);
+                    }
+                });
     }
 
-    public List<ValidationFailureResult> getValidationFailuresByDevice(
-            String deviceName, boolean onlyDown) {
-        List<ValidationFailureResult> result = Lists.newArrayList();
-
-        log.info("Finding validation failures for device {}", deviceName);
-
-        Preconditions.checkNotNull(deviceName, "deviceName is null");
-
-        ValidationFailureResult.LinkSource prefix =
-                ValidationFailureResult.LinkSource.builder()
-                        .deviceAName(deviceName)
-                        .deviceAPort(null)
-                        .build();
-
-        ScanPage<ValidationFailureResult> page =
-                validationResultProvider.beginPrefixScan(prefix, DEFAULT_PAGE_SIZE);
-
-        while (page != null) {
-            KievRateLimiter.throttle();
-            List<ValidationFailureResult> pageResults = page.results();
-            if (pageResults != null) {
-                List<ValidationFailureResult> filteredPage =
-                        pageResults.stream()
-                                .filter(Objects::nonNull)
-                                .filter(
-                                        link ->
-                                                link.getLinkSource() != null
-                                                        && Objects.equals(
-                                                                link.getLinkSource()
-                                                                        .getDeviceAName(),
-                                                                deviceName))
-                                .filter(
-                                        link ->
-                                                !onlyDown
-                                                        || LinkStatus.DOWN.equals(
-                                                                link.getLinkStatus()))
-                                .toList();
-
-                result.addAll(filteredPage);
-            }
-
-            // Setup next page
-            if (page.hasNext()) {
-                page = validationResultProvider.scan(page.paginationToken());
-            } else {
-                page = null;
-            }
-        }
-
-        log.info("Validation failures found for device {}: {}", deviceName, result);
-
-        return result;
-    }
-
-    public List<ValidationFailureResult> getValidationFailuresByRack(
-            @NonNull String rackSerial, boolean onlyDown) {
+    public Object getValidationFailuresByRack(@NonNull String rackSerial) {
         ValidationFailureResult.RackSerialIndex prefix =
                 ValidationFailureResult.RackSerialIndex.builder().rackSerial(rackSerial).build();
 
-        List<ValidationFailureResult> result = Lists.newArrayList();
+        HashMap<String, Object> result = new HashMap<>();
 
         log.info("Finding validation failures for rack {}", rackSerial);
 
@@ -275,18 +156,14 @@ public class ValidationFailureResultDao {
             KievRateLimiter.throttle();
             List<ValidationFailureResult> pageResults = page.results();
             if (pageResults != null) {
-                List<ValidationFailureResult> filteredPage =
-                        pageResults.stream()
-                                .filter(Objects::nonNull)
-                                .filter(link -> Objects.equals(link.getRackSerial(), rackSerial))
-                                .filter(
-                                        link ->
-                                                !onlyDown
-                                                        || LinkStatus.DOWN.equals(
-                                                                link.getLinkStatus()))
-                                .toList();
-
-                result.addAll(filteredPage);
+                pageResults.stream()
+                        .filter(Objects::nonNull)
+                        .filter(device -> Objects.equals(device.getRackSerial(), rackSerial))
+                        .forEach(
+                                device ->
+                                        result.put(
+                                                device.getDeviceName(),
+                                                device.getValidationResults()));
             }
 
             // Setup next page

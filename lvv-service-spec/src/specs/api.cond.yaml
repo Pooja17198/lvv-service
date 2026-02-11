@@ -481,13 +481,12 @@ paths:
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: List of link-level validation results
+          description: Dynamic JSON structure with result of all tests in all devices of the rack
           headers:
             opc-request-id: *ref-opc-request-id
           schema:
-            type: array
-            items:
-              $ref: '#/definitions/ValidationFailureDisplayDTO'
+            type: object
+            additionalProperties: true
         default:
           $ref: '#/responses/Error'
 

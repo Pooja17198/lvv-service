@@ -82,6 +82,7 @@ public class RacksResource extends AbstractRacksResource {
     public List<ProjectRack> listProjectRacks(
             String projectId,
             String regionName,
+            Boolean showAvailableRacks,
             String opcRequestId,
             Principal principal,
             AuthorizationRequest authorizationRequest) {
@@ -104,7 +105,11 @@ public class RacksResource extends AbstractRacksResource {
             scope.withDimension("projectId", projectId);
             scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
 
-            List<ProjectRack> racks = this.racksService.listProjectRacks(projectId, scope);
+            boolean includeAvailable = Boolean.TRUE.equals(showAvailableRacks);
+
+            List<ProjectRack> racks =
+                    this.racksService.listProjectRacks(
+                            projectId, regionName, includeAvailable, scope);
 
             scope.recordSuccess();
             return racks;

@@ -81,6 +81,7 @@ public class ResourceModelTransformer {
                             .deviceName(device.getName())
                             .jobStatus(jobStatus.get(device.getName()).name())
                             .elevation(Integer.parseInt(device.getLocation().getElevation()))
+                            .role(device.getRole())
                             .build();
             deviceValidationStatuses.add(deviceDetails);
         }
@@ -104,7 +105,12 @@ public class ResourceModelTransformer {
         return deviceValidationStatuses;
     }
 
-    public ProjectRack toModel(Rack rack, JiraTicket jiraTicket) {
+    public ProjectRack toModel(
+            Rack rack,
+            JiraTicket jiraTicket,
+            String rackValidationStatus,
+            int devicesInDeployedState,
+            List<String> fabricType) {
 
         return ProjectRack.builder()
                 .building(rack.getBuilding())
@@ -117,6 +123,9 @@ public class ResourceModelTransformer {
                 .resolveDisabledReason(jiraTicket.getResolveDisabledReason())
                 .rackState(rack.getRackState())
                 .platformName(rack.getPlatformName())
+                .validationStatus(rackValidationStatus)
+                .devicesInDeployedState(devicesInDeployedState)
+                .fabricType(fabricType)
                 .build();
     }
 }

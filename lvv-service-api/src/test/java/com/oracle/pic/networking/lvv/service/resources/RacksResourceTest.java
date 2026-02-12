@@ -379,16 +379,22 @@ class RacksResourceTest {
 
             doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
             doReturn(metricsScope).when(metricsScope).recordSuccess();
-
-            when(rackDetailsService.listProjectRacks(eq(projectId), any(MetricsScope.class)))
+            when(rackDetailsService.listProjectRacks(
+                            eq(projectId), eq(regionName), eq(false), any(MetricsScope.class)))
                     .thenReturn(expected);
 
             List<ProjectRack> result =
                     resource.listProjectRacks(
-                            projectId, regionName, opcRequestId, principal, authorizationRequest);
+                            projectId,
+                            regionName,
+                            null,
+                            opcRequestId,
+                            principal,
+                            authorizationRequest);
 
             assertEquals(expected, result);
-            verify(rackDetailsService).listProjectRacks(eq(projectId), eq(metricsScope));
+            verify(rackDetailsService)
+                    .listProjectRacks(eq(projectId), eq(regionName), eq(false), eq(metricsScope));
             verify(metricsScope).withDimension(eq("projectId"), eq(projectId));
             verify(metricsScope).withDimension(eq("region"), eq(regionName));
             verify(metricsScope).recordSuccess();
@@ -408,6 +414,7 @@ class RacksResourceTest {
                                     resource.listProjectRacks(
                                             "",
                                             regionName,
+                                            null,
                                             opcRequestId,
                                             principal,
                                             authorizationRequest));
@@ -430,6 +437,7 @@ class RacksResourceTest {
                             resource.listProjectRacks(
                                     null,
                                     regionName,
+                                    null,
                                     opcRequestId,
                                     principal,
                                     authorizationRequest));
@@ -445,7 +453,8 @@ class RacksResourceTest {
             staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
             doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
 
-            when(rackDetailsService.listProjectRacks(eq(projectId), any(MetricsScope.class)))
+            when(rackDetailsService.listProjectRacks(
+                            eq(projectId), eq(regionName), eq(false), any(MetricsScope.class)))
                     .thenThrow(new RuntimeException("backend failure"));
 
             RuntimeException ex =
@@ -455,12 +464,14 @@ class RacksResourceTest {
                                     resource.listProjectRacks(
                                             projectId,
                                             regionName,
+                                            null,
                                             opcRequestId,
                                             principal,
                                             authorizationRequest));
             assertEquals("backend failure", ex.getMessage());
 
-            verify(rackDetailsService).listProjectRacks(eq(projectId), eq(metricsScope));
+            verify(rackDetailsService)
+                    .listProjectRacks(eq(projectId), eq(regionName), eq(false), eq(metricsScope));
             verify(metricsScope, never()).recordSuccess();
         }
     }

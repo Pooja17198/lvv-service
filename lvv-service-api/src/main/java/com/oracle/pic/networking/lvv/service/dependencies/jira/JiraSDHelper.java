@@ -16,6 +16,7 @@ public class JiraSDHelper {
                 .map(IssueField::getValue)
                 .filter(Objects::nonNull)
                 .map(Object::toString)
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }

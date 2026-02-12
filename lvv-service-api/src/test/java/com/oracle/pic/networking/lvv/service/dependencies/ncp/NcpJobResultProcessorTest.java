@@ -264,10 +264,10 @@ class NcpJobResultProcessorTest {
     void processJobResult_emptyTestResults_noDevices_noMetricsOrDao() {
         String json =
                 """
-                {
-                  "testResults": { }
-                }
-                """;
+                        {
+                          "testResults": { }
+                        }
+                        """;
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
@@ -281,12 +281,12 @@ class NcpJobResultProcessorTest {
     void processJobResult_missingHealthCheckReport_skipsDevice_withoutMetrics() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devX": { }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devX": { }
+                          }
+                        }
+                        """;
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
@@ -300,16 +300,16 @@ class NcpJobResultProcessorTest {
     void processJobResult_testCasesNotArray_skipsDevice_withoutMetrics() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devY": {
-                      "healthCheckReport": {
-                        "testCases": { "not": "an array" }
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devY": {
+                              "healthCheckReport": {
+                                "testCases": { "not": "an array" }
+                              }
+                            }
+                          }
+                        }
+                        """;
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
@@ -323,16 +323,16 @@ class NcpJobResultProcessorTest {
     void processJobResult_emptyTestCasesArray_treatedAsPass_and_emitsPass() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devE": {
-                      "healthCheckReport": {
-                        "testCases": []
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devE": {
+                              "healthCheckReport": {
+                                "testCases": []
+                              }
+                            }
+                          }
+                        }
+                        """;
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
@@ -349,20 +349,20 @@ class NcpJobResultProcessorTest {
     void processJobResult_lldpFailureNonStandardMessage_addsEmptyLldpList_and_emitsLldpMetric() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devNS": {
-                      "healthCheckReport": {
-                        "testCases": [
-                          { "testCase": "test_lldp", "status": "FAILED", "message": "LLDP failure without Failed prefix" },
-                          { "testCase": "test_optics", "status": "PASSED" },
-                          { "testCase": "test_power", "status": "PASSED" }
-                        ]
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devNS": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "LLDP failure without Failed prefix" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
 
@@ -385,20 +385,20 @@ class NcpJobResultProcessorTest {
                 "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"cryptoDev:Eth1/1:x:y:U10\\\",\\\"current_destination\\\":\\\"devB:Eth2/2:a:b:U20\\\",\\\"expected_destination\\\":\\\"devZ:Eth3/3:c:d:U30\\\"}]}";
         String json =
                 """
-                {
-                  "testResults": {
-                    "devC": {
-                      "healthCheckReport": {
-                        "testCases": [
-                          { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
-                          { "testCase": "test_optics", "status": "PASSED" },
-                          { "testCase": "test_power", "status": "PASSED" }
-                        ]
-                      }
-                    }
-                  }
-                }
-                """
+                        {
+                          "testResults": {
+                            "devC": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
                         .formatted(lldpMsg);
 
         NcpJobResultProcessor p = newProcessorWithJson(json);
@@ -421,20 +421,20 @@ class NcpJobResultProcessorTest {
                 "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"devA:Eth1/1:x:y:U10\\\",\\\"current_destination\\\":\\\"devB:Eth2/2\\\",\\\"expected_destination\\\":\\\"devZ:Eth3/3:c:d:U30\\\"}]}";
         String json =
                 """
-                {
-                  "testResults": {
-                    "devID": {
-                      "healthCheckReport": {
-                        "testCases": [
-                          { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
-                          { "testCase": "test_optics", "status": "PASSED" },
-                          { "testCase": "test_power", "status": "PASSED" }
-                        ]
-                      }
-                    }
-                  }
-                }
-                """
+                        {
+                          "testResults": {
+                            "devID": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
                         .formatted(lldpMsg);
 
         NcpJobResultProcessor p = newProcessorWithJson(json);
@@ -455,20 +455,20 @@ class NcpJobResultProcessorTest {
     void processJobResult_opticsRawJsonEmptyArray_addsEmptyOpticsList_and_emitsOpticMetric() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devORaw": {
-                      "healthCheckReport": {
-                        "testCases": [
-                          { "testCase": "test_lldp", "status": "PASSED" },
-                          { "testCase": "test_optics", "status": "FAILED", "message": "{\\"errors_object\\":[]}" },
-                          { "testCase": "test_power", "status": "PASSED" }
-                        ]
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devORaw": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "FAILED", "message": "{\\"errors_object\\":[]}" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
 
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
@@ -488,20 +488,20 @@ class NcpJobResultProcessorTest {
     void processJobResult_onlyPowerFailure_emitsPsuOnly_and_recordsPowerError() {
         String json =
                 """
-                {
-                  "testResults": {
-                    "devP": {
-                      "healthCheckReport": {
-                        "testCases": [
-                          { "testCase": "test_lldp", "status": "PASSED" },
-                          { "testCase": "test_optics", "status": "PASSED" },
-                          { "testCase": "test_power", "status": "FAILED" }
-                        ]
-                      }
-                    }
-                  }
-                }
-                """;
+                        {
+                          "testResults": {
+                            "devP": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "FAILED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
 
         NcpJobResultProcessor p = newProcessorWithJson(json);
         p.processJobResult(metricsScope);
@@ -519,5 +519,169 @@ class NcpJobResultProcessorTest {
         verify(metricsScope, never())
                 .emit(eq(MetricNames.ProcessNcpResult.OpticError), anyDouble());
         verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_interfaceFailures_parsesPorts_and_emitsInterfaceMetric() {
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devI": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_interfaces", "status": "FAILED", "message": "Failed: Interfaces down on Ethernet1/1 and et-0/0/1 ports" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        Map<String, List<Map<String, String>>> perDev = results.get("devI");
+        assertNotNull(perDev, "Device entry should exist");
+
+        List<Map<String, String>> iface = perDev.get("Interface Errors");
+        assertNotNull(iface, "Interface Errors table should exist");
+        assertEquals(2, iface.size(), "Two interfaces should be captured");
+
+        Map<String, String> eth11 =
+                iface.stream()
+                        .filter(r -> "Ethernet1/1".equals(r.get("Device Port")))
+                        .findFirst()
+                        .orElse(null);
+        Map<String, String> et001 =
+                iface.stream()
+                        .filter(r -> "et-0/0/1".equals(r.get("Device Port")))
+                        .findFirst()
+                        .orElse(null);
+
+        assertNotNull(eth11);
+        assertEquals("devI", eth11.get("Device Name"));
+        assertEquals("Interface not enables or up", eth11.get("Issue"));
+
+        assertNotNull(et001);
+        assertEquals("devI", et001.get("Device Name"));
+        assertEquals("Interface not enables or up", et001.get("Issue"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.InterfaceError), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_fecBerFailures_parsesBlocks_and_emitsFecBerMetric() {
+        // Build JSON via ObjectMapper to ensure proper escaping of quotes in the message string
+        String fecBerMsg =
+                "Failed: {'Ethernet1/1': {\\\"rack\\\":\\\"U12\\\",\\\"pre_fec_ber\\\":\\\"1e-5\\\",\\\"lock_status\\\": true,\\\"remote_device\\\":\\\"R1\\\",\\\"remote_interface\\\":\\\"Eth2/1\\\"}}"
+                        + "{'et-0/0/1': {\\\"rack\\\":\\\"U13\\\",\\\"device_name\\\":\\\"OverrideName\\\",\\\"pre_fec_ber\\\":\\\"2e-5\\\",\\\"lock_status\\\": false,\\\"remote_device\\\":\\\"R2\\\",\\\"remote_interface\\\":\\\"Et2/2\\\"}}";
+
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devF": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_fec_ber_threshold", "status": "FAILED", "message": "%s" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(fecBerMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+
+        Map<String, Map<String, List<Map<String, String>>>> results = p.getDeviceResults();
+        Map<String, List<Map<String, String>>> perDev = results.get("devF");
+        assertNotNull(perDev, "Device entry should exist");
+
+        List<Map<String, String>> fec = perDev.get("FEC_BER Errors");
+        assertNotNull(fec, "FEC_BER Errors table should exist");
+        assertEquals(2, fec.size(), "Two FEC_BER rows expected");
+
+        Map<String, String> rowEth =
+                fec.stream()
+                        .filter(r -> "Ethernet1/1".equals(r.get("Device Port")))
+                        .findFirst()
+                        .orElse(null);
+        Map<String, String> rowEt =
+                fec.stream()
+                        .filter(r -> "et-0/0/1".equals(r.get("Device Port")))
+                        .findFirst()
+                        .orElse(null);
+
+        assertNotNull(rowEth);
+        assertEquals("U12", rowEth.get("Device Rack"));
+        assertEquals(
+                "devF", rowEth.get("Device Name"), "Fallback to deviceId when device_name missing");
+        assertEquals("1e-5", rowEth.get("PRE_FEC_BER"));
+        assertEquals("true", rowEth.get("Lock Status"));
+        assertEquals("R1", rowEth.get("Remote Device"));
+        assertEquals("Eth2/1", rowEth.get("Remote Interface"));
+
+        assertNotNull(rowEt);
+        assertEquals("U13", rowEt.get("Device Rack"));
+        assertEquals("OverrideName", rowEt.get("Device Name"));
+        assertEquals("2e-5", rowEt.get("PRE_FEC_BER"));
+        assertEquals("false", rowEt.get("Lock Status"));
+        assertEquals("R2", rowEt.get("Remote Device"));
+        assertEquals("Et2/2", rowEt.get("Remote Interface"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.FecBerError), anyDouble());
+        verify(metricsScope, never())
+                .emit(eq(MetricNames.ProcessNcpResult.FecBerErrorFormatUnexpected), anyDouble());
+        verify(metricsScope, never()).emit(eq(MetricNames.ProcessNcpResult.Pass), anyDouble());
+    }
+
+    @Test
+    void processJobResult_onlyFanFailure_emitsFanOnly_and_recordsFanError() {
+        String fanMsg =
+                "Failed: {\\\"message\\\":\\\"Fan issues found\\\",\\\"errors_object\\\":[{\\\"fan_name\\\":\\\"\\\",\\\"fan_slot\\\":3,\\\"status\\\":false}]}";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devFan": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" },
+                                  { "testCase": "test_interfaces", "status": "PASSED" },
+                                  { "testCase": "test_fec_ber_threshold", "status": "PASSED" },
+                                  { "testCase": "test_fans", "status": "FAILED", "message": "%s" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(fanMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devFan");
+        assertNotNull(perDev);
+        List<Map<String, String>> fanErrors = perDev.get("Fan Errors");
+        assertNotNull(fanErrors);
+        assertEquals(1, fanErrors.size());
+        Map<String, String> row = fanErrors.get(0);
+        assertEquals("devFan", row.get("Device Name"));
+        assertEquals("", row.get("Fan Name"));
+        assertEquals("3", row.get("Fan Slot"));
+        assertEquals("false", row.get("Status"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.FanError), anyDouble());
     }
 }

@@ -114,9 +114,15 @@ public class MetricNames {
         LldpError,
         OpticError,
         PsuError,
+        InterfaceError,
+        FecBerError,
+        FanError,
         Pass,
         LldpErrorFormatUnexpected,
-        OpticErrorFormatUnexpected
+        OpticErrorFormatUnexpected,
+        InterfaceErrorFormatUnexpected,
+        FecBerErrorFormatUnexpected,
+        FanErrorFormatUnexpected
     }
 
     public enum UpdateLinkResults {

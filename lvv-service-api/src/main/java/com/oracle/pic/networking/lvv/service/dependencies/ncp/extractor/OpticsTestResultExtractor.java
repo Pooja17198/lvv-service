@@ -9,6 +9,7 @@ import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -81,17 +82,22 @@ public class OpticsTestResultExtractor implements TestResultExtractor {
 
         JsonNode errorsArray = root.get("errors_object");
         if (errorsArray != null && errorsArray.isArray()) {
+            Map<String, Map<String, String>> dedupedOpticsByInterface = new LinkedHashMap<>();
             for (JsonNode node : errorsArray) {
                 log.debug("[OPTICS] Parsing errorObject: {}", node.toString());
                 Map<String, String> result = new HashMap<>();
 
-                result.put(DEVICE_NAME, node.get("device").asText());
-                result.put(DEVICE_PORT, node.get("intf_name").asText());
+                String opticDeviceName = node.get("device").asText();
+                String opticInterface = node.get("intf_name").asText();
+                result.put(DEVICE_NAME, opticDeviceName);
+                result.put(DEVICE_PORT, opticInterface);
                 result.put(TX_POWER, node.get("output_power").asText());
                 result.put(RX_POWER, node.get("input_power").asText());
 
-                opticsResults.add(result);
+                String dedupeKey = opticDeviceName + "|" + opticInterface;
+                dedupedOpticsByInterface.put(dedupeKey, result);
             }
+            opticsResults.addAll(dedupedOpticsByInterface.values());
         }
     }
 }

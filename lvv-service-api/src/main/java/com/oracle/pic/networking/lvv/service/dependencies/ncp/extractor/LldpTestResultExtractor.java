@@ -165,7 +165,7 @@ public class LldpTestResultExtractor implements TestResultExtractor {
 
         String name = parts[0];
         String port = parts[1];
-        String rackUnit = parts[parts.length - 2];
+        String rackUnit = parts[parts.length - 2] + ":" + parts[parts.length - 1];
 
         lldpResults.put(deviceRack, rackUnit);
         lldpResults.put(deviceName, name);

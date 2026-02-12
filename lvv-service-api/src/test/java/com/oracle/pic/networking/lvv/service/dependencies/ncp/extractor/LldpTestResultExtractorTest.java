@@ -106,13 +106,13 @@ class LldpTestResultExtractorTest {
         Map<String, String> error = lldpErrors.get(0);
         assertEquals("devA", error.get("Device A Name"));
         assertEquals("Eth1/1", error.get("Device A Port"));
-        assertEquals("y", error.get("Device A Rack"));
+        assertEquals("y:u1", error.get("Device A Rack"));
         assertEquals("devB", error.get("Device B Name"));
         assertEquals("Eth2/2", error.get("Device B Port"));
-        assertEquals("b", error.get("Device B Rack"));
+        assertEquals("b:u2", error.get("Device B Rack"));
         assertEquals("devC", error.get("Expected Device B Name"));
         assertEquals("Eth3/3", error.get("Expected Device B Port"));
-        assertEquals("d", error.get("Expected Device B Rack"));
+        assertEquals("d:u3", error.get("Expected Device B Rack"));
         assertEquals("MISMATCH", error.get("LLDP Status"));
     }
 

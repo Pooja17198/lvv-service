@@ -6,6 +6,9 @@ import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.FanTestResultExtractor;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.FecBerTestResultExtractor;
+import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.InterfaceTestResultExtractor;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.LldpTestResultExtractor;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.OpticsTestResultExtractor;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor.PowerTestResultExtractor;
@@ -38,6 +41,9 @@ public class NcpJobResultProcessor {
     private static final String TEST_LLDP = "test_lldp";
     private static final String TEST_POWER = "test_power";
     private static final String TEST_OPTICS = "test_optics";
+    private static final String TEST_INTERFACES = "test_interfaces";
+    private static final String TEST_FEC_BER = "test_fec_ber_threshold";
+    private static final String TEST_FANS = "test_fans";
 
     private static final String PASSED = "PASSED";
     private static final String FAILED = "FAILED";
@@ -53,6 +59,10 @@ public class NcpJobResultProcessor {
 
     private boolean checkDeviceUnreachable(String errorMsg) {
         return errorMsg.contains("Unable to connect to");
+    }
+
+    private boolean checkDeviceClientError(String errorMsg) {
+        return errorMsg.contains("400 Client Error");
     }
 
     public void processJobResult(MetricsScope scope) {
@@ -78,7 +88,14 @@ public class NcpJobResultProcessor {
         }
 
         Iterator<Map.Entry<String, JsonNode>> deviceIterator = testResults.fields();
-        log.info("\nProcessing FAILED {} {} {} Test Cases:", TEST_LLDP, TEST_OPTICS, TEST_POWER);
+        log.info(
+                "\nProcessing FAILED {} {} {} {} {} {} Test Cases:",
+                TEST_LLDP,
+                TEST_OPTICS,
+                TEST_POWER,
+                TEST_INTERFACES,
+                TEST_FEC_BER,
+                TEST_FANS);
 
         while (deviceIterator.hasNext()) {
             Map.Entry<String, JsonNode> deviceEntry = deviceIterator.next();
@@ -92,6 +109,9 @@ public class NcpJobResultProcessor {
                 String lldpError = null;
                 String opticsError = null;
                 String powerError = null;
+                String interfaceError = null;
+                String fecBerError = null;
+                String fanError = null;
                 boolean deviceHasFailures = false;
 
                 for (JsonNode testCaseNode : testCases) {
@@ -115,6 +135,24 @@ public class NcpJobResultProcessor {
                     } else if (TEST_POWER.equals(testCaseName) && PASSED.equals(status)) {
                         powerError = PASSED;
                     }
+
+                    if (TEST_INTERFACES.equals(testCaseName) && FAILED.equals(status)) {
+                        interfaceError = testCaseNode.path("message").asText();
+                    } else if (TEST_INTERFACES.equals(testCaseName) && PASSED.equals(status)) {
+                        interfaceError = PASSED;
+                    }
+
+                    if (TEST_FEC_BER.equals(testCaseName) && FAILED.equals(status)) {
+                        fecBerError = testCaseNode.path("message").asText();
+                    } else if (TEST_FEC_BER.equals(testCaseName) && PASSED.equals(status)) {
+                        fecBerError = PASSED;
+                    }
+
+                    if (TEST_FANS.equals(testCaseName) && FAILED.equals(status)) {
+                        fanError = testCaseNode.path("message").asText();
+                    } else if (TEST_FANS.equals(testCaseName) && PASSED.equals(status)) {
+                        fanError = PASSED;
+                    }
                 }
 
                 // If device is unreachable, all 3 tests(lldp, power, optics) will show the same
@@ -122,6 +160,12 @@ public class NcpJobResultProcessor {
                 // If unreachable, we move on to next device, after updating the database
                 if (lldpError != null && checkDeviceUnreachable(lldpError)) {
                     log.info("Device {} unreachable. Updating DB", deviceId);
+                    ncpJobDetailsDao.updateNcpJobStatus(deviceId, JobStatus.DEVICE_UNREACHABLE);
+                    continue;
+                }
+
+                if (interfaceError != null && checkDeviceClientError(interfaceError)) {
+                    log.info("Device {} showing 400 Client Error message. Updating DB", deviceId);
                     ncpJobDetailsDao.updateNcpJobStatus(deviceId, JobStatus.DEVICE_UNREACHABLE);
                     continue;
                 }
@@ -147,6 +191,30 @@ public class NcpJobResultProcessor {
                     PowerTestResultExtractor powerTestResultExtractor =
                             new PowerTestResultExtractor();
                     powerTestResultExtractor.extract(deviceId, powerError, scope, deviceResults);
+                }
+
+                if (interfaceError != null && !interfaceError.equals(PASSED)) {
+                    deviceHasFailures = true;
+                    scope.emit(MetricNames.ProcessNcpResult.InterfaceError, 1.0);
+                    InterfaceTestResultExtractor interfaceTestResultExtractor =
+                            new InterfaceTestResultExtractor();
+                    interfaceTestResultExtractor.extract(
+                            deviceId, interfaceError, scope, deviceResults);
+                }
+
+                if (fecBerError != null && !fecBerError.equals(PASSED)) {
+                    deviceHasFailures = true;
+                    scope.emit(MetricNames.ProcessNcpResult.FecBerError, 1.0);
+                    FecBerTestResultExtractor fecBerTestResultExtractor =
+                            new FecBerTestResultExtractor();
+                    fecBerTestResultExtractor.extract(deviceId, fecBerError, scope, deviceResults);
+                }
+
+                if (fanError != null && !fanError.equals(PASSED)) {
+                    deviceHasFailures = true;
+                    scope.emit(MetricNames.ProcessNcpResult.FanError, 1.0);
+                    FanTestResultExtractor fanTestResultExtractor = new FanTestResultExtractor();
+                    fanTestResultExtractor.extract(deviceId, fanError, scope, deviceResults);
                 }
 
                 if (!deviceHasFailures) {

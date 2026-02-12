@@ -33,7 +33,8 @@ public class CablingValidationService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final List<String> testSuites = List.of("dcs_rack_validation");
+    private static final List<String> testSuites =
+            List.of("dcs_rack_validation", "ls_rack_validation");
     private final JiraSDService jiraSDService;
     private final ValidationFailureResultDao validationFailureResultDao;
     private final NcpJobDetailsDao ncpJobDetailsDao;

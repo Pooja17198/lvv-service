@@ -100,6 +100,26 @@ class OpticsTestResultExtractorTest {
     }
 
     @Test
+    void extract_duplicateInterfaceErrors_collapsesToSingleRowPerInterface() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: {\"errors_object\":["
+                        + "{\"device\":\"devA\",\"intf_name\":\"Eth1/1\",\"output_power\":\"1.2\",\"input_power\":\"-3.4\"},"
+                        + "{\"device\":\"devA\",\"intf_name\":\"Eth1/1\",\"output_power\":\"1.3\",\"input_power\":\"-3.5\"},"
+                        + "{\"device\":\"devA\",\"intf_name\":\"Eth1/1\",\"output_power\":\"1.4\",\"input_power\":\"-3.6\"}"
+                        + "]}";
+        extractor.extract("device1", message, metricsScope, deviceResults);
+        Map<String, List<Map<String, String>>> perDevice = deviceResults.get("device1");
+        List<Map<String, String>> optics = perDevice.get("Optic Errors");
+        assertEquals(1, optics.size());
+        Map<String, String> row = optics.get(0);
+        assertEquals("devA", row.get("Device Name"));
+        assertEquals("Eth1/1", row.get("Device Port"));
+        assertEquals("1.4", row.get("Tx Power"));
+        assertEquals("-3.6", row.get("Rx Power"));
+    }
+
+    @Test
     void extract_emptyErrorsArray_createsEmptyOpticsList() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
         String message = "Failed: {\"errors_object\":[]}";

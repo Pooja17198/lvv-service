@@ -697,7 +697,6 @@ paths:
       parameters:
         - $ref: '#/parameters/ProjectIdentifierQueryParam'
         - $ref: '#/parameters/RegionNameQueryParam'
-        - $ref: '#/parameters/ShowAvailableRacksQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
@@ -910,7 +909,6 @@ definitions:
       - deviceName
       - jobStatus
       - elevation
-      - role
     properties:
       deviceName:
         type: string
@@ -918,8 +916,6 @@ definitions:
         type: string
       elevation:
         type: integer
-      role:
-        type: string
 
   DeviceValidationStatus:
     type: object
@@ -995,14 +991,6 @@ definitions:
       ticketType: { type: string }
       rackState: { type: string }
       platformName: { type: string }
-      devicesInDeployedState: { type: integer }
-      validationStatus: {type: string}
-      fabricType:
-        type: array
-        items:
-          type: string
-
-
 
   PutProjectRequest:
     description: A request to create or update a project
@@ -1311,14 +1299,6 @@ parameters:
     description: |
       Unique Oracle-assigned identifier for the request. If you need to contact Oracle about
       a particular request, please provide the request ID.
-
-  ShowAvailableRacksQueryParam:
-    name: showAvailableRacks
-    in: query
-    description: Whether to include racks in AVAILABLE state. Default is false.
-    required: false
-    type: boolean
-    default: false
 
 
 #==========[ Responses ]================================================================================================

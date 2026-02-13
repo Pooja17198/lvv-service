@@ -25,9 +25,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -107,8 +104,7 @@ public class RacksService {
         return resourceModelTransformer.toModel(deviceJobStatus, devices);
     }
 
-    public List<ProjectRack> listProjectRacks(
-            String projectId, String regionName, boolean includeAvailable, MetricsScope scope) {
+    public List<ProjectRack> listProjectRacks(String projectId, MetricsScope scope) {
 
         ProjectItem projectItem = projectItemDao.getProjectItem(projectId);
 
@@ -149,10 +145,6 @@ public class RacksService {
             }
 
             for (Rack rack : blockRacks) {
-                if (!includeAvailable && "AVAILABLE".equalsIgnoreCase(rack.getRackState())) {
-                    // Skip racks in AVAILABLE state unless explicitly requested
-                    continue;
-                }
                 JiraTicket jiraTicket = null;
                 String rackSerial = rack.getRackSerial();
 
@@ -177,93 +169,10 @@ public class RacksService {
                                     .build();
                 }
 
-                List<DeviceDetails> deviceDetails =
-                        getDeviceDetailsInRack(
-                                rackSerial,
-                                regionName,
-                                rack.getRackLocation(),
-                                rack.getBuilding(),
-                                scope);
-                int devicesInDeployedState = deviceDetails.size();
-
-                // Fabric Type
-                Set<String> fabricType =
-                        deviceDetails.stream()
-                                .map(DeviceDetails::getRole)
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toSet());
-
-                String rackValidationStatus =
-                        getRackValidationStatus(deviceDetails, rackSerial, building, block);
-
-                racks.add(
-                        resourceModelTransformer.toModel(
-                                rack,
-                                jiraTicket,
-                                rackValidationStatus,
-                                devicesInDeployedState,
-                                fabricType.stream().toList()));
+                racks.add(resourceModelTransformer.toModel(rack, jiraTicket));
             }
         }
 
         return racks;
-    }
-
-    private String getRackValidationStatus(
-            List<DeviceDetails> deviceDetails, String rackSerial, String building, String block) {
-        // Validation Status
-        String rackValidationStatus;
-        if (deviceDetails.isEmpty()) {
-            log.info(
-                    "No devices in monitored and deployed state found for rack {} in building {} block {}",
-                    rackSerial,
-                    building,
-                    block);
-            rackValidationStatus = "No deployable devices found";
-        } else {
-            long validationCompletedDevices =
-                    deviceDetails.stream()
-                            .filter(
-                                    d ->
-                                            JobStatus.COMPLETED.name().equals(d.getJobStatus())
-                                                    || JobStatus.FAILED
-                                                            .name()
-                                                            .equals(d.getJobStatus()))
-                            .count();
-            long validationInProgressDevices =
-                    deviceDetails.stream()
-                            .filter(d -> JobStatus.IN_PROGRESS.name().equals(d.getJobStatus()))
-                            .count();
-            long validationNotTriggeredDevices =
-                    deviceDetails.stream()
-                            .filter(d -> JobStatus.NOT_TRIGGERED.name().equals(d.getJobStatus()))
-                            .count();
-
-            if (validationNotTriggeredDevices != 0) {
-                // As long as there's still one device in the rack not triggered validation, we set
-                // rack validation
-                // status as "Not Validated"
-                rackValidationStatus = "Not Validated";
-            } else if (validationInProgressDevices != 0) {
-                rackValidationStatus = "In Progress";
-            } else if (validationCompletedDevices != 0) {
-                Map<String, Object> validationFailuresForRack =
-                        (Map<String, Object>)
-                                cablingValidationService.getValidationFailuresByRack(rackSerial);
-                Map<String, Map<String, List<Map<String, String>>>> validationFailuresForDevice =
-                        (Map<String, Map<String, List<Map<String, String>>>>)
-                                validationFailuresForRack.get(rackSerial);
-                int validationFailureCount = 0;
-                for (Map<String, List<Map<String, String>>> validationFailuresByType :
-                        validationFailuresForDevice.values()) {
-                    validationFailureCount +=
-                            validationFailuresByType.values().stream().mapToInt(List::size).sum();
-                }
-                rackValidationStatus = validationFailureCount + " Errors";
-            } else {
-                rackValidationStatus = "All devices unreachable";
-            }
-        }
-        return rackValidationStatus;
     }
 }

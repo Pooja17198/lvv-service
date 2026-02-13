@@ -16,7 +16,6 @@ import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
-import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
 import com.oracle.pic.networking.lvv.service.model.ProjectRack;
@@ -44,13 +43,9 @@ class RacksServiceTest {
     RacksService service;
 
     final String region = "us-region";
-    final String building = "B2";
-    final String block = "BLK2";
-    final String projectId = "proj";
-    final String vendor = "vendor";
     final String rackNumber = "RACK1";
+    final String building = "B2";
     final String rackSerial = "RSN123";
-    final String rackLocation = "L1";
 
     @BeforeEach
     void setup() {
@@ -349,7 +344,7 @@ class RacksServiceTest {
         return Rack.builder()
                 .building(building)
                 .block(block)
-                .rackLocation(rackLocation)
+                .rackLocation("L1")
                 .rackSerial(serial)
                 .rackState("ACTIVE")
                 .platformName("PLATFORM-X")
@@ -362,8 +357,7 @@ class RacksServiceTest {
         when(projectItemDao.getProjectItem(projectId)).thenReturn(null);
 
         assertThrows(
-                RenderableException.class,
-                () -> service.listProjectRacks(projectId, region, false, metricsScope));
+                RenderableException.class, () -> service.listProjectRacks(projectId, metricsScope));
 
         verify(metricsScope)
                 .emit(
@@ -378,14 +372,17 @@ class RacksServiceTest {
     void listProjectRacks_noBlocks_emitsMetric_andThrows() {
         String projectId = "proj-empty";
         // minimal non-null project item
-        ProjectItem project = createProjectItem(projectId);
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
                 .thenReturn(Collections.emptyList());
 
         assertThrows(
-                RenderableException.class,
-                () -> service.listProjectRacks(projectId, region, false, metricsScope));
+                RenderableException.class, () -> service.listProjectRacks(projectId, metricsScope));
 
         verify(metricsScope)
                 .emit(
@@ -398,7 +395,11 @@ class RacksServiceTest {
     @Test
     void listProjectRacks_blockWithNoRacks_skipsAndReturnsEmpty() {
         String projectId = "proj-noracks";
-        ProjectItem project = createProjectItem(projectId);
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
                 .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
@@ -407,7 +408,7 @@ class RacksServiceTest {
                 .thenReturn(Collections.emptyMap());
         when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope)).thenReturn(null); // or empty
 
-        List<ProjectRack> result = service.listProjectRacks(projectId, region, false, metricsScope);
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
         assertNotNull(result);
         assertTrue(result.isEmpty());
 
@@ -419,7 +420,11 @@ class RacksServiceTest {
     @Test
     void listProjectRacks_rackWithMatchingJiraTicket_enablesResolve_andUsesTransformer() {
         String projectId = "proj-ok";
-        ProjectItem project = createProjectItem(projectId);
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
                 .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
@@ -443,17 +448,10 @@ class RacksServiceTest {
 
         ProjectRack pr1 = mock(ProjectRack.class);
         ProjectRack pr2 = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
                 .thenReturn(pr1, pr2);
 
-        when(resourceModelTransformer.toModel(anyMap(), anyList())).thenReturn(new ArrayList<>());
-
-        List<ProjectRack> result = service.listProjectRacks(projectId, region, false, metricsScope);
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
         assertEquals(2, result.size());
         assertEquals(List.of(pr1, pr2), result);
 
@@ -464,17 +462,7 @@ class RacksServiceTest {
         // Capture and assert JiraTicket mutation and default creation
         ArgumentCaptor<Rack> rackCap = ArgumentCaptor.forClass(Rack.class);
         ArgumentCaptor<JiraTicket> ticketCap = ArgumentCaptor.forClass(JiraTicket.class);
-        ArgumentCaptor<String> rackValidationStatusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> devicesInDeployedStateCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricTypeCap = ArgumentCaptor.forClass(List.class);
-
-        verify(resourceModelTransformer, times(2))
-                .toModel(
-                        rackCap.capture(),
-                        ticketCap.capture(),
-                        rackValidationStatusCap.capture(),
-                        devicesInDeployedStateCap.capture(),
-                        fabricTypeCap.capture());
+        verify(resourceModelTransformer, times(2)).toModel(rackCap.capture(), ticketCap.capture());
 
         List<Rack> racksPassed = rackCap.getAllValues();
         List<JiraTicket> ticketsPassed = ticketCap.getAllValues();
@@ -499,7 +487,11 @@ class RacksServiceTest {
     @Test
     void listProjectRacks_handlesNullRackSerial_byUsingDefaultTicket() {
         String projectId = "proj-null-serial";
-        ProjectItem project = createProjectItem(projectId);
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
                 .thenReturn(List.of(makeBlock("B2", "BLK2", projectId)));
@@ -510,31 +502,14 @@ class RacksServiceTest {
                 .thenReturn(Collections.emptyMap());
 
         ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        anyList()))
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
                 .thenReturn(pr);
 
-        when(resourceModelTransformer.toModel(anyMap(), anyList())).thenReturn(new ArrayList<>());
-
-        List<ProjectRack> result = service.listProjectRacks(projectId, region, false, metricsScope);
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
         assertEquals(1, result.size());
 
         ArgumentCaptor<JiraTicket> ticketCap = ArgumentCaptor.forClass(JiraTicket.class);
-        ArgumentCaptor<String> rackValidationStatusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> devicesInDeployedStateCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricTypeCap = ArgumentCaptor.forClass(List.class);
-
-        verify(resourceModelTransformer)
-                .toModel(
-                        eq(rNull),
-                        ticketCap.capture(),
-                        rackValidationStatusCap.capture(),
-                        devicesInDeployedStateCap.capture(),
-                        fabricTypeCap.capture());
+        verify(resourceModelTransformer).toModel(eq(rNull), ticketCap.capture());
         JiraTicket jt = ticketCap.getValue();
         assertFalse(jt.isResolveEnabled());
         assertEquals("No open ticket", jt.getResolveDisabledReason());
@@ -543,7 +518,11 @@ class RacksServiceTest {
     @Test
     void listProjectRacks_multipleBlocks_aggregatesFromEachBlock() {
         String projectId = "proj-multi";
-        ProjectItem project = createProjectItem(projectId);
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
                 .thenReturn(
@@ -565,17 +544,10 @@ class RacksServiceTest {
 
         ProjectRack pr1 = mock(ProjectRack.class);
         ProjectRack pr2 = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
                 .thenReturn(pr1, pr2);
 
-        when(resourceModelTransformer.toModel(anyMap(), anyList())).thenReturn(new ArrayList<>());
-
-        List<ProjectRack> result = service.listProjectRacks(projectId, region, false, metricsScope);
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
         assertEquals(2, result.size());
         assertEquals(List.of(pr1, pr2), result);
 
@@ -583,472 +555,6 @@ class RacksServiceTest {
         verify(jiraSDService).findOpenTicketsBySerialForBlock("B2", "BLK2");
         verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
         verify(storeKeeperHelper).listRacks("BLK2", "B2", metricsScope);
-        verify(resourceModelTransformer, times(2))
-                .toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class));
-    }
-
-    private DeviceDetails mockDeviceDetails(String role, String status) {
-        DeviceDetails d = mock(DeviceDetails.class);
-        when(d.getRole()).thenReturn(role);
-        when(d.getJobStatus()).thenReturn(status);
-        return d;
-    }
-
-    @Test
-    void
-            listProjectRacks_rackValidationStatus_NoDevices_setsNoDeployableDevicesFound_andFabricEmpty() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        doReturn(Collections.emptyList())
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        List<ProjectRack> result =
-                spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        assertEquals(1, result.size());
-
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-
-        verify(resourceModelTransformer)
-                .toModel(
-                        eq(rack),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("No deployable devices found", statusCap.getValue());
-        assertEquals(0, countCap.getValue());
-        assertTrue(fabricCap.getValue().isEmpty());
-        verify(cablingValidationService, never()).getValidationFailuresByRack(anyString());
-    }
-
-    @Test
-    void listProjectRacks_rackValidationStatus_NotValidated_whenAnyNotTriggered() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        List<DeviceDetails> devices =
-                List.of(
-                        mockDeviceDetails("CFAB", JobStatus.NOT_TRIGGERED.name()),
-                        mockDeviceDetails("GFAB", JobStatus.COMPLETED.name()));
-        doReturn(devices)
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-
-        verify(resourceModelTransformer)
-                .toModel(
-                        eq(rack),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("Not Validated", statusCap.getValue());
-        assertEquals(2, countCap.getValue());
-        Set<String> fabric = new HashSet<>(fabricCap.getValue());
-        assertEquals(Set.of("CFAB", "GFAB"), fabric);
-        verify(cablingValidationService, never()).getValidationFailuresByRack(anyString());
-    }
-
-    @Test
-    void listProjectRacks_rackValidationStatus_InProgress_whenAnyInProgress_andNoNotTriggered() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        List<DeviceDetails> devices =
-                List.of(
-                        mockDeviceDetails("CFAB", JobStatus.IN_PROGRESS.name()),
-                        mockDeviceDetails("CFAB", JobStatus.FAILED.name()));
-        doReturn(devices)
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-        verify(resourceModelTransformer)
-                .toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("In Progress", statusCap.getValue());
-        assertEquals(2, countCap.getValue());
-        List<String> fabric = fabricCap.getValue();
-        assertEquals(List.of("CFAB"), fabric);
-        verify(cablingValidationService, never()).getValidationFailuresByRack(anyString());
-    }
-
-    @Test
-    void
-            listProjectRacks_rackValidationStatus_CountsErrors_whenCompletedOrFailed_andFailuresProvided() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        List<DeviceDetails> devices =
-                List.of(
-                        mockDeviceDetails("QFAB", JobStatus.COMPLETED.name()),
-                        mockDeviceDetails("JFAB", JobStatus.FAILED.name()),
-                        mockDeviceDetails("JFAB", JobStatus.FAILED.name()));
-        doReturn(devices)
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        Map<String, List<Map<String, String>>> dev1ByType = new HashMap<>();
-        // 2 LLDP Errors for device1
-        dev1ByType.put(
-                "LLDP Errors",
-                List.of(
-                        Map.of("a1", "b1", "a2", "b2", "a3", "b3"),
-                        Map.of("a1", "b3", "a2", "b4", "a3", "b5")));
-        // 1 Optic Errors for device1
-        dev1ByType.put("Optic Errors", List.of(Map.of("c", "d", "e", "f")));
-        // 3 Power Errors
-        dev1ByType.put(
-                "Power Errors", List.of(Map.of("g", "h1"), Map.of("g", "h2"), Map.of("g", "h3")));
-
-        Map<String, List<Map<String, String>>> dev2ByType = new HashMap<>();
-        // 1 Power Errors for device2
-        dev2ByType.put("Power Errors", List.of(Map.of("x", "y")));
-
-        Map<String, Map<String, List<Map<String, String>>>> perDevice = new HashMap<>();
-        perDevice.put("dev1", dev1ByType);
-        perDevice.put("dev2", dev2ByType);
-
-        Map<String, Object> validationResultsForRack = new HashMap<>();
-        validationResultsForRack.put(rackSerial, perDevice);
-
-        when(cablingValidationService.getValidationFailuresByRack(rackSerial))
-                .thenReturn(validationResultsForRack);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-        verify(resourceModelTransformer)
-                .toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("7 Errors", statusCap.getValue());
-        assertEquals(3, countCap.getValue());
-        Set<String> fabric = new HashSet<>(fabricCap.getValue());
-        assertEquals(Set.of("QFAB", "JFAB"), fabric);
-        verify(cablingValidationService).getValidationFailuresByRack(rackSerial);
-    }
-
-    @Test
-    void
-            listProjectRacks_rackValidationStatus_CountsErrors_whenCompletedWithoutValidationFailures() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        List<DeviceDetails> devices =
-                List.of(
-                        mockDeviceDetails("QFAB", JobStatus.COMPLETED.name()),
-                        mockDeviceDetails("JFAB", JobStatus.COMPLETED.name()),
-                        mockDeviceDetails("JFAB", JobStatus.COMPLETED.name()));
-        doReturn(devices)
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        Map<String, Object> validationResultsForRack = new HashMap<>();
-        validationResultsForRack.put(rackSerial, new HashMap<>());
-        when(cablingValidationService.getValidationFailuresByRack(rackSerial))
-                .thenReturn(validationResultsForRack);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-        verify(resourceModelTransformer)
-                .toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("0 Errors", statusCap.getValue());
-        assertEquals(3, countCap.getValue());
-        Set<String> fabric = new HashSet<>(fabricCap.getValue());
-        assertEquals(Set.of("QFAB", "JFAB"), fabric);
-        verify(cablingValidationService).getValidationFailuresByRack(rackSerial);
-    }
-
-    @Test
-    void listProjectRacks_rackValidationStatus_AllUnreachable_whenStatusesUnknown() {
-        // Set up
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock(building, block, projectId)));
-        when(jiraSDService.findOpenTicketsBySerialForBlock(building, block))
-                .thenReturn(Collections.emptyMap());
-        Rack rack = makeRack(building, block, rackSerial);
-        when(storeKeeperHelper.listRacks(block, building, metricsScope)).thenReturn(List.of(rack));
-
-        RacksService spyService = Mockito.spy(service);
-        List<DeviceDetails> devices =
-                List.of(
-                        mockDeviceDetails("CFAB", "DEVICE_UNREACHABLE"),
-                        mockDeviceDetails("CFAB", "DEVICE_UNREACHABLE"));
-        doReturn(devices)
-                .when(spyService)
-                .getDeviceDetailsInRack(rackSerial, region, rackLocation, building, metricsScope);
-
-        ProjectRack pr = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr);
-
-        // Execution
-        spyService.listProjectRacks(projectId, region, false, metricsScope);
-
-        // Validation
-        ArgumentCaptor<String> statusCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Integer> countCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<List> fabricCap = ArgumentCaptor.forClass(List.class);
-        verify(resourceModelTransformer)
-                .toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        statusCap.capture(),
-                        countCap.capture(),
-                        fabricCap.capture());
-        assertEquals("All devices unreachable", statusCap.getValue());
-        assertEquals(2, countCap.getValue());
-        List<String> fabric = fabricCap.getValue();
-        assertEquals(List.of("CFAB"), fabric);
-        verify(cablingValidationService, never()).getValidationFailuresByRack(anyString());
-    }
-
-    @Test
-    void listProjectRacks_availableFilter_excludesAvailable_whenFlagFalse() {
-        String projectId = "proj-available-false";
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
-
-        // One AVAILABLE rack and one ACTIVE rack
-        Rack rAvail =
-                Rack.builder()
-                        .building("B1")
-                        .block("BLK1")
-                        .rackLocation(rackLocation)
-                        .rackSerial("S-AV")
-                        .rackState("AVAILABLE")
-                        .platformName("PLATFORM-X")
-                        .build();
-        Rack rActive = makeRack("B1", "BLK1", "S-ACT");
-
-        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope))
-                .thenReturn(List.of(rAvail, rActive));
-        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1"))
-                .thenReturn(Collections.emptyMap());
-
-        RacksService spyService = Mockito.spy(service);
-        // Avoid deep logic; just return empty device details so status is computed but irrelevant
-        doReturn(Collections.emptyList())
-                .when(spyService)
-                .getDeviceDetailsInRack(
-                        anyString(),
-                        anyString(),
-                        anyString(),
-                        anyString(),
-                        any(MetricsScope.class));
-
-        ProjectRack pr1 = mock(ProjectRack.class);
-        ProjectRack pr2 = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr1, pr2);
-
-        // Execution with includeAvailable = false should filter out AVAILABLE rack
-        List<ProjectRack> result =
-                spyService.listProjectRacks(projectId, region, false, metricsScope);
-        assertNotNull(result);
-        assertEquals(1, result.size());
-    }
-
-    @Test
-    void listProjectRacks_availableFilter_includesAvailable_whenFlagTrue() {
-        String projectId = "proj-available-true";
-        ProjectItem project = createProjectItem(projectId);
-        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
-        when(blockDetailsDao.getBlockDetailsForProject(projectId))
-                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
-
-        // One AVAILABLE rack and one ACTIVE rack
-        Rack rAvail =
-                Rack.builder()
-                        .building("B1")
-                        .block("BLK1")
-                        .rackLocation(rackLocation)
-                        .rackSerial("S-AV")
-                        .rackState("AVAILABLE")
-                        .platformName("PLATFORM-X")
-                        .build();
-        Rack rActive = makeRack("B1", "BLK1", "S-ACT");
-
-        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope))
-                .thenReturn(List.of(rAvail, rActive));
-        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1"))
-                .thenReturn(Collections.emptyMap());
-
-        RacksService spyService = Mockito.spy(service);
-        doReturn(Collections.emptyList())
-                .when(spyService)
-                .getDeviceDetailsInRack(
-                        anyString(),
-                        anyString(),
-                        anyString(),
-                        anyString(),
-                        any(MetricsScope.class));
-
-        ProjectRack pr1 = mock(ProjectRack.class);
-        ProjectRack pr2 = mock(ProjectRack.class);
-        when(resourceModelTransformer.toModel(
-                        any(Rack.class),
-                        any(JiraTicket.class),
-                        any(String.class),
-                        anyInt(),
-                        any(List.class)))
-                .thenReturn(pr1, pr2);
-
-        // Execution with includeAvailable = true should include AVAILABLE rack
-        List<ProjectRack> result =
-                spyService.listProjectRacks(projectId, region, true, metricsScope);
-        assertNotNull(result);
-        assertEquals(2, result.size());
-    }
-
-    private ProjectItem createProjectItem(String projectId) {
-        ProjectItem project = ProjectItem.builder().projectId(projectId).vendorName(vendor).build();
-        return project;
+        verify(resourceModelTransformer, times(2)).toModel(any(Rack.class), any(JiraTicket.class));
     }
 }

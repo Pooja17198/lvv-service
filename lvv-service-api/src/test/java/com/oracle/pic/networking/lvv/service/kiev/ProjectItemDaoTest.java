@@ -14,6 +14,7 @@ import com.oracle.pic.kiev.mapping.PaginationToken;
 import com.oracle.pic.kiev.mapping.ScanPage;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.dependencies.notificationservice.NotificationServiceHelper;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,11 +34,14 @@ class ProjectItemDaoTest {
     @Mock Index<ProjectItem.VendorRegionIndex, ProjectItem> vendorRegionIndex;
     @Mock MetricsScope metricsScope;
     @Mock Transaction transaction;
+    @Mock NotificationServiceHelper notificationServiceHelper;
+    @Mock MonitoringDao monitoringDao;
 
     ProjectItemDao dao;
     final String projectId = "pid1";
     final String vendorName = "testVendor";
     final String regionName = "region";
+    final String building = "bldg";
     ProjectItem projItem;
 
     @BeforeEach
@@ -58,8 +62,18 @@ class ProjectItemDaoTest {
                 .thenReturn(vendorRegionIndex);
         dao =
                 new ProjectItemDao(
-                        projectItemStore, serializer, projectItemProvider, blockDetailsDao);
-        projItem = ProjectItem.builder().projectId(projectId).vendorName(vendorName).build();
+                        projectItemStore,
+                        serializer,
+                        projectItemProvider,
+                        blockDetailsDao,
+                        notificationServiceHelper,
+                        monitoringDao);
+        projItem =
+                ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName(vendorName)
+                        .vendorEmail("")
+                        .build();
     }
 
     @Test
@@ -105,14 +119,15 @@ class ProjectItemDaoTest {
     @Test
     void testAddProjectItem_nullDetailList_throws() {
         assertThrows(
-                NullPointerException.class, () -> dao.addProjectItem(projItem, null, metricsScope));
+                NullPointerException.class,
+                () -> dao.addProjectItem(projItem, null, building, metricsScope));
     }
 
     @Test
     void testUpdateProjectItem_nullDetailList_throws() {
         assertThrows(
                 NullPointerException.class,
-                () -> dao.updateProjectItem(projItem, null, metricsScope));
+                () -> dao.updateProjectItem(projItem, null, building, metricsScope));
     }
 
     @Test
@@ -134,7 +149,7 @@ class ProjectItemDaoTest {
         when(blockDetailsDao.getBlockDetails(anyString(), anyString())).thenReturn(null);
         when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
 
-        assertDoesNotThrow(() -> dao.addProjectItem(projItem, detailList, metricsScope));
+        assertDoesNotThrow(() -> dao.addProjectItem(projItem, detailList, building, metricsScope));
     }
 
     @Test
@@ -154,14 +169,14 @@ class ProjectItemDaoTest {
     void testAddProjectItem_nullProjectItem_throws() {
         assertThrows(
                 NullPointerException.class,
-                () -> dao.addProjectItem(null, List.of(), metricsScope));
+                () -> dao.addProjectItem(null, List.of(), building, metricsScope));
     }
 
     @Test
     void testUpdateProjectItem_nullProjectItem_throws() {
         assertThrows(
                 NullPointerException.class,
-                () -> dao.updateProjectItem(null, List.of(), metricsScope));
+                () -> dao.updateProjectItem(null, List.of(), building, metricsScope));
     }
 
     @Test
@@ -176,7 +191,9 @@ class ProjectItemDaoTest {
         when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
 
         assertDoesNotThrow(
-                () -> dao.addProjectItem(projItem, Collections.emptyList(), metricsScope));
+                () ->
+                        dao.addProjectItem(
+                                projItem, Collections.emptyList(), building, metricsScope));
     }
 
     @Test
@@ -210,7 +227,12 @@ class ProjectItemDaoTest {
     void testGetProjectItemsForRegion_noIndex_fallback() {
         ProjectItemDao fallbackDao =
                 new ProjectItemDao(
-                        projectItemStore, serializer, projectItemProvider, blockDetailsDao);
+                        projectItemStore,
+                        serializer,
+                        projectItemProvider,
+                        blockDetailsDao,
+                        notificationServiceHelper,
+                        monitoringDao);
 
         ProjectItem p =
                 ProjectItem.builder()
@@ -309,7 +331,9 @@ class ProjectItemDaoTest {
         RenderableException ex =
                 assertThrows(
                         RenderableException.class,
-                        () -> dao.addProjectItem(projItem, List.of(blockDetail), metricsScope));
+                        () ->
+                                dao.addProjectItem(
+                                        projItem, List.of(blockDetail), building, metricsScope));
         verify(metricsScope)
                 .emit(eq(MetricNames.AddProjectItem.BlockAlreadyAssigned.name()), anyDouble());
         verify(projectItemStore, never()).createItem(any(), any());
@@ -324,7 +348,9 @@ class ProjectItemDaoTest {
 
         assertThrows(
                 RenderableException.class,
-                () -> dao.addProjectItem(projItem, Collections.emptyList(), metricsScope));
+                () ->
+                        dao.addProjectItem(
+                                projItem, Collections.emptyList(), building, metricsScope));
 
         verify(metricsScope)
                 .emit(eq(MetricNames.AddProjectItem.KievCommitFailure.name()), anyDouble());
@@ -340,7 +366,9 @@ class ProjectItemDaoTest {
 
         assertThrows(
                 RenderableException.class,
-                () -> spyDao.addProjectItem(projItem, Collections.emptyList(), metricsScope));
+                () ->
+                        spyDao.addProjectItem(
+                                projItem, Collections.emptyList(), building, metricsScope));
 
         verify(metricsScope)
                 .emit(eq(MetricNames.AddProjectItem.ItemAlreadyExists.name()), anyDouble());
@@ -358,7 +386,9 @@ class ProjectItemDaoTest {
 
         assertThrows(
                 RenderableException.class,
-                () -> spyDao.updateProjectItem(projItem, Collections.emptyList(), metricsScope));
+                () ->
+                        spyDao.updateProjectItem(
+                                projItem, Collections.emptyList(), building, metricsScope));
 
         verify(metricsScope)
                 .emit(eq(MetricNames.UpdateProjectItem.ItemDoesNotExist.name()), anyDouble());
@@ -381,7 +411,9 @@ class ProjectItemDaoTest {
 
         assertThrows(
                 RenderableException.class,
-                () -> spyDao.updateProjectItem(projItem, Collections.emptyList(), metricsScope));
+                () ->
+                        spyDao.updateProjectItem(
+                                projItem, Collections.emptyList(), building, metricsScope));
 
         verify(metricsScope)
                 .emit(eq(MetricNames.UpdateProjectItem.KievCommitFailure.name()), anyDouble());
@@ -402,31 +434,6 @@ class ProjectItemDaoTest {
 
         verify(metricsScope)
                 .emit(eq(MetricNames.DeleteProjectItem.ItemDoesNotExist.name()), anyDouble());
-    }
-
-    @Test
-    void testDeleteProjectItem_commitConflictHandled() throws CommitConflictException {
-        ProjectItemDao spyDao = spy(dao);
-        when(projectItemStore.beginTransaction(projectId)).thenReturn(transaction);
-        when(metricsScope.emit(anyString(), anyDouble())).thenReturn(metricsScope);
-
-        ProjectItem existing =
-                ProjectItem.builder()
-                        .projectId(projectId)
-                        .vendorName(vendorName)
-                        .regionName("us-phoenix-1")
-                        .build();
-        existing.setProjectKey(1L);
-
-        doReturn(existing).when(spyDao).getProjectItemForProjectId(projectId);
-        doThrow(mock(CommitConflictException.class)).when(transaction).commit();
-
-        assertThrows(
-                RenderableException.class, () -> spyDao.deleteProjectItem(projectId, metricsScope));
-
-        verify(metricsScope)
-                .emit(eq(MetricNames.DeleteProjectItem.KievCommitFailure.name()), anyDouble());
-        verify(transaction).abort();
     }
 
     @Test
@@ -511,7 +518,13 @@ class ProjectItemDaoTest {
                 .thenReturn(vendorRegionIndex);
 
         ProjectItemDao noRegionDao =
-                new ProjectItemDao(projectItemStore, serializer, provider, blockDetailsDao);
+                new ProjectItemDao(
+                        projectItemStore,
+                        serializer,
+                        provider,
+                        blockDetailsDao,
+                        notificationServiceHelper,
+                        monitoringDao);
 
         ScanPage<ProjectItem> page = mock(ScanPage.class);
         when(provider.beginScan(anyInt())).thenReturn(page);

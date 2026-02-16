@@ -2,8 +2,10 @@ package com.oracle.pic.networking.lvv.service.resources;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.oracle.pic.networking.lvv.service.kiev.BadLinks;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.model.BadLinkDetail;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -74,4 +76,22 @@ class ResourceModelTransformerTest {
     //        assertEquals("portB-exp", dto.getDeviceBPortExpected());
     //        assertEquals("failure", dto.getPsuFailure());
     //    }
+
+    @Test
+    void testToModelBadLinkDetail() {
+        BadLinks row =
+                BadLinks.builder()
+                        .building("BLD-1")
+                        .device("devA")
+                        .remoteDevice("remB")
+                        .jiraTicket("DO-1")
+                        .build();
+
+        BadLinkDetail dto = transformer.toModel(row);
+
+        assertNotNull(dto);
+        assertEquals("devA", dto.getDevice());
+        assertEquals("remB", dto.getRemoteDevice());
+        assertEquals("DO-1", dto.getJiraTicket());
+    }
 }

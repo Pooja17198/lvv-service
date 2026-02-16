@@ -13,4 +13,12 @@ public class JiraQueries {
     public static final String GPU_VALIDATION = " AND summary ~ \"NA Cable Validation Failure\"";
     public static final String RACK_DEPLOYMENT = " AND summary ~ \"Rack Deployment\"";
     public static final String SERIAL_NUMBER = " AND \"Serial Number\" ~ %s";
+
+    // Bad links JQL
+    public static final String NEW_BAD_LINKS_JQL_TEMPLATE =
+            "labels = INTERFACE_DOWN AND Source = Autocut AND Building = \"%s\" AND statusCategory != Done AND created >= \"%s\"";
+
+    // Check closed keys JQL (closed tickets in jira)
+    public static final String CLOSED_BAD_LINKS_JQL_TEMPLATE =
+            "key in (%s) AND Source = Autocut AND statusCategory = Done AND updated >= \"%s\"";
 }

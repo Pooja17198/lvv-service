@@ -12,14 +12,13 @@ import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
+import com.oracle.pic.networking.lvv.service.utils.DownloadCsvReportBuilder;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.core.Context;
-import lombok.AccessLevel;
-import lombok.Getter;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,10 +29,6 @@ public class CablingValidationResource extends AbstractCablingValidationResource
     private final CablingValidationService cablingValidationService;
     private final ValidationFailureResultDao validationFailureResultDao;
     private final ResourceModelTransformer resourceModelTransformer;
-
-    @Context
-    @Getter(AccessLevel.PRIVATE)
-    private HttpServletResponse httpServletResponse;
 
     @Inject
     protected CablingValidationResource(
@@ -131,45 +126,32 @@ public class CablingValidationResource extends AbstractCablingValidationResource
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
-        //        try (MetricsScope scope =
-        //                MetricsScope.create(
-        //                        MetricNames.MetricScopeNames.DOWNLOAD_VALIDATION_RESULTS.name()))
-        // {
-        //
-        //            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
-        //            scope.emit(MetricNames.ValidateCables.DownloadCsv.name(), 1.0);
-        //
-        //            List<ValidationFailureResult> rawResults =
-        //                    validationFailureResultDao.getValidationFailuresByRack(rackSerial,
-        // true);
-        //
-        //            List<ValidationFailureDisplayDTO> results =
-        //                    rawResults.stream()
-        //                            .map(r -> resourceModelTransformer.toModel(r, true))
-        //                            .toList();
-        //
-        //            StringWriter writer = new StringWriter();
-        //            try {
-        //                StatefulBeanToCsv<ValidationFailureDisplayDTO> beanToCsv =
-        //                        new
-        // StatefulBeanToCsvBuilder<ValidationFailureDisplayDTO>(writer).build();
-        //                beanToCsv.write(results);
-        //            } catch (com.opencsv.exceptions.CsvDataTypeMismatchException
-        //                    | com.opencsv.exceptions.CsvRequiredFieldEmptyException e) {
-        //                throw new WebApplicationException("Failed to generate CSV", e);
-        //            }
-        //
-        //            Response response =
-        //                    Response.ok(writer.toString())
-        //                            .header(
-        //                                    "Content-Disposition",
-        //                                    "attachment; filename=\"validationFailureResults_"
-        //                                            + rackSerial
-        //                                            + ".csv\"")
-        //                            .type("text/csv")
-        //                            .build();
-        //            throw new WebApplicationException(response);
-        //        }
+        try (MetricsScope scope =
+                MetricsScope.create(
+                        MetricNames.MetricScopeNames.DOWNLOAD_VALIDATION_RESULTS.name())) {
+
+            log.info("Starting downloadValidations for rack {}", rackSerial);
+
+            scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
+            scope.emit(MetricNames.ValidateCables.DownloadCsv.name(), 1.0);
+
+            Object resultsWrapper =
+                    cablingValidationService.getValidationFailuresByRack(rackSerial);
+
+            String csv = DownloadCsvReportBuilder.buildMultiTableCsv(resultsWrapper, rackSerial);
+
+            Response response =
+                    Response.ok(csv)
+                            .type("text/csv")
+                            .header(
+                                    "Content-Disposition",
+                                    "attachment; filename=\"validationFailureResults_"
+                                            + rackSerial
+                                            + ".csv\"")
+                            .build();
+            scope.recordSuccess();
+            throw new WebApplicationException(response);
+        }
     }
 
     @Override

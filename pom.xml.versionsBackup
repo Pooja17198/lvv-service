@@ -16,7 +16,7 @@
   <groupId>com.oracle.pic.networking.lvv.service</groupId>
   <artifactId>lvv-service-reactor-pom</artifactId>
   <name>LvvService Reactor Pom</name>
-  <version>1.1.0</version>
+  <version>0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -83,7 +83,7 @@ Maven ticket: https://issues.apache.org/jira/browse/MNG-4148
       <dependency>
         <groupId>com.oracle.pic.networking.lvv.service</groupId>
         <artifactId>lvv-service-spec</artifactId>
-        <version>1.1.0</version>
+        <version>0.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>com.oracle.pic.networking.lvv.service</groupId>

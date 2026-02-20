@@ -501,8 +501,12 @@ class CablingValidationResourceTest {
     }
 
     @Test
-    void testDownloadValidationFailures_noop_doesNotThrow() {
-        resource.downloadValidationFailures(
-                "rack001", region, opcRequestId, principal, authorizationRequest);
+    void testDownloadValidationFailures_returnsResponse_viaWebApplicationException() {
+        // The resource now returns a JAX-RS Response by throwing WebApplicationException.
+        assertThrows(
+                javax.ws.rs.WebApplicationException.class,
+                () ->
+                        resource.downloadValidationFailures(
+                                "rack001", region, opcRequestId, principal, authorizationRequest));
     }
 }

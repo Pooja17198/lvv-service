@@ -8,12 +8,12 @@
   <parent>
     <groupId>com.oracle.pic.networking.lvv.service</groupId>
     <artifactId>lvv-service-reactor-pom</artifactId>
-    <version>1.1.0</version>
+    <version>0.1-SNAPSHOT</version>
   </parent>
 
   <artifactId>lvv-service-spec</artifactId>
   <packaging>jar</packaging>
-  <version>1.1.0</version>
+  <version>0.1-SNAPSHOT</version>
 
   <name>lvv-service-spec</name>
 

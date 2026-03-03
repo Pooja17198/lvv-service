@@ -6,9 +6,11 @@ import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraTicket;
 import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.Rack;
+import com.oracle.pic.networking.lvv.service.kiev.BadLinks;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
+import com.oracle.pic.networking.lvv.service.model.BadLinkDetail;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.model.Project;
@@ -48,6 +50,7 @@ public class ResourceModelTransformer {
         return Project.builder()
                 .projectId(project.getProjectId())
                 .vendorName(project.getVendorName())
+                .vendorEmail(project.getVendorEmail())
                 .createdBy(project.getCreatedBy())
                 .cmLink(project.getCmLink())
                 .blocks(blocks)
@@ -129,6 +132,17 @@ public class ResourceModelTransformer {
                 .resolveDisabledReason(jiraTicket.getResolveDisabledReason())
                 .rackState(rack.getRackState())
                 .platformName(rack.getPlatformName())
+                .build();
+    }
+
+    public BadLinkDetail toModel(BadLinks row) {
+        if (row == null) {
+            return null;
+        }
+        return BadLinkDetail.builder()
+                .device(row.getDevice())
+                .remoteDevice(row.getRemoteDevice())
+                .jiraTicket(row.getJiraTicket())
                 .build();
     }
 

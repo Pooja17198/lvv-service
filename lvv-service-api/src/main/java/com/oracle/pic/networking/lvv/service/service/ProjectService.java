@@ -8,6 +8,7 @@ import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.MonitoringDao;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.Project;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ProjectService {
     @NonNull private final ProjectItemDao projectItemDao;
     @NonNull private final BlockDetailsDao blockDetailsDao;
+    @NonNull private final MonitoringDao monitoringDao;
 
     @NonNull ResourceModelTransformer resourceModelTransformer;
 
@@ -33,9 +35,11 @@ public class ProjectService {
     public ProjectService(
             @NonNull ProjectItemDao projectItemDao,
             @NonNull BlockDetailsDao blockDetailsDao,
+            @NonNull MonitoringDao monitoringDao,
             @NonNull ResourceModelTransformer resourceModelTransformer) {
         this.projectItemDao = projectItemDao;
         this.blockDetailsDao = blockDetailsDao;
+        this.monitoringDao = monitoringDao;
         this.resourceModelTransformer = resourceModelTransformer;
     }
 
@@ -56,6 +60,7 @@ public class ProjectService {
     void checkNullParameters(
             String projectId,
             String vendorName,
+            String vendorEmail,
             String createdBy,
             String region,
             String building,
@@ -68,6 +73,9 @@ public class ProjectService {
         }
         if (vendorName == null || vendorName.isBlank()) {
             missing.add("vendorName");
+        }
+        if (vendorEmail == null || vendorEmail.isBlank()) {
+            missing.add("vendorEmail");
         }
         if (createdBy == null || createdBy.isBlank()) {
             missing.add("createdBy");
@@ -92,6 +100,7 @@ public class ProjectService {
     public void createProject(
             String projectId,
             String vendorName,
+            String vendorEmail,
             String createdBy,
             String cmLink,
             String region,
@@ -99,8 +108,8 @@ public class ProjectService {
             List<String> blocks,
             MetricsScope scope) {
 
-        // since CM link is optional(can be null/empty) so we are not checking it here
-        checkNullParameters(projectId, vendorName, createdBy, region, building, blocks);
+        checkNullParameters(
+                projectId, vendorName, vendorEmail, createdBy, region, building, blocks);
 
         log.info("Creating Project with ID {}", projectId);
 
@@ -112,17 +121,19 @@ public class ProjectService {
                         .vendorName(
                                 vendorName.toLowerCase()) // Converting vendor name to lowercase to
                         // make vendor names case-insensitive
+                        .vendorEmail(vendorEmail.toLowerCase())
                         .createdBy(createdBy)
                         .cmLink(cmLink)
                         .regionName(region)
                         .build();
 
-        projectItemDao.addProjectItem(item, blockDetails, scope);
+        projectItemDao.addProjectItem(item, blockDetails, building, scope);
     }
 
     public void updateProject(
             String projectId,
             String vendorName,
+            String vendorEmail,
             String createdBy,
             String cmLink,
             String region,
@@ -130,8 +141,8 @@ public class ProjectService {
             List<String> blocks,
             MetricsScope scope) {
 
-        // since CM link is optional(can be null/empty) so we are not checking it here
-        checkNullParameters(projectId, vendorName, createdBy, region, building, blocks);
+        checkNullParameters(
+                projectId, vendorName, vendorEmail, createdBy, region, building, blocks);
 
         log.info("Updating Project with ID {}", projectId);
 
@@ -144,12 +155,13 @@ public class ProjectService {
                 ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
+                        .vendorEmail(vendorEmail.toLowerCase())
                         .createdBy(createdBy)
                         .cmLink(cmLink)
                         .regionName(region)
                         .build();
 
-        projectItemDao.updateProjectItem(item, blockDetails, scope);
+        projectItemDao.updateProjectItem(item, blockDetails, building, scope);
     }
 
     public Project getProject(String projectId, MetricsScope scope) {

@@ -2,7 +2,10 @@ package com.oracle.pic.networking.lvv.service.utils;
 
 import com.oracle.pic.commons.util.Region;
 import java.security.SecureRandom;
+import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public class GeneralUtils {
@@ -42,5 +45,14 @@ public class GeneralUtils {
             return "r2";
         }
         return publicName;
+    }
+
+    public static String formatTimestamp(Timestamp ts) {
+        // Format as yyyy-MM-dd HH:mm in UTC, fallback to epoch if null
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        if (ts == null) {
+            return "1970-01-01 00:00";
+        }
+        return fmt.format(ts.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime());
     }
 }

@@ -44,7 +44,12 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
 
     @NotNull private PlanServiceConfiguration planServiceConfiguration;
 
+    @NotNull private NotificationClientConfiguration notificationClientConfiguration;
+
     @NotNull private StoreKeeperClientConfig skConfig;
+
+    // When true, skip creating notification topic/subscription and publishing messages
+    private boolean disableONS;
 
     public void validateAdAndRegionConfiguration() {
         Validate.isTrue(getLocation().isValid());

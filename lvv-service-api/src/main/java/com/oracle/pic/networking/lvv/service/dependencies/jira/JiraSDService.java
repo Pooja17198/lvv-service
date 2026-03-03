@@ -13,10 +13,14 @@ import com.atlassian.jira.rest.client.api.domain.input.IssueInputBuilder;
 import com.atlassian.jira.rest.client.api.domain.input.TransitionInput;
 import com.google.inject.Inject;
 import com.oracle.pic.commons.metrics.MetricsScope;
+import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -40,6 +44,65 @@ public class JiraSDService {
             scope.recordSuccess();
             return searchResult;
         }
+    }
+
+    public List<Issue> searchJiraSDPaginated(String jql, int pageSize, Set<String> fields) {
+        // If caller provided a fields set (even empty), include the minimal fields required by
+        // JRJC. If caller passed null, then fetch the minimal set of fields(effectiveFields).
+        Set<String> effectiveFields = getEffectiveFields(fields);
+
+        log.info("Querying Jira with jql: {} and fields: {}", jql, effectiveFields);
+        int startAt = 0;
+        List<Issue> allIssues = new ArrayList<>();
+        try (MetricsScope scope = MetricsScope.create("searchJiraSD")) {
+            try {
+                while (true) {
+                    SearchResult page =
+                            this.searchRestClient
+                                    .searchJql(jql, pageSize, startAt, effectiveFields)
+                                    .claim();
+                    int pageCount = 0;
+                    for (Issue issue : page.getIssues()) {
+                        if (issue != null) {
+                            allIssues.add(issue);
+                            pageCount++;
+                        }
+                    }
+
+                    log.info("Got {} issues in paginated jira query", pageCount);
+                    scope.emit(MetricNames.Jira.PaginatedQuerySuccess.name(), 1.0);
+
+                    if (pageCount == 0 || startAt + pageCount >= page.getTotal()) {
+                        break;
+                    }
+                    startAt += pageCount;
+                }
+                scope.recordSuccess();
+            } catch (Exception e) {
+                scope.emit(MetricNames.Jira.PaginatedQueryFailure.name(), 1.0);
+                log.error("Error while querying Jira for keys", e);
+            }
+        }
+
+        log.info("Fetched {} jira issues", allIssues.size());
+
+        return allIssues;
+    }
+
+    private static Set<String> getEffectiveFields(Set<String> fields) {
+        Set<String> effectiveFields = null;
+        if (fields != null && !fields.isEmpty()) {
+            effectiveFields = new LinkedHashSet<>(fields);
+            // Minimal fields accessed by IssueJsonParser: issuetype, created, updated, project,
+            // status, summary
+            effectiveFields.add("issuetype");
+            effectiveFields.add("created");
+            effectiveFields.add("updated");
+            effectiveFields.add("project");
+            effectiveFields.add("status");
+            effectiveFields.add("summary");
+        }
+        return effectiveFields;
     }
 
     public void transitionTicket(

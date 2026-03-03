@@ -30,6 +30,7 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
     private static final String LOCK_STATUS = "Lock Status";
     private static final String REMOTE_DEVICE = "Remote Device";
     private static final String REMOTE_INTERFACE = "Remote Interface";
+    private static final String ERROR_MESSAGE = "Error Message";
 
     private static final String UNKNOWN = "Unknown";
     private static final Pattern FEC_BER_BLOCK =
@@ -96,15 +97,7 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
         } catch (IOException e) {
             log.warn("[FEC_BER] FEC_BER Error in unexpected format{}", message, e);
             scope.emit(MetricNames.ProcessNcpResult.FecBerErrorFormatUnexpected, 1.0);
-            Map<String, String> result = new HashMap<>();
-            result.put(DEVICE_NAME, deviceId);
-            result.put(DEVICE_RACK, UNKNOWN);
-            result.put(DEVICE_PORT, UNKNOWN);
-            result.put(PRE_FEC_BER, UNKNOWN);
-            result.put(LOCK_STATUS, UNKNOWN);
-            result.put(REMOTE_DEVICE, UNKNOWN);
-            result.put(REMOTE_INTERFACE, UNKNOWN);
-            fecBerResults.add(result);
+            fecBerResults.add(createUnknownFecBerResult(deviceId, message));
         }
 
         if (!anyRowAdded) {
@@ -112,15 +105,7 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
 
             // Reuse existing unexpected-format metric to avoid changing MetricNames
             scope.emit(MetricNames.ProcessNcpResult.FecBerErrorFormatUnexpected, 1.0);
-            Map<String, String> result = new HashMap<>();
-            result.put(DEVICE_NAME, deviceId);
-            result.put(DEVICE_RACK, UNKNOWN);
-            result.put(DEVICE_PORT, UNKNOWN);
-            result.put(PRE_FEC_BER, UNKNOWN);
-            result.put(LOCK_STATUS, UNKNOWN);
-            result.put(REMOTE_DEVICE, UNKNOWN);
-            result.put(REMOTE_INTERFACE, UNKNOWN);
-            fecBerResults.add(result);
+            fecBerResults.add(createUnknownFecBerResult(deviceId, message));
         }
     }
 
@@ -144,5 +129,18 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
 
         newJson = newJson.replaceAll(",\\s*(?=\\})", "");
         return "{" + newJson + "}";
+    }
+
+    private Map<String, String> createUnknownFecBerResult(String deviceId, String rawMessage) {
+        Map<String, String> result = new HashMap<>();
+        result.put(DEVICE_NAME, deviceId);
+        result.put(DEVICE_RACK, UNKNOWN);
+        result.put(DEVICE_PORT, UNKNOWN);
+        result.put(PRE_FEC_BER, UNKNOWN);
+        result.put(LOCK_STATUS, UNKNOWN);
+        result.put(REMOTE_DEVICE, UNKNOWN);
+        result.put(REMOTE_INTERFACE, UNKNOWN);
+        result.put(ERROR_MESSAGE, rawMessage == null ? UNKNOWN : rawMessage);
+        return result;
     }
 }

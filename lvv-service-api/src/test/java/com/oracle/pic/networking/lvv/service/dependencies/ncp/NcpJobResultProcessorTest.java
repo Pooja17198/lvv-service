@@ -187,6 +187,42 @@ class NcpJobResultProcessorTest {
     }
 
     @Test
+    void processJobResult_lldpBreakoutPort_preservedInOutput() {
+        String lldpMsg =
+                "Failed: {\\\"message\\\":\\\"LLDP Failures: 1\\\",\\\"errors_object\\\":[{\\\"current_origin\\\":\\\"devX:et-0/0/25:1:x:y:u1\\\",\\\"current_destination\\\":\\\"devY:et-0/0/26:1:a:b:u2\\\",\\\"expected_destination\\\":\\\"devZ:et-0/0/27:1:c:d:u3\\\"}]}";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devX": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "FAILED", "message": "%s" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(lldpMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        p.processJobResult(metricsScope);
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devX");
+        assertNotNull(perDev);
+        List<Map<String, String>> lldp = perDev.get("LLDP Errors");
+        assertNotNull(lldp);
+        assertEquals(1, lldp.size());
+        Map<String, String> lldpEntry = lldp.get(0);
+        assertEquals("et-0/0/25:1", lldpEntry.get("Device A Port"));
+        assertEquals("et-0/0/26:1", lldpEntry.get("Device B Port"));
+        assertEquals("et-0/0/27:1", lldpEntry.get("Expected Device B Port"));
+    }
+
+    @Test
     void processJobResult_lldpMalformed_createsUnknown_and_emitsExtractorMetric() {
         // LLDP with malformed JSON after "Failed:" should create UNKNOWN entry via extractor
         String lldpMsg = "Failed: not_json";
@@ -683,5 +719,54 @@ class NcpJobResultProcessorTest {
 
         verify(metricsScope, atLeastOnce())
                 .emit(eq(MetricNames.ProcessNcpResult.FanError), anyDouble());
+    }
+
+    @Test
+    void processJobResult_fanMalformedMessage_doesNotThrow_addsUnknown_and_emitsFormatMetric() {
+        String fanMsg =
+                "Failed: Unable to connect to devFanMalformed. Error: 500 Server Error: TypeError "
+                        + "for url: https://device-access-service.svc.ad1.us-saltlake-2/v1/"
+                        + "devices/devFanMalformed/environment: {'message': \\\"'<' not supported "
+                        + "between instances of 'float' and 'str'\\\", 'name': "
+                        + "'unhandled exception TypeError'}";
+        String json =
+                """
+                        {
+                          "testResults": {
+                            "devFanMalformed": {
+                              "healthCheckReport": {
+                                "testCases": [
+                                  { "testCase": "test_lldp", "status": "PASSED" },
+                                  { "testCase": "test_optics", "status": "PASSED" },
+                                  { "testCase": "test_power", "status": "PASSED" },
+                                  { "testCase": "test_interfaces", "status": "PASSED" },
+                                  { "testCase": "test_fec_ber_threshold", "status": "PASSED" },
+                                  { "testCase": "test_fans", "status": "FAILED", "message": "%s" }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """
+                        .formatted(fanMsg);
+
+        NcpJobResultProcessor p = newProcessorWithJson(json);
+        assertDoesNotThrow(() -> p.processJobResult(metricsScope));
+
+        Map<String, List<Map<String, String>>> perDev = p.getDeviceResults().get("devFanMalformed");
+        assertNotNull(perDev);
+        List<Map<String, String>> fanErrors = perDev.get("Fan Errors");
+        assertNotNull(fanErrors);
+        assertEquals(1, fanErrors.size());
+        Map<String, String> row = fanErrors.get(0);
+        assertEquals("devFanMalformed", row.get("Device Name"));
+        assertEquals("Unknown", row.get("Fan Name"));
+        assertEquals("Unknown", row.get("Fan Slot"));
+        assertEquals("Unknown", row.get("Status"));
+
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.FanError), anyDouble());
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.FanErrorFormatUnexpected), anyDouble());
     }
 }

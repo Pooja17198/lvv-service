@@ -916,6 +916,10 @@ definitions:
         type: string
       elevation:
         type: integer
+      validationEligible:
+        type: boolean
+      validationEligibilityReason:
+        type: string
 
   DeviceValidationStatus:
     type: object

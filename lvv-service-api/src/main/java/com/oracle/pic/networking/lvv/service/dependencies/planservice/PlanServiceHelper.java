@@ -1,6 +1,5 @@
 package com.oracle.pic.networking.lvv.service.dependencies.planservice;
 
-import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.autonet.plan.service.PlanServiceVClient;
@@ -8,10 +7,10 @@ import com.oracle.pic.networking.autonet.plan.service.model.Device;
 import com.oracle.pic.networking.autonet.plan.service.requests.GetDevicesByRackRequest;
 import com.oracle.pic.networking.autonet.plan.service.responses.GetDevicesByRackResponse;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.utils.DeviceValidationEligibilityUtils;
 import com.oracle.pic.networking.lvv.service.utils.RetryHelper;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,25 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PlanServiceHelper {
 
     private static final int DEFAULT_CLIENT_RETRY_COUNT = 3;
-    private static final String DEVICE_STATE = "device.state";
-    private static final String DEPLOYED_STATE = "deployed";
     private final PlanServiceClient planServiceClient;
-
-    private boolean isMonitoredDevice(Device device) {
-        Map<String, Object> configAttributes = device.getConfigAttributes();
-        Preconditions.checkNotNull(
-                configAttributes,
-                String.format(
-                        "Error retrieving config attributes for device : %s", device.getName()));
-        Preconditions.checkNotNull(
-                device.getState(),
-                String.format("Error retrieving state for device : %s", device.getName()));
-        return configAttributes.get("monitoring.interfaces") != null;
-    }
-
-    private boolean isDeployedState(Device device) {
-        return device.getState().get("conf").get(DEVICE_STATE).equalsIgnoreCase(DEPLOYED_STATE);
-    }
 
     public List<Device> getDeviceListInRack(
             String rackNumber, String building, String region, MetricsScope scope) {
@@ -75,25 +56,22 @@ public class PlanServiceHelper {
             List<Device> devices =
                     response.getItems() != null ? response.getItems() : new ArrayList<>();
             log.info("Found {} total devices in rack", devices.size());
-
-            List<Device> monitoredDeployedDevices =
+            long monitoredDeployedCount =
                     devices.stream()
-                            .filter(this::isMonitoredDevice)
-                            .filter(this::isDeployedState)
-                            .toList();
-
+                            .filter(DeviceValidationEligibilityUtils::isValidationEligibleDevice)
+                            .count();
             log.info(
                     "Found {} monitored and deployed state devices in rack",
-                    monitoredDeployedDevices.size());
+                    monitoredDeployedCount);
 
             log.info(
-                    "Devices that needs to be validated for rack {} building {} region {}: {}",
+                    "Devices in rack {} building {} region {}: {}",
                     rackNumber,
                     building,
                     region,
-                    monitoredDeployedDevices);
+                    devices);
 
-            return monitoredDeployedDevices;
+            return devices;
 
         } catch (Exception e) {
             log.error(

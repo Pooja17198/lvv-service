@@ -6,6 +6,7 @@ import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,7 +165,16 @@ public class LldpTestResultExtractor implements TestResultExtractor {
         }
 
         String name = parts[0];
-        String port = parts[1];
+        int portEndIndexExclusive = parts.length - 3;
+        if (portEndIndexExclusive <= 1) {
+            lldpResults.put(deviceRack, UNKNOWN);
+            lldpResults.put(deviceName, UNKNOWN);
+            lldpResults.put(devicePort, UNKNOWN);
+            return;
+        }
+        // Preserve breakout suffixes (for example et-0/0/25:1) by joining
+        // all tokens between the device name and trailing rack tokens.
+        String port = String.join(":", Arrays.copyOfRange(parts, 1, portEndIndexExclusive));
         String rackUnit = parts[parts.length - 2] + ":" + parts[parts.length - 1];
 
         lldpResults.put(deviceRack, rackUnit);

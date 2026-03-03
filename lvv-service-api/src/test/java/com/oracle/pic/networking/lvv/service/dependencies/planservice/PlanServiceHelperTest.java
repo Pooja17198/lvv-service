@@ -59,11 +59,11 @@ class PlanServiceHelperTest {
     }
 
     @Test
-    void testGetDeviceListInRack_success_filtersMonitoredAndDeployedOnly() throws Exception {
-        Device d1 = mkDevice("dev-1", true, "deployed"); // include
-        Device d2 = mkDevice("dev-2", true, "provisioning"); // exclude (state not deployed)
-        Device d3 = mkDevice("dev-3", false, "deployed"); // exclude (not monitored)
-        Device d4 = mkDevice("dev-4", true, "deployed"); // include
+    void testGetDeviceListInRack_success_returnsAllDevices() throws Exception {
+        Device d1 = mkDevice("dev-1", true, "deployed");
+        Device d2 = mkDevice("dev-2", true, "provisioning");
+        Device d3 = mkDevice("dev-3", false, "deployed");
+        Device d4 = mkDevice("dev-4", true, "deployed");
 
         when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
@@ -80,7 +80,7 @@ class PlanServiceHelperTest {
             List<Device> result =
                     helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
 
-            assertEquals(List.of(d1, d4), result);
+            assertEquals(List.of(d1, d2, d3, d4), result);
             verify(planServiceClient).getPlanServiceVClient(region);
             verify(mockRetryHelper).run();
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
@@ -158,11 +158,10 @@ class PlanServiceHelperTest {
     }
 
     @Test
-    void
-            testGetDeviceListInRack_nullConfigAttributes_inDevice_caughtAndReturnsEmpty_emitsBothMetrics()
-                    throws Exception {
+    void testGetDeviceListInRack_nullConfigAttributes_inDevice_stillReturnsDevices_andDoesNotFail()
+            throws Exception {
         Device bad = mkDevice("bad", true, "deployed");
-        // Force null configAttributes to trigger Preconditions in isMonitoredDevice
+        // null configAttributes should no longer fail the call
         when(bad.getConfigAttributes()).thenReturn(null);
 
         when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
@@ -181,18 +180,18 @@ class PlanServiceHelperTest {
                     helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
 
             assertNotNull(result);
-            assertTrue(result.isEmpty());
+            assertEquals(List.of(bad), result);
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
-            verify(metricsScope)
-                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), anyDouble());
         }
     }
 
     @Test
-    void testGetDeviceListInRack_nullState_inDevice_caughtAndReturnsEmpty_emitsBothMetrics()
+    void testGetDeviceListInRack_nullState_inDevice_stillReturnsDevices_andDoesNotFail()
             throws Exception {
         Device bad = mkDevice("bad", true, "deployed");
-        when(bad.getState()).thenReturn(null); // trigger Preconditions in isMonitoredDevice
+        when(bad.getState()).thenReturn(null);
 
         when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
@@ -210,15 +209,15 @@ class PlanServiceHelperTest {
                     helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
 
             assertNotNull(result);
-            assertTrue(result.isEmpty());
+            assertEquals(List.of(bad), result);
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
-            verify(metricsScope)
-                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), anyDouble());
         }
     }
 
     @Test
-    void testGetDeviceListInRack_missingConfOrDeviceState_caughtAndReturnsEmpty_emitsBothMetrics()
+    void testGetDeviceListInRack_missingConfOrDeviceState_stillReturnsDevices_andDoesNotFail()
             throws Exception {
         // Missing 'conf' key
         Device missingConf = mkDevice("missing-conf", true, null);
@@ -248,10 +247,10 @@ class PlanServiceHelperTest {
                     helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
 
             assertNotNull(result);
-            assertTrue(result.isEmpty());
+            assertEquals(List.of(missingConf, missingState), result);
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
-            verify(metricsScope)
-                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), anyDouble());
         }
     }
 }

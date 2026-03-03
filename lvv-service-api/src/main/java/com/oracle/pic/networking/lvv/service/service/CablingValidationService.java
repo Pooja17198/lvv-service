@@ -171,6 +171,18 @@ public class CablingValidationService {
                         validationFailureResultDao.addUpdateValidationFailureResultsForDevices(
                                 rackSerialNumber, output, addResultsScope);
                         scope.recordSuccess();
+                    } catch (RenderableException e) {
+                        if (isRecoverableResultParsingError(e)) {
+                            log.error(
+                                    "Failed to parse NCP result for device {} jobId {}. Marking job as FAILED.",
+                                    currJobDetails.getDeviceName(),
+                                    currJobDetails.getJobId(),
+                                    e);
+                            currJobDetails.setJobStatus(JobStatus.FAILED);
+                            ncpJobDetailsDao.updateNcpJobDetails(currJobDetails);
+                            continue;
+                        }
+                        throw e;
                     }
 
                     // Check if Device status was updated to Unreachable
@@ -194,6 +206,16 @@ public class CablingValidationService {
                 }
             }
         }
+    }
+
+    private boolean isRecoverableResultParsingError(RenderableException exception) {
+        if (exception == null || exception.getMessage() == null) {
+            return false;
+        }
+
+        String message = exception.getMessage();
+        return "Failed to parse NCP job result as JSON".equals(message)
+                || message.contains("Error in unexpected format");
     }
 
     public Map<String, JobStatus> getValidationJobStatus(

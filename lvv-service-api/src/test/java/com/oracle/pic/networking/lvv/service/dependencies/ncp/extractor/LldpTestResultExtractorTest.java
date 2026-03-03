@@ -159,6 +159,24 @@ class LldpTestResultExtractorTest {
     }
 
     @Test
+    void extract_breakoutPort_preservesSuffix() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: {\"message\":\"LLDP Failures: 1\",\"errors_object\":[{\"current_origin\":\"devA:et-0/0/25:1:x:y:U10\",\"current_destination\":\"devB:et-0/0/26:1:a:b:U20\",\"expected_destination\":\"devC:et-0/0/27:1:c:d:U30\"}]}";
+
+        extractor.extract("device1", message, metricsScope, deviceResults);
+
+        Map<String, List<Map<String, String>>> perDevice = deviceResults.get("device1");
+        List<Map<String, String>> lldpErrors = perDevice.get("LLDP Errors");
+        assertEquals(1, lldpErrors.size());
+
+        Map<String, String> error = lldpErrors.get(0);
+        assertEquals("et-0/0/25:1", error.get("Device A Port"));
+        assertEquals("et-0/0/26:1", error.get("Device B Port"));
+        assertEquals("et-0/0/27:1", error.get("Expected Device B Port"));
+    }
+
+    @Test
     void constructor_withNullMapper_usesDefault() {
         LldpTestResultExtractor extractorWithNull = new LldpTestResultExtractor(null);
         // Should not throw, and should work normally

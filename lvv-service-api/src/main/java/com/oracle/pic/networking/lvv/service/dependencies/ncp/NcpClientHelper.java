@@ -32,8 +32,10 @@ import com.oracle.pic.networking.ncp.responses.GetJobResponse;
 import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,6 +53,8 @@ public class NcpClientHelper {
 
     private static final int DEFAULT_CLIENT_RETRY_COUNT = 3;
     private static final String RESULT_NAME = "TestResults";
+    private static final int PRE_PARSE_PREVIEW_CHARS = 1024;
+    private static final int PARSE_FAILURE_PREVIEW_CHARS = 2048;
 
     private static final List<Job.State> JOB_FAILED_STATES =
             List.of(Job.State.Failed, Job.State.Canceled, Job.State.Timeout, Job.State.Error);
@@ -94,17 +98,71 @@ public class NcpClientHelper {
                     GetJobResultRequest.builder().jobId(jobId).resultName(RESULT_NAME).build();
             GetJobResultResponse getJobResultResponse =
                     ncpJobResultsClient.getJobResult(getJobResultRequest);
+            byte[] payloadBytes = readResultBytes(getJobResultResponse.getInputStream());
+            String payloadPreview = toPayloadPreview(payloadBytes, PRE_PARSE_PREVIEW_CHARS);
+
+            log.info(
+                    "[NCP] Raw {} payload preview before parse for jobId {} ({} bytes, first {} chars): {}",
+                    RESULT_NAME,
+                    jobId,
+                    payloadBytes.length,
+                    PRE_PARSE_PREVIEW_CHARS,
+                    payloadPreview);
+
             NcpJobResultProcessor jobResultProcessor =
                     jobResultProcessorFactory.apply(
-                            getJobResultResponse.getInputStream(), ncpJobDetailsDao);
+                            new ByteArrayInputStream(payloadBytes), ncpJobDetailsDao);
 
             scope.withDimension("jobId", jobId);
             scope.withDimension("region", GeneralUtils.getRegionInternalName(region));
 
-            jobResultProcessor.processJobResult(scope);
+            try {
+                jobResultProcessor.processJobResult(scope);
+            } catch (RenderableException e) {
+                if ("Failed to parse NCP job result as JSON".equals(e.getMessage())) {
+                    log.error(
+                            "[NCP] Failed to parse {} payload as JSON for jobId {}. Preview(first {} chars): {}",
+                            RESULT_NAME,
+                            jobId,
+                            PARSE_FAILURE_PREVIEW_CHARS,
+                            toPayloadPreview(payloadBytes, PARSE_FAILURE_PREVIEW_CHARS));
+                }
+                throw e;
+            }
             scope.recordSuccess();
             return jobResultProcessor.getDeviceResults();
         }
+    }
+
+    private byte[] readResultBytes(InputStream inputStream) {
+        if (inputStream == null) {
+            return new byte[0];
+        }
+        try {
+            return inputStream.readAllBytes();
+        } catch (IOException e) {
+            log.warn("Unable to read NCP result stream for preview logging", e);
+            return new byte[0];
+        }
+    }
+
+    private String toPayloadPreview(byte[] payloadBytes, int maxChars) {
+        if (payloadBytes == null || payloadBytes.length == 0) {
+            return "<empty>";
+        }
+
+        String payloadText =
+                new String(payloadBytes, StandardCharsets.UTF_8)
+                        .replace("\r", "\\r")
+                        .replace("\n", "\\n");
+        if (payloadText.length() <= maxChars) {
+            return payloadText;
+        }
+
+        return payloadText.substring(0, maxChars)
+                + "...(truncated,totalChars="
+                + payloadText.length()
+                + ")";
     }
 
     // Fetching the HEALTH_CHECK Job ID which is triggered from the PER_RACK_VALIDATION_JOB

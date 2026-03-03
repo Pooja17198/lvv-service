@@ -14,6 +14,7 @@ import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.model.Project;
 import com.oracle.pic.networking.lvv.service.model.ProjectRack;
 import com.oracle.pic.networking.lvv.service.model.RegionObject;
+import com.oracle.pic.networking.lvv.service.utils.DeviceValidationEligibilityUtils;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,11 +77,22 @@ public class ResourceModelTransformer {
         List<DeviceDetails> deviceValidationStatuses = new ArrayList<>();
 
         for (Device device : devices) {
+            boolean isValidationEligible =
+                    DeviceValidationEligibilityUtils.isValidationEligibleDevice(device);
+            JobStatus status =
+                    jobStatus != null && jobStatus.get(device.getName()) != null
+                            ? jobStatus.get(device.getName())
+                            : JobStatus.NOT_TRIGGERED;
             DeviceDetails deviceDetails =
                     DeviceDetails.builder()
                             .deviceName(device.getName())
-                            .jobStatus(jobStatus.get(device.getName()).name())
-                            .elevation(Integer.parseInt(device.getLocation().getElevation()))
+                            .jobStatus(status.name())
+                            .elevation(extractElevation(device))
+                            .validationEligible(isValidationEligible)
+                            .validationEligibilityReason(
+                                    isValidationEligible
+                                            ? null
+                                            : DeviceValidationEligibilityUtils.NON_ELIGIBLE_REASON)
                             .build();
             deviceValidationStatuses.add(deviceDetails);
         }
@@ -118,5 +130,18 @@ public class ResourceModelTransformer {
                 .rackState(rack.getRackState())
                 .platformName(rack.getPlatformName())
                 .build();
+    }
+
+    private int extractElevation(Device device) {
+        if (device == null
+                || device.getLocation() == null
+                || device.getLocation().getElevation() == null) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(device.getLocation().getElevation());
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
     }
 }

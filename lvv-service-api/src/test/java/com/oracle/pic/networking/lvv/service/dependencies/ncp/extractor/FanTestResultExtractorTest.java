@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import java.util.HashMap;
@@ -150,17 +149,41 @@ class FanTestResultExtractorTest {
     }
 
     @Test
-    void extract_malformedJson_throwsRenderable_andEmitsMetric() {
+    void extract_malformedJson_addsUnknownRow_andEmitsMetric() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
 
-        RenderableException ex =
-                assertThrows(
-                        RenderableException.class,
-                        () ->
-                                extractor.extract(
-                                        "devH", "Failed: not_json", metricsScope, deviceResults));
+        assertDoesNotThrow(
+                () -> extractor.extract("devH", "Failed: not_json", metricsScope, deviceResults));
+        List<Map<String, String>> fans = deviceResults.get("devH").get("Fan Errors");
+        assertEquals(1, fans.size());
+        Map<String, String> row = fans.get(0);
+        assertEquals("devH", row.get("Device Name"));
+        assertEquals("Unknown", row.get("Fan Name"));
+        assertEquals("Unknown", row.get("Fan Slot"));
+        assertEquals("Unknown", row.get("Status"));
+        verify(metricsScope, atLeastOnce())
+                .emit(eq(MetricNames.ProcessNcpResult.FanErrorFormatUnexpected), anyDouble());
+    }
 
-        assertTrue(ex.getMessage().contains("Fan Error in unexpected format"));
+    @Test
+    void extract_plainTextFailureWithTrailingObject_addsUnknownRow_andEmitsMetric() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: Unable to connect to devK. Error: 500 Server Error: TypeError for url: "
+                        + "https://device-access-service.svc.ad1.us-saltlake-2/v1/devices/devK/"
+                        + "environment: {'message': \"'<' not supported between instances of "
+                        + "'float' and 'str'\", "
+                        + "'name': 'unhandled exception TypeError'}";
+
+        assertDoesNotThrow(() -> extractor.extract("devK", message, metricsScope, deviceResults));
+
+        List<Map<String, String>> fans = deviceResults.get("devK").get("Fan Errors");
+        assertEquals(1, fans.size());
+        Map<String, String> row = fans.get(0);
+        assertEquals("devK", row.get("Device Name"));
+        assertEquals("Unknown", row.get("Fan Name"));
+        assertEquals("Unknown", row.get("Fan Slot"));
+        assertEquals("Unknown", row.get("Status"));
         verify(metricsScope, atLeastOnce())
                 .emit(eq(MetricNames.ProcessNcpResult.FanErrorFormatUnexpected), anyDouble());
     }

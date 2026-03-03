@@ -31,9 +31,11 @@ import com.oracle.pic.networking.ncp.responses.GetJobResponse;
 import com.oracle.pic.networking.ncp.responses.GetJobResultResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitProgressResponse;
 import com.oracle.pic.networking.ncp.responses.ListJobUnitsResponse;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -82,7 +84,8 @@ class NcpClientHelperTest {
         String rackSerial = "RSN123";
         String rackUnit = "RU01";
 
-        InputStream resultInputStream = mock(InputStream.class);
+        InputStream resultInputStream =
+                new ByteArrayInputStream("{\"testResults\":{}}".getBytes(StandardCharsets.UTF_8));
         stubJobResultsClient(region, resultInputStream);
 
         NcpJobResultProcessor mockResultProcessor = mock(NcpJobResultProcessor.class);
@@ -108,7 +111,8 @@ class NcpClientHelperTest {
         String rackSerial = "RSN1";
         String rackUnit = "RU1";
 
-        InputStream resultInputStream = mock(InputStream.class);
+        InputStream resultInputStream =
+                new ByteArrayInputStream("{\"testResults\":{}}".getBytes(StandardCharsets.UTF_8));
         stubJobResultsClient(region, resultInputStream);
 
         NcpJobResultProcessor mockResultProcessor = mock(NcpJobResultProcessor.class);

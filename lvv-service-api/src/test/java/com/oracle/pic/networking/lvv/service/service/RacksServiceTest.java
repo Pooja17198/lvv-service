@@ -64,6 +64,21 @@ class RacksServiceTest {
     private Device mockDeviceWithName(String name) {
         Device device = mock(Device.class);
         when(device.getName()).thenReturn(name);
+        Map<String, Object> configAttributes = new HashMap<>();
+        configAttributes.put("monitoring.interfaces", List.of("Eth0/1"));
+        when(device.getConfigAttributes()).thenReturn(configAttributes);
+
+        Map<String, String> conf = new HashMap<>();
+        conf.put("device.state", "deployed");
+        Map<String, Map<String, String>> state = new HashMap<>();
+        state.put("conf", conf);
+        when(device.getState()).thenReturn(state);
+        return device;
+    }
+
+    private Device mockIneligibleDeviceWithName(String name) {
+        Device device = mock(Device.class);
+        when(device.getConfigAttributes()).thenReturn(Collections.emptyMap());
         return device;
     }
 
@@ -183,6 +198,37 @@ class RacksServiceTest {
         Map<String, String> jobsInserted = jobsCaptor.getValue();
         assertEquals(1, jobsInserted.size());
         assertEquals("", jobsInserted.get("dup"));
+    }
+
+    @Test
+    void getDeviceDetailsInRack_devicesPresentButNoneEligible_skipsDbSeedJobs() {
+        // Arrange
+        Device d1 = mockIneligibleDeviceWithName("dev-ineligible-1");
+        Device d2 = mockIneligibleDeviceWithName("dev-ineligible-2");
+        List<Device> devices = Arrays.asList(d1, d2);
+        when(planServiceHelper.getDeviceListInRack(rackNumber, building, region, metricsScope))
+                .thenReturn(devices);
+
+        Map<String, JobStatus> emptyStatus = Collections.emptyMap();
+        when(cablingValidationService.getValidationJobStatus(
+                        metricsScope, region, rackSerial, rackNumber, false))
+                .thenReturn(emptyStatus);
+        when(resourceModelTransformer.toModel(emptyStatus, devices))
+                .thenReturn(Collections.emptyList());
+
+        // Act
+        List<DeviceDetails> result =
+                service.getDeviceDetailsInRack(
+                        rackSerial, region, rackNumber, building, metricsScope);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(ncpJobDetailsDao, never())
+                .addUpdateNcpJobDetails(any(HashMap.class), anyString(), any(MetricsScope.class));
+        verify(cablingValidationService)
+                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+        verify(resourceModelTransformer).toModel(emptyStatus, devices);
     }
 
     @Test

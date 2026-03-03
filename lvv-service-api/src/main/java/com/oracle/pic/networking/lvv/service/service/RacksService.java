@@ -21,6 +21,7 @@ import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceDetails;
 import com.oracle.pic.networking.lvv.service.model.ProjectRack;
 import com.oracle.pic.networking.lvv.service.resources.ResourceModelTransformer;
+import com.oracle.pic.networking.lvv.service.utils.DeviceValidationEligibilityUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -83,19 +84,22 @@ public class RacksService {
         // Map that stores {deviceName -> NCP Job ID}
         HashMap<String, String> emptyNcpJobs = new HashMap<>();
 
-        // If we get a list of devices, we create job entries for each of that device
-        // Else, we create a single job for the entire rack, and set the device name to the rack
-        // serial itself
-        if (!devices.isEmpty()) {
-            for (Device device : devices) {
+        // We add job entries only for monitored+deployed devices.
+        // If there are no devices at all (for example, Plan service unavailable in ViBE), keep the
+        // existing rack-level fallback.
+        for (Device device : devices) {
+            if (DeviceValidationEligibilityUtils.isValidationEligibleDevice(device)) {
                 emptyNcpJobs.put(device.getName(), "");
             }
-        } else {
+        }
+        if (devices.isEmpty()) {
             emptyNcpJobs.put(rackSerialNumber, "");
         }
 
         // We add empty job details in the DB for the devices which haven't been added to the DB yet
-        ncpJobDetailsDao.addUpdateNcpJobDetails(emptyNcpJobs, rackSerialNumber, scope);
+        if (!emptyNcpJobs.isEmpty()) {
+            ncpJobDetailsDao.addUpdateNcpJobDetails(emptyNcpJobs, rackSerialNumber, scope);
+        }
 
         Map<String, JobStatus> deviceJobStatus =
                 cablingValidationService.getValidationJobStatus(

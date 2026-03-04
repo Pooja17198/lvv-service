@@ -32,8 +32,6 @@ public class BlockDetailsDao {
 
     private final Index<BlockDetails.ProjectIdIndex, BlockDetails> projectIdIndex;
 
-    //    private final Index<BlockDetails.BuildingIndex, BlockDetails> buildingIndex;
-
     @Inject
     public BlockDetailsDao(
             @NonNull ConfigurationStore<BlockDetails.Block, BlockDetails> blockDetailsStore,
@@ -45,10 +43,6 @@ public class BlockDetailsDao {
         this.projectIdIndex =
                 blockDetailsProvider.getIndex(
                         BlockDetails.PROJECT_ID_COLUMN_NAME, BlockDetails.ProjectIdIndex.class);
-        //        this.buildingIndex =
-        //                blockDetailsProvider.getIndex(
-        //                        BlockDetails.BUILDING_COLUMN_NAME_IDX,
-        // BlockDetails.BuildingIndex.class);
     }
 
     public void addBlockDetails(@NonNull List<BlockDetails> blocks, Transaction txn) {

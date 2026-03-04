@@ -29,17 +29,10 @@ import lombok.Value;
         name = BlockDetails.PROJECT_ID_COLUMN_NAME,
         columns = {BlockDetails.PROJECT_ID_COLUMN_NAME},
         unique = false)
-// @KievIndex(
-//        name = BlockDetails.BUILDING_COLUMN_NAME_IDX,
-//        columns = {BlockDetails.BUILDING_COLUMN_NAME},
-//        unique = false)
 @ToString
 public class BlockDetails {
 
     public static final String PROJECT_ID_COLUMN_NAME = "projectIdColumn";
-    public static final String BUILDING_COLUMN_NAME = "building";
-    public static final String BLOCK_COLUMN_NAME = "blockNumber";
-    //    public static final String BUILDING_COLUMN_NAME_IDX = "buildingColumnIdx";
 
     @NonNull @HashKey @KievNestedEntity private Block block;
 
@@ -49,18 +42,10 @@ public class BlockDetails {
     @lombok.Builder(builderClassName = "Builder")
     public static class Block {
 
-        @Column(
-                type = STRING,
-                length = KievConstants.MAX_NAME_LENGTH,
-                index = 1,
-                name = BUILDING_COLUMN_NAME)
+        @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, index = 1)
         String building;
 
-        @Column(
-                type = STRING,
-                length = KievConstants.MAX_NAME_LENGTH,
-                index = 2,
-                name = BLOCK_COLUMN_NAME)
+        @Column(type = STRING, length = KievConstants.MAX_NAME_LENGTH, index = 2)
         String blockNumber;
     }
 
@@ -81,21 +66,4 @@ public class BlockDetails {
         @Column(type = STRING, length = 64, name = PROJECT_ID_COLUMN_NAME)
         String projectId;
     }
-
-    //    @Value
-    //    @KievEntity
-    //    @AllArgsConstructor
-    //    @lombok.Builder(builderClassName = "Builder", toBuilder = true)
-    //    public static class BuildingIndex {
-    //        @SuppressWarnings("unused")
-    //        BuildingIndex() {
-    //            building = null;
-    //        }
-    //
-    //        @Column(
-    //                type = ColumnType.STRING,
-    //                length = KievConstants.MAX_NAME_LENGTH,
-    //                name = BUILDING_COLUMN_NAME)
-    //        String building;
-    //    }
 }

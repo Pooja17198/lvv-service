@@ -32,7 +32,6 @@ class ProjectResourceTest {
 
     final String projectId = "pid-123";
     final String vendorName = "vname";
-    final String vendorEmail = "vendor@company.com";
     final String createdBy = "unknown";
     final String cmLink = "https://jira-sd.mc1.oracleiaas.com/browse/CHANGE-123456";
     final String building = "bldg";
@@ -51,7 +50,6 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
-                        .vendorEmail(vendorEmail)
                         .createdBy(createdBy)
                         .cmLink(cmLink)
                         .building(building)
@@ -70,7 +68,7 @@ class ProjectResourceTest {
 
             doNothing()
                     .when(projectService)
-                    .createProject(any(), any(), any(), any(), any(), any(), any(), any(), any());
+                    .createProject(any(), any(), any(), any(), any(), any(), any(), any());
             when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
             when(metricsScope.recordSuccess()).thenReturn(metricsScope);
 
@@ -82,7 +80,6 @@ class ProjectResourceTest {
                     .createProject(
                             eq(projectId),
                             eq(vendorName),
-                            eq(vendorEmail),
                             eq(createdBy),
                             eq(cmLink),
                             eq(region),
@@ -104,7 +101,7 @@ class ProjectResourceTest {
 
             doNothing()
                     .when(projectService)
-                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any(), any());
+                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any());
             when(metricsScope.withDimension(anyString(), anyString())).thenReturn(metricsScope);
             when(metricsScope.recordSuccess()).thenReturn(metricsScope);
 
@@ -114,7 +111,6 @@ class ProjectResourceTest {
                     .updateProject(
                             eq(projectId),
                             eq(vendorName),
-                            eq(vendorEmail),
                             eq(createdBy),
                             eq(cmLink),
                             eq(region),
@@ -132,7 +128,6 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
-                        .vendorEmail(vendorEmail)
                         .createdBy(createdBy)
                         .cmLink(cmLink)
                         .region(region)
@@ -151,7 +146,7 @@ class ProjectResourceTest {
             assertFalse(result);
             verify(metricsScope, never()).recordSuccess();
             verify(projectService, never())
-                    .createProject(any(), any(), any(), any(), any(), any(), any(), any(), any());
+                    .createProject(any(), any(), any(), any(), any(), any(), any(), any());
         }
     }
 
@@ -161,7 +156,6 @@ class ProjectResourceTest {
                 Project.builder()
                         .projectId(projectId)
                         .vendorName(vendorName)
-                        .vendorEmail(vendorEmail)
                         .createdBy(createdBy)
                         .cmLink(cmLink)
                         .region(region)
@@ -185,7 +179,7 @@ class ProjectResourceTest {
             assertEquals(ErrorCode.InvalidParameter, ex.getErrorCode());
             verify(metricsScope, never()).recordSuccess();
             verify(projectService, never())
-                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any(), any());
+                    .updateProject(any(), any(), any(), any(), any(), any(), any(), any());
         }
     }
 

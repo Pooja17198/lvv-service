@@ -18,10 +18,7 @@ public class MetricNames {
         FETCH_REGIONS,
         RACK_DETAILS,
         FETCH_RACKS,
-        NCP_JOB_DETAILS,
-        BAD_LINKS,
-        MONITORING,
-        NOTIFICATIONS,
+        NCP_JOB_DETAILS
     }
 
     public enum AddProjectItem {
@@ -105,7 +102,6 @@ public class MetricNames {
         DeleteBlockDetails,
         GetBlockDetails,
         GetBlockDetailsForProject,
-        GetProjectsForBuilding,
         BlockSizeExceedsMaximum,
         NoBlocksInProject
     }
@@ -155,39 +151,5 @@ public class MetricNames {
         FetchRacksFailed,
         ResolveDisabledRegionCount,
         RegionMissing
-    }
-
-    public enum BadLinks {
-        GetBadLinks,
-        EmptyBuildingName,
-        ErrorParsingSummary,
-        GetForBuilding,
-        DeleteByIds,
-        DeleteIdsBatchSuccess,
-        DeleteIdsBatchFailure,
-        InsertRows,
-        InsertRowsBatchSuccess,
-        InsertRowsBatchFailure,
-        NotificationTopicNotFound
-    }
-
-    public enum Monitoring {
-        GetMonitoringRecord,
-        UpsertMonitoringRecord
-    }
-
-    public enum Notifications {
-        CreateTopicSuccess,
-        CreateTopicFailure,
-        CreateSubscriptionSuccess,
-        CreateSubscriptionAlreadyExists,
-        CreateSubscriptionFailure,
-        PublishMessageSuccess,
-        PublishMessageFailure
-    }
-
-    public enum Jira {
-        PaginatedQuerySuccess,
-        PaginatedQueryFailure
     }
 }

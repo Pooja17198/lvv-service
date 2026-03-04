@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
+import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.model.CablingTaskCollection;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import org.junit.jupiter.api.BeforeEach;
@@ -151,5 +152,85 @@ class CablingTaskResourceTest {
                         this.cablingTaskResource.resolveValidationFailureTask(
                                 TASK_ID, REGION_NAME, principalMock, authorizationRequestMock));
         verify(this.mockedCablingTaskService).resolveValidationFailureTask(TASK_ID);
+    }
+
+    @Test
+    void shouldThrowMissingParameter_whenRegionBlankOrNull() {
+        // blank
+        RenderableException ex1 =
+                assertThrows(
+                        RenderableException.class,
+                        () ->
+                                this.cablingTaskResource.resolveValidationFailureTask(
+                                        TASK_ID, "", principalMock, authorizationRequestMock));
+        assertTrue(ex1.getMessage().contains("regionName cannot be empty"));
+
+        // null
+        RenderableException ex2 =
+                assertThrows(
+                        RenderableException.class,
+                        () ->
+                                this.cablingTaskResource.resolveValidationFailureTask(
+                                        TASK_ID, null, principalMock, authorizationRequestMock));
+        assertTrue(ex2.getMessage().contains("regionName cannot be empty"));
+
+        verify(this.mockedCablingTaskService, never()).resolveValidationFailureTask(any());
+    }
+
+    @Test
+    void shouldBlockResolve_whenRegionIsConfiguredDisabled() {
+        // Arrange config to disable a specific region
+        LvvServiceApiConfiguration cfg = new LvvServiceApiConfiguration();
+        cfg.setResolveDisabledRegions(java.util.List.of("ap-sydney-1"));
+        this.cablingTaskResource.setConfigForTest(cfg);
+
+        // Act + Assert
+        RenderableException ex =
+                assertThrows(
+                        RenderableException.class,
+                        () ->
+                                this.cablingTaskResource.resolveValidationFailureTask(
+                                        TASK_ID,
+                                        "ap-sydney-1",
+                                        principalMock,
+                                        authorizationRequestMock));
+        assertTrue(ex.getMessage().contains("Resolve is disabled for region"));
+        verify(this.mockedCablingTaskService, never()).resolveValidationFailureTask(any());
+    }
+
+    @Test
+    void shouldAllowResolve_whenRegionNotDisabled_andInvokeService() {
+        // Arrange config to disable a different region
+        LvvServiceApiConfiguration cfg = new LvvServiceApiConfiguration();
+        cfg.setResolveDisabledRegions(java.util.List.of("ap-sydney-1"));
+        this.cablingTaskResource.setConfigForTest(cfg);
+
+        // No exception from service
+        assertDoesNotThrow(
+                () ->
+                        this.cablingTaskResource.resolveValidationFailureTask(
+                                TASK_ID, "us-ashburn-1", principalMock, authorizationRequestMock));
+        verify(this.mockedCablingTaskService).resolveValidationFailureTask(TASK_ID);
+    }
+
+    @Test
+    void shouldBlockResolve_caseInsensitiveRegionName() {
+        // Arrange config to disable a specific region in lowercase
+        LvvServiceApiConfiguration cfg = new LvvServiceApiConfiguration();
+        cfg.setResolveDisabledRegions(java.util.List.of("ap-sydney-1"));
+        this.cablingTaskResource.setConfigForTest(cfg);
+
+        // Act + Assert with uppercase region input
+        RenderableException ex =
+                assertThrows(
+                        RenderableException.class,
+                        () ->
+                                this.cablingTaskResource.resolveValidationFailureTask(
+                                        TASK_ID,
+                                        "AP-SYDNEY-1",
+                                        principalMock,
+                                        authorizationRequestMock));
+        assertTrue(ex.getMessage().contains("Resolve is disabled for region"));
+        verify(this.mockedCablingTaskService, never()).resolveValidationFailureTask(any());
     }
 }

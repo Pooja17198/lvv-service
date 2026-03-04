@@ -61,7 +61,9 @@ public class MetricNames {
         GetCablingTasksForProject,
         GetCablingTasksForBlock,
         GetClosedCablingTasks,
-        ResolveCablingTask
+        ResolveCablingTask,
+        ResolveDisabledRegion,
+        RegionMissing
     }
 
     public enum GetValidationResults {
@@ -150,7 +152,9 @@ public class MetricNames {
         ProjectNotFound,
         NoBlocksInProject,
         FetchRacks,
-        FetchRacksFailed
+        FetchRacksFailed,
+        ResolveDisabledRegionCount,
+        RegionMissing
     }
 
     public enum BadLinks {

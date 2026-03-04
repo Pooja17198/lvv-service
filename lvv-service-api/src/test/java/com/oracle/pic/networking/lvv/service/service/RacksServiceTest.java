@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
+import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraTicket;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceHelper;
@@ -41,6 +42,7 @@ class RacksServiceTest {
     @Mock MetricsScope metricsScope;
 
     RacksService service;
+    LvvServiceApiConfiguration config;
 
     final String region = "us-region";
     final String rackNumber = "RACK1";
@@ -49,6 +51,7 @@ class RacksServiceTest {
 
     @BeforeEach
     void setup() {
+        config = new LvvServiceApiConfiguration();
         service =
                 new RacksService(
                         planServiceHelper,
@@ -58,7 +61,8 @@ class RacksServiceTest {
                         projectItemDao,
                         blockDetailsDao,
                         storeKeeperHelper,
-                        jiraSDService);
+                        jiraSDService,
+                        config);
     }
 
     private Device mockDeviceWithName(String name) {
@@ -422,6 +426,7 @@ class RacksServiceTest {
                 com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName("vendor")
+                        .regionName("us-ashburn-1")
                         .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
@@ -445,6 +450,7 @@ class RacksServiceTest {
                 com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName("vendor")
+                        .regionName("us-ashburn-1")
                         .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
@@ -470,6 +476,7 @@ class RacksServiceTest {
                 com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName("vendor")
+                        .regionName("us-ashburn-1")
                         .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
@@ -537,6 +544,7 @@ class RacksServiceTest {
                 com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName("vendor")
+                        .regionName("us-ashburn-1")
                         .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
@@ -568,6 +576,7 @@ class RacksServiceTest {
                 com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
                         .projectId(projectId)
                         .vendorName("vendor")
+                        .regionName("us-ashburn-1")
                         .build();
         when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
         when(blockDetailsDao.getBlockDetailsForProject(projectId))
@@ -602,5 +611,138 @@ class RacksServiceTest {
         verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
         verify(storeKeeperHelper).listRacks("BLK2", "B2", metricsScope);
         verify(resourceModelTransformer, times(2)).toModel(any(Rack.class), any(JiraTicket.class));
+    }
+
+    @Test
+    void listProjectRacks_whenRegionDisabled_overridesResolveEvenIfTicketPresent() {
+        String projectId = "proj-disabled";
+        String disabledRegion = "ap-sydney-1";
+
+        // Prepare config to disable resolve for the region
+        config.setResolveDisabledRegions(java.util.List.of(disabledRegion));
+
+        // Project with region set to disabled region
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .regionName(disabledRegion)
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
+
+        Rack rack = makeRack("B1", "BLK1", "S1");
+        when(storeKeeperHelper.listRacks("BLK1", "B1", metricsScope)).thenReturn(List.of(rack));
+
+        // Matching open ticket that would normally enable resolve
+        JiraTicket open =
+                JiraTicket.builder()
+                        .ticketId("T-1")
+                        .ticketCategory("Cat")
+                        .resolveEnabled(false)
+                        .resolveDisabledReason("initial")
+                        .build();
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B1", "BLK1"))
+                .thenReturn(java.util.Map.of("S1", open));
+
+        ProjectRack pr = mock(ProjectRack.class);
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
+                .thenAnswer(
+                        invocation -> {
+                            JiraTicket jt = invocation.getArgument(1);
+                            // Assert override happened before transform
+                            assertFalse(jt.isResolveEnabled());
+                            assertEquals(
+                                    "Resolve disabled for this region",
+                                    jt.getResolveDisabledReason());
+                            return pr;
+                        });
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertEquals(1, result.size());
+
+        verify(jiraSDService).findOpenTicketsBySerialForBlock("B1", "BLK1");
+        verify(storeKeeperHelper).listRacks("BLK1", "B1", metricsScope);
+        verify(resourceModelTransformer).toModel(any(Rack.class), any(JiraTicket.class));
+    }
+
+    @Test
+    void listProjectRacks_regionDisabled_withoutMatchingJiraTicket_stillDisabled() {
+        String projectId = "proj-disabled-nojira";
+        String disabledRegion = "ap-sydney-1";
+
+        // Configure disabled region
+        config.setResolveDisabledRegions(java.util.List.of(disabledRegion));
+
+        // Project with region set to disabled region
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .regionName(disabledRegion)
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+
+        // One block and one rack
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B3", "BLK3", projectId)));
+        Rack rack = makeRack("B3", "BLK3", "SER123");
+        when(storeKeeperHelper.listRacks("BLK3", "B3", metricsScope)).thenReturn(List.of(rack));
+
+        // No open Jira tickets for the block (empty map)
+        when(jiraSDService.findOpenTicketsBySerialForBlock("B3", "BLK3"))
+                .thenReturn(Collections.emptyMap());
+
+        // Transformer assertion: region-based override should set resolveEnabled=false with reason
+        ProjectRack pr = mock(ProjectRack.class);
+        when(resourceModelTransformer.toModel(any(Rack.class), any(JiraTicket.class)))
+                .thenAnswer(
+                        invocation -> {
+                            JiraTicket jt = invocation.getArgument(1);
+                            assertFalse(jt.isResolveEnabled());
+                            assertEquals(
+                                    "Resolve disabled for this region",
+                                    jt.getResolveDisabledReason());
+                            return pr;
+                        });
+
+        List<ProjectRack> result = service.listProjectRacks(projectId, metricsScope);
+        assertEquals(1, result.size());
+
+        // Optionally verify metric emitted for region-disabled override
+        verify(metricsScope)
+                .emit(
+                        com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames
+                                .FetchRacks.ResolveDisabledRegionCount.name(),
+                        1.0);
+    }
+
+    @Test
+    void listProjectRacks_missingProjectRegion_emitsMetric_andThrowsMissingParameter() {
+        String projectId = "proj-missing-region";
+        // Project without regionName
+        com.oracle.pic.networking.lvv.service.kiev.ProjectItem project =
+                com.oracle.pic.networking.lvv.service.kiev.ProjectItem.builder()
+                        .projectId(projectId)
+                        .vendorName("vendor")
+                        .build();
+        when(projectItemDao.getProjectItem(projectId)).thenReturn(project);
+        when(blockDetailsDao.getBlockDetailsForProject(projectId))
+                .thenReturn(List.of(makeBlock("B1", "BLK1", projectId)));
+
+        RenderableException ex =
+                assertThrows(
+                        RenderableException.class,
+                        () -> service.listProjectRacks(projectId, metricsScope));
+        // We expect MissingParameter per implementation
+        assertTrue(ex.getMessage().contains("Project region is missing"));
+        verify(metricsScope)
+                .emit(
+                        com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames
+                                .FetchRacks.RegionMissing.name(),
+                        1.0);
+        // No racks transformation should occur
+        verifyNoInteractions(resourceModelTransformer);
     }
 }

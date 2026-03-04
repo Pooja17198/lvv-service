@@ -7,6 +7,7 @@ import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.identity.authentication.Principal;
 import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractCablingTasksResource;
+import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
@@ -18,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,6 +29,9 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
 
     private CablingTaskService cablingTaskService;
     private ProjectItemDao projectItemDao;
+
+    @Inject(optional = true)
+    private LvvServiceApiConfiguration config;
 
     @Context
     @Getter(AccessLevel.PRIVATE)
@@ -110,8 +115,22 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
             AuthorizationRequest authorizationRequest) {
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.CABLING_TASKS.name())) {
+            // Validate region early to avoid NPE in withDimension
+            if (regionName == null || regionName.isBlank()) {
+                scope.emit(MetricNames.CablingTasks.RegionMissing.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.MissingParameter, "regionName cannot be empty");
+            }
+
             scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
             scope.emit(MetricNames.CablingTasks.ResolveCablingTask.name(), 1.0);
+
+            if (isResolveDisabledForRegion(regionName, scope)) {
+                scope.emit(MetricNames.CablingTasks.ResolveDisabledRegion.name(), 1.0);
+                throw new RenderableException(
+                        ErrorCode.InvalidParameter,
+                        String.format("Resolve is disabled for region %s", regionName));
+            }
 
             this.cablingTaskService.resolveValidationFailureTask(cablingTaskId);
             scope.recordSuccess();
@@ -119,5 +138,21 @@ public class CablingTaskResource extends AbstractCablingTasksResource {
                     .cablingTaskId(cablingTaskId)
                     .build();
         }
+    }
+
+    private boolean isResolveDisabledForRegion(@NonNull String regionName, MetricsScope scope) {
+        if (config == null || config.getResolveDisabledRegions() == null) {
+            return false;
+        }
+        for (String disabled : config.getResolveDisabledRegions()) {
+            if (disabled != null && disabled.equalsIgnoreCase(regionName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void setConfigForTest(LvvServiceApiConfiguration cfg) {
+        this.config = cfg;
     }
 }

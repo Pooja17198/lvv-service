@@ -13,6 +13,7 @@ import com.oracle.pic.sherlock.collector.AuditConfig;
 import com.oracle.pic.vault.SecretServiceConfig;
 import io.dropwizard.bundles.assets.AssetsBundleConfiguration;
 import io.dropwizard.bundles.assets.AssetsConfiguration;
+import java.util.List;
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -108,4 +109,7 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     @NotNull private SecretServiceConfig secretServiceConfig;
 
     @NotNull private double kievRateLimit;
+
+    // region list for which Resolve must be disabled
+    private List<String> resolveDisabledRegions;
 }

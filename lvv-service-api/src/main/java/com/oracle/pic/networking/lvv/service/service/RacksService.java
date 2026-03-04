@@ -6,6 +6,7 @@ import com.oracle.pic.commons.exceptions.server.ErrorCode;
 import com.oracle.pic.commons.exceptions.server.RenderableException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
+import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraTicket;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
@@ -43,6 +44,7 @@ public class RacksService {
     @NonNull private final BlockDetailsDao blockDetailsDao;
     @NonNull private final StoreKeeperHelper storeKeeperHelper;
     @NonNull private final JiraSDService jiraSDService;
+    @NonNull private final LvvServiceApiConfiguration config;
 
     private static final String NO_OPEN_TICKET = "No open ticket";
 
@@ -55,7 +57,8 @@ public class RacksService {
             @NonNull ProjectItemDao projectItemDao,
             @NonNull BlockDetailsDao blockDetailsDao,
             @NonNull StoreKeeperHelper storeKeeperHelper,
-            @NonNull JiraSDService jiraSDService) {
+            @NonNull JiraSDService jiraSDService,
+            @NonNull LvvServiceApiConfiguration config) {
         this.planServiceHelper = planServiceHelper;
         this.ncpJobDetailsDao = ncpJobDetailsDao;
         this.cablingValidationService = cablingValidationService;
@@ -64,6 +67,7 @@ public class RacksService {
         this.blockDetailsDao = blockDetailsDao;
         this.storeKeeperHelper = storeKeeperHelper;
         this.jiraSDService = jiraSDService;
+        this.config = config;
     }
 
     private List<Device> listDevicesInRack(
@@ -131,6 +135,17 @@ public class RacksService {
             scope.withDimension("buildingName", blockDetails.get(0).getBlock().getBuilding());
         }
 
+        // Validate project region before proceeding
+        String projectRegionForValidation = projectItem.getRegionName();
+        if (projectRegionForValidation == null || projectRegionForValidation.isBlank()) {
+            scope.emit(MetricNames.FetchRacks.RegionMissing.name(), 1.0);
+            log.warn("Project region is null/blank for project {}", projectId);
+            throw new RenderableException(
+                    ErrorCode.MissingParameter,
+                    "Project region is missing for project {}",
+                    projectId);
+        }
+
         scope.emit(MetricNames.FetchRacks.FetchRacks, 1.0);
         List<ProjectRack> racks = new ArrayList<>();
 
@@ -173,10 +188,31 @@ public class RacksService {
                                     .build();
                 }
 
+                // disable resolve for specific regions
+                String projectRegion = projectItem.getRegionName();
+                if (isResolveDisabledForRegion(projectRegion, scope, projectId)) {
+                    jiraTicket.setResolveEnabled(false);
+                    jiraTicket.setResolveDisabledReason("Resolve disabled for this region");
+                    scope.emit(MetricNames.FetchRacks.ResolveDisabledRegionCount.name(), 1.0);
+                }
+
                 racks.add(resourceModelTransformer.toModel(rack, jiraTicket));
             }
         }
 
         return racks;
+    }
+
+    private boolean isResolveDisabledForRegion(
+            @NonNull String regionName, MetricsScope scope, String projectId) {
+        if (config == null || config.getResolveDisabledRegions() == null) {
+            return false;
+        }
+        for (String disabled : config.getResolveDisabledRegions()) {
+            if (disabled != null && disabled.equalsIgnoreCase(regionName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -14,7 +14,9 @@ import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class RacksResource extends AbstractRacksResource {
 
     RacksService racksService;
@@ -86,6 +88,11 @@ public class RacksResource extends AbstractRacksResource {
             Principal principal,
             AuthorizationRequest authorizationRequest) {
 
+        log.info(
+                "Starting handling listProjectRacks request for projectId {} in region {} with opcRequestId {}",
+                projectId,
+                regionName,
+                opcRequestId);
         try (MetricsScope scope =
                 MetricsScope.create(MetricNames.MetricScopeNames.FETCH_RACKS.name())) {
 
@@ -107,6 +114,11 @@ public class RacksResource extends AbstractRacksResource {
             List<ProjectRack> racks = this.racksService.listProjectRacks(projectId, scope);
 
             scope.recordSuccess();
+            log.info(
+                    "Finished handling listProjectRacks request for projectId {} in region {} with opcRequestId {}",
+                    projectId,
+                    regionName,
+                    opcRequestId);
             return racks;
         }
     }

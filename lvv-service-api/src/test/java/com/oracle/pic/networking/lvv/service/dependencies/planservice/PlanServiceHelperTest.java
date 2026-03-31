@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.oracle.bmc.model.BmcException;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.autonet.plan.service.PlanServiceVClient;
 import com.oracle.pic.networking.autonet.plan.service.model.Device;
@@ -16,8 +17,8 @@ import org.junit.jupiter.api.*;
 import org.mockito.*;
 
 class PlanServiceHelperTest {
-    @Mock PlanServiceClient planServiceClient;
     @Mock PlanServiceVClient planServiceVClient;
+    @Mock PlanServiceClient planServiceClient;
     @Mock MetricsScope metricsScope;
     @Mock GetDevicesByRackResponse getDevicesByRackResponse;
 
@@ -31,6 +32,7 @@ class PlanServiceHelperTest {
     void setup() {
         MockitoAnnotations.openMocks(this);
         helper = PlanServiceHelper.builder().planServiceClient(planServiceClient).build();
+        when(planServiceClient.getPlanServiceVClient(anyString())).thenReturn(planServiceVClient);
         // Avoid emit(Enum,String) overload ambiguity
         doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
         doReturn(metricsScope).when(metricsScope).emit(any(Enum.class), anyDouble());
@@ -65,7 +67,6 @@ class PlanServiceHelperTest {
         Device d3 = mkDevice("dev-3", false, "deployed");
         Device d4 = mkDevice("dev-4", true, "deployed");
 
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
                 .thenReturn(getDevicesByRackResponse);
         when(getDevicesByRackResponse.getItems()).thenReturn(Arrays.asList(d1, d2, d3, d4));
@@ -81,7 +82,6 @@ class PlanServiceHelperTest {
                     helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
 
             assertEquals(List.of(d1, d2, d3, d4), result);
-            verify(planServiceClient).getPlanServiceVClient(region);
             verify(mockRetryHelper).run();
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
             verify(metricsScope, never())
@@ -91,7 +91,6 @@ class PlanServiceHelperTest {
 
     @Test
     void testGetDeviceListInRack_devicesListIsNull_returnsEmptyList() throws Exception {
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
                 .thenReturn(getDevicesByRackResponse);
         when(getDevicesByRackResponse.getItems()).thenReturn(null);
@@ -137,7 +136,6 @@ class PlanServiceHelperTest {
     @Test
     void testGetDeviceListInRack_retryHelperThrows_returnsEmptyAndEmitsFailureMetric()
             throws Exception {
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
 
         try (MockedStatic<RetryHelper> retryStatic = mockStatic(RetryHelper.class)) {
             RetryHelper mockRetryHelper = mock(RetryHelper.class);
@@ -164,7 +162,6 @@ class PlanServiceHelperTest {
         // null configAttributes should no longer fail the call
         when(bad.getConfigAttributes()).thenReturn(null);
 
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
                 .thenReturn(getDevicesByRackResponse);
         when(getDevicesByRackResponse.getItems()).thenReturn(List.of(bad));
@@ -193,7 +190,6 @@ class PlanServiceHelperTest {
         Device bad = mkDevice("bad", true, "deployed");
         when(bad.getState()).thenReturn(null);
 
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
                 .thenReturn(getDevicesByRackResponse);
         when(getDevicesByRackResponse.getItems()).thenReturn(List.of(bad));
@@ -231,7 +227,6 @@ class PlanServiceHelperTest {
         state.put("conf", conf);
         when(missingState.getState()).thenReturn(state);
 
-        when(planServiceClient.getPlanServiceVClient(region)).thenReturn(planServiceVClient);
         when(planServiceVClient.getDevicesByRack(any(GetDevicesByRackRequest.class)))
                 .thenReturn(getDevicesByRackResponse);
         when(getDevicesByRackResponse.getItems()).thenReturn(List.of(missingConf, missingState));
@@ -251,6 +246,80 @@ class PlanServiceHelperTest {
             verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
             verify(metricsScope, never())
                     .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), anyDouble());
+        }
+    }
+
+    @Test
+    void testGetDeviceListInRack_bmc404_returnsEmptyAndEmitsDeviceNotFoundNotFailure()
+            throws Exception {
+
+        try (MockedStatic<RetryHelper> retryStatic = mockStatic(RetryHelper.class)) {
+            RetryHelper mockRetryHelper = mock(RetryHelper.class);
+            when(mockRetryHelper.run())
+                    .thenThrow(new BmcException(404, "NotFound", "not found", "req"));
+            retryStatic
+                    .when(() -> RetryHelper.newRetryHelper(any(), anyInt(), any()))
+                    .thenReturn(mockRetryHelper);
+
+            List<Device> result =
+                    helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+            verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
+            verify(metricsScope).emit(eq(MetricNames.RackDetails.DevicesNotFound.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), anyDouble());
+        }
+    }
+
+    @Test
+    void testGetDeviceListInRack_bmc500_returnsEmptyAndEmitsFailureMetric() throws Exception {
+
+        try (MockedStatic<RetryHelper> retryStatic = mockStatic(RetryHelper.class)) {
+            RetryHelper mockRetryHelper = mock(RetryHelper.class);
+            when(mockRetryHelper.run())
+                    .thenThrow(new BmcException(500, "ServerError", "down", "req"));
+            retryStatic
+                    .when(() -> RetryHelper.newRetryHelper(any(), anyInt(), any()))
+                    .thenReturn(mockRetryHelper);
+
+            List<Device> result =
+                    helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+            verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
+            verify(metricsScope)
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.DevicesNotFound.name()), anyDouble());
+        }
+    }
+
+    @Test
+    void testGetDeviceListInRack_unexpectedException_returnsEmptyAndEmitsFailureMetric()
+            throws Exception {
+        when(getDevicesByRackResponse.getItems())
+                .thenThrow(new IllegalStateException("bad payload"));
+
+        try (MockedStatic<RetryHelper> retryStatic = mockStatic(RetryHelper.class)) {
+            RetryHelper mockRetryHelper = mock(RetryHelper.class);
+            when(mockRetryHelper.run()).thenReturn(getDevicesByRackResponse);
+            retryStatic
+                    .when(() -> RetryHelper.newRetryHelper(any(), anyInt(), any()))
+                    .thenReturn(mockRetryHelper);
+
+            List<Device> result =
+                    helper.getDeviceListInRack(rackNumber, building, region, metricsScope);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+            verify(metricsScope).emit(eq(MetricNames.RackDetails.FetchDevices.name()), eq(1.0));
+            verify(metricsScope)
+                    .emit(eq(MetricNames.RackDetails.FetchDevicesFailed.name()), eq(1.0));
+            verify(metricsScope, never())
+                    .emit(eq(MetricNames.RackDetails.DevicesNotFound.name()), anyDouble());
         }
     }
 }

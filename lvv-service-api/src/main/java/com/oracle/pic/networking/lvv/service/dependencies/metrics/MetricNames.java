@@ -110,6 +110,11 @@ public class MetricNames {
         AddNcpJobDetails,
     }
 
+    public enum ValidationDuration {
+        DeviceValidationDuration,
+        RackValidationDuration
+    }
+
     public enum ProcessNcpResult {
         JsonParseFail,
         NoTestResultFound,
@@ -139,7 +144,8 @@ public class MetricNames {
     public enum RackDetails {
         MissingParameters,
         FetchDevices,
-        FetchDevicesFailed
+        FetchDevicesFailed,
+        DevicesNotFound
     }
 
     public enum FetchRacks {

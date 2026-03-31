@@ -126,6 +126,8 @@ public class JiraSDService {
             return Collections.emptyMap();
         }
 
+        log.info("Fetching open Jira tickets in building {} block {}", building, block);
+
         Map<String, JiraTicket> openTicketBySerial = new HashMap<>();
 
         for (JiraTicketCategory category : JiraTicketCategory.values()) {
@@ -165,6 +167,12 @@ public class JiraSDService {
                 openTicketBySerial.put(serial, jiraTicket);
             }
         }
+
+        log.info(
+                "Found open Jira tickets in building {} block {}: openTicketBySerial {}",
+                building,
+                block,
+                openTicketBySerial);
 
         return openTicketBySerial;
     }

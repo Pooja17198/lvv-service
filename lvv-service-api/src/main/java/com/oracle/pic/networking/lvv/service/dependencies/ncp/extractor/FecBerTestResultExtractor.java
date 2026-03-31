@@ -1,10 +1,7 @@
 package com.oracle.pic.networking.lvv.service.dependencies.ncp.extractor;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,8 +17,6 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
     private static final String TEST_FEC_BER = "test_fec_ber_threshold";
     private static final String FEC_BER = "FEC_BER Errors";
 
-    private final ObjectMapper mapper;
-
     // FEC_BER Result Column Names
     private static final String DEVICE_RACK = "Device Rack";
     private static final String DEVICE_NAME = "Device Name";
@@ -33,16 +28,8 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
     private static final String ERROR_MESSAGE = "Error Message";
 
     private static final String UNKNOWN = "Unknown";
-    private static final Pattern FEC_BER_BLOCK =
-            Pattern.compile("\\{\\s*'([^']+?)'\\s*:\\s*\\{(.*?)\\}\\s*\\}", Pattern.DOTALL);
-
-    public FecBerTestResultExtractor() {
-        this.mapper = new ObjectMapper();
-    }
-
-    public FecBerTestResultExtractor(ObjectMapper mapper) {
-        this.mapper = mapper != null ? mapper : new ObjectMapper();
-    }
+    private static final Pattern BLOCK_START_PATTERN =
+            Pattern.compile("\\{\\s*'([^']+)'\\s*:\\s*\\{");
 
     @Override
     public String testName() {
@@ -65,70 +52,193 @@ public class FecBerTestResultExtractor implements TestResultExtractor {
             return;
         }
 
-        log.info(
-                "[FEC_BER] Processing FEC_BER Error message for device {}: \n {}",
-                deviceId,
-                message);
+        log.info("[FEC_BER] Processing FEC_BER Error message for device {}: {}", deviceId, message);
 
         boolean anyRowAdded = false;
 
-        try {
-            Matcher errorMessage = FEC_BER_BLOCK.matcher(message);
-            while (errorMessage.find()) {
-                String portName = errorMessage.group(1).trim();
-                String innerMap = errorMessage.group(2).trim();
+        for (FecBerBlock block : extractBlocks(message)) {
+            try {
+                String portName = block.portName();
+                String innerMap = block.innerMap();
 
-                String jsonLike = toJsonLike(innerMap);
-                JsonNode node = mapper.readTree(jsonLike);
                 Map<String, String> row = new HashMap<>();
-                row.put(DEVICE_RACK, node.path("rack").asText(UNKNOWN));
-                row.put(DEVICE_NAME, node.path("device_name").asText(deviceId));
+                row.put(DEVICE_RACK, extractFieldValue(innerMap, "rack", UNKNOWN));
+                row.put(DEVICE_NAME, extractFieldValue(innerMap, "device_name", deviceId));
                 row.put(DEVICE_PORT, portName);
-                row.put(PRE_FEC_BER, node.path("pre_fec_ber").asText(UNKNOWN));
-                JsonNode lockNode = node.path("lock_status");
-                String lockVal =
-                        lockNode.isMissingNode() ? UNKNOWN : String.valueOf(lockNode.asBoolean());
-                row.put(LOCK_STATUS, lockVal);
-                row.put(REMOTE_DEVICE, node.path("remote_device").asText(UNKNOWN));
-                row.put(REMOTE_INTERFACE, node.path("remote_interface").asText(UNKNOWN));
+                row.put(PRE_FEC_BER, extractFieldValue(innerMap, "pre_fec_ber", UNKNOWN));
+                row.put(
+                        LOCK_STATUS,
+                        normalizeLockStatus(extractFieldValue(innerMap, "lock_status", UNKNOWN)));
+                row.put(REMOTE_DEVICE, extractFieldValue(innerMap, "remote_device", UNKNOWN));
+                row.put(REMOTE_INTERFACE, extractFieldValue(innerMap, "remote_interface", UNKNOWN));
                 fecBerResults.add(row);
                 anyRowAdded = true;
+            } catch (RuntimeException e) {
+                log.warn(
+                        "[FEC_BER] Failed to parse extracted block for device {} and port {}: {}",
+                        deviceId,
+                        block.portName(),
+                        block.innerMap(),
+                        e);
             }
-        } catch (IOException e) {
-            log.warn("[FEC_BER] FEC_BER Error in unexpected format{}", message, e);
-            scope.emit(MetricNames.ProcessNcpResult.FecBerErrorFormatUnexpected, 1.0);
-            fecBerResults.add(createUnknownFecBerResult(deviceId, message));
         }
 
         if (!anyRowAdded) {
             log.warn("[FEC_BER] FEC_BER Error in unexpected format: {}", message);
-
-            // Reuse existing unexpected-format metric to avoid changing MetricNames
             scope.emit(MetricNames.ProcessNcpResult.FecBerErrorFormatUnexpected, 1.0);
             fecBerResults.add(createUnknownFecBerResult(deviceId, message));
         }
     }
 
-    // Convert inner map into valid JSON for ObjectMapper
-    private String toJsonLike(String innerMap) {
+    private String extractFieldValue(String innerMap, String fieldName, String defaultValue) {
         if (innerMap == null || innerMap.isBlank()) {
-            return "{}";
+            return defaultValue;
         }
-        String newJson = innerMap.trim();
 
-        newJson = newJson.replaceAll("'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'\\s*:", "\"$1\":");
+        String fieldToken = "'" + fieldName + "'";
+        int fieldStart = innerMap.indexOf(fieldToken);
+        if (fieldStart < 0) {
+            return defaultValue;
+        }
 
-        newJson = newJson.replaceAll("\\bTrue\\b", "true");
-        newJson = newJson.replaceAll("\\bFalse\\b", "false");
-        newJson = newJson.replaceAll("\\bNone\\b", "null");
+        int colonIndex = innerMap.indexOf(':', fieldStart + fieldToken.length());
+        if (colonIndex < 0) {
+            return defaultValue;
+        }
 
-        newJson =
-                newJson.replaceAll(":\\s*'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'(?=\\s*[},])", ": \"$1\"");
+        int valueStart = findNextNonWhitespaceChar(innerMap, colonIndex + 1);
+        if (valueStart < 0) {
+            return defaultValue;
+        }
 
-        newJson = newJson.replaceAll(",\\s*$", "");
+        if (innerMap.charAt(valueStart) == '\'') {
+            int valueEnd = findClosingQuote(innerMap, valueStart + 1);
+            if (valueEnd < 0) {
+                return defaultValue;
+            }
+            return innerMap.substring(valueStart + 1, valueEnd);
+        }
 
-        newJson = newJson.replaceAll(",\\s*(?=\\})", "");
-        return "{" + newJson + "}";
+        int valueEnd = valueStart;
+        while (valueEnd < innerMap.length()) {
+            char currentChar = innerMap.charAt(valueEnd);
+            if (currentChar == ',' || currentChar == '}') {
+                break;
+            }
+            valueEnd++;
+        }
+
+        String rawValue = innerMap.substring(valueStart, valueEnd).trim();
+        return rawValue.isEmpty() ? defaultValue : rawValue;
+    }
+
+    private int findClosingQuote(String value, int startIndex) {
+        for (int index = startIndex; index < value.length(); index++) {
+            if (value.charAt(index) == '\'' && !isEscaped(value, index)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private String normalizeLockStatus(String lockStatus) {
+        if ("True".equals(lockStatus)) {
+            return "true";
+        }
+        if ("False".equals(lockStatus)) {
+            return "false";
+        }
+        return lockStatus;
+    }
+
+    private List<FecBerBlock> extractBlocks(String message) {
+        List<FecBerBlock> blocks = new ArrayList<>();
+
+        Matcher matcher = BLOCK_START_PATTERN.matcher(message);
+        while (matcher.find()) {
+            String portName = matcher.group(1).trim();
+            int innerStart = matcher.end() - 1;
+
+            int innerEnd = findMatchingBrace(message, innerStart);
+            if (innerEnd < 0) {
+                break;
+            }
+
+            int outerEnd = findNextNonWhitespaceChar(message, innerEnd + 1);
+            if (outerEnd < 0 || message.charAt(outerEnd) != '}') {
+                continue;
+            }
+
+            String innerMap = message.substring(innerStart + 1, innerEnd).trim();
+            blocks.add(new FecBerBlock(portName, innerMap));
+            matcher.region(outerEnd + 1, message.length());
+        }
+
+        return blocks;
+    }
+
+    private int findNextNonWhitespaceChar(String value, int startIndex) {
+        for (int index = startIndex; index < value.length(); index++) {
+            if (!Character.isWhitespace(value.charAt(index))) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int findMatchingBrace(String value, int openingBraceIndex) {
+        int braceDepth = 0;
+        boolean inSingleQuotes = false;
+
+        for (int index = openingBraceIndex; index < value.length(); index++) {
+            char currentChar = value.charAt(index);
+
+            if (currentChar == '\'' && !isEscaped(value, index)) {
+                inSingleQuotes = !inSingleQuotes;
+                continue;
+            }
+
+            if (inSingleQuotes) {
+                continue;
+            }
+
+            if (currentChar == '{') {
+                braceDepth++;
+            } else if (currentChar == '}') {
+                braceDepth--;
+                if (braceDepth == 0) {
+                    return index;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private boolean isEscaped(String value, int index) {
+        int backslashCount = 0;
+        for (int current = index - 1; current >= 0 && value.charAt(current) == '\\'; current--) {
+            backslashCount++;
+        }
+        return backslashCount % 2 != 0;
+    }
+
+    private static final class FecBerBlock {
+        private final String portName;
+        private final String innerMap;
+
+        private FecBerBlock(String portName, String innerMap) {
+            this.portName = portName;
+            this.innerMap = innerMap;
+        }
+
+        private String portName() {
+            return portName;
+        }
+
+        private String innerMap() {
+            return innerMap;
+        }
     }
 
     private Map<String, String> createUnknownFecBerResult(String deviceId, String rawMessage) {

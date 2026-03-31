@@ -68,6 +68,9 @@ public class ValidationFailureResult {
     @Column(type = TIMESTAMP)
     private Timestamp firstValidatedTime;
 
+    @Column(type = TIMESTAMP)
+    private Timestamp lastValidatedTime;
+
     @Value
     @KievEntity
     @AllArgsConstructor

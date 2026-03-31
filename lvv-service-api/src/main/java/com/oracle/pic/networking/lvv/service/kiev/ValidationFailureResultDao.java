@@ -62,11 +62,13 @@ public class ValidationFailureResultDao {
 
             log.info("Adding results for device {}. Result: {}", deviceName, result);
 
+            Timestamp now = Timestamp.from(Instant.now());
             ValidationFailureResult validationFailureResult =
                     ValidationFailureResult.builder()
                             .deviceName(deviceName)
                             .validationResults(result)
-                            .firstValidatedTime(Timestamp.from(Instant.now()))
+                            .firstValidatedTime(now)
+                            .lastValidatedTime(now)
                             .numberOfValidations(1)
                             .rackSerial(rackSerial)
                             .build();
@@ -98,6 +100,7 @@ public class ValidationFailureResultDao {
 
             existingResult.setValidationResults(result);
             existingResult.setNumberOfValidations(existingResult.getNumberOfValidations() + 1);
+            existingResult.setLastValidatedTime(Timestamp.from(Instant.now()));
 
             validationResultStore.updateItem(txn, existingResult);
 
@@ -162,8 +165,7 @@ public class ValidationFailureResultDao {
                         .forEach(
                                 device ->
                                         result.put(
-                                                device.getDeviceName(),
-                                                device.getValidationResults()));
+                                                device.getDeviceName(), buildDeviceResult(device)));
             }
 
             // Setup next page
@@ -176,6 +178,12 @@ public class ValidationFailureResultDao {
 
         log.info("Existing Validation failures found for rack {}: {}", rackSerial, result);
 
+        return result;
+    }
+
+    private Map<String, Object> buildDeviceResult(ValidationFailureResult deviceResult) {
+        Map<String, Object> result = new HashMap<>(deviceResult.getValidationResults());
+        result.put("Last Validated", deviceResult.getLastValidatedTime());
         return result;
     }
 

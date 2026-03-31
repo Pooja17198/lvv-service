@@ -566,7 +566,7 @@ class NcpJobResultProcessorTest {
                             "devI": {
                               "healthCheckReport": {
                                 "testCases": [
-                                  { "testCase": "test_interfaces", "status": "FAILED", "message": "Failed: Interfaces down on Ethernet1/1 and et-0/0/1 ports" }
+                                  { "testCase": "test_interfaces", "status": "FAILED", "message": "Failed: Device lhr10-c1-b2-t0-r102 interfaces are not enabled or up: ['Ethernet13/1', 'et-0/0/1']" }
                                 ]
                               }
                             }
@@ -587,7 +587,7 @@ class NcpJobResultProcessorTest {
 
         Map<String, String> eth11 =
                 iface.stream()
-                        .filter(r -> "Ethernet1/1".equals(r.get("Device Port")))
+                        .filter(r -> "Ethernet13/1".equals(r.get("Device Port")))
                         .findFirst()
                         .orElse(null);
         Map<String, String> et001 =
@@ -598,11 +598,11 @@ class NcpJobResultProcessorTest {
 
         assertNotNull(eth11);
         assertEquals("devI", eth11.get("Device Name"));
-        assertEquals("Interface not enables or up", eth11.get("Issue"));
+        assertEquals("Interfaces are not enabled or up", eth11.get("Issue"));
 
         assertNotNull(et001);
         assertEquals("devI", et001.get("Device Name"));
-        assertEquals("Interface not enables or up", et001.get("Issue"));
+        assertEquals("Interfaces are not enabled or up", et001.get("Issue"));
 
         verify(metricsScope, atLeastOnce())
                 .emit(eq(MetricNames.ProcessNcpResult.InterfaceError), anyDouble());
@@ -613,8 +613,11 @@ class NcpJobResultProcessorTest {
     void processJobResult_fecBerFailures_parsesBlocks_and_emitsFecBerMetric() {
         // Build JSON via ObjectMapper to ensure proper escaping of quotes in the message string
         String fecBerMsg =
-                "Failed: {'Ethernet1/1': {\\\"rack\\\":\\\"U12\\\",\\\"pre_fec_ber\\\":\\\"1e-5\\\",\\\"lock_status\\\": true,\\\"remote_device\\\":\\\"R1\\\",\\\"remote_interface\\\":\\\"Eth2/1\\\"}}"
-                        + "{'et-0/0/1': {\\\"rack\\\":\\\"U13\\\",\\\"device_name\\\":\\\"OverrideName\\\",\\\"pre_fec_ber\\\":\\\"2e-5\\\",\\\"lock_status\\\": false,\\\"remote_device\\\":\\\"R2\\\",\\\"remote_interface\\\":\\\"Et2/2\\\"}}";
+                "Failed: {'Ethernet1/1': {'rack': 'U12', 'pre_fec_ber': '1e-5', 'lock_status': True, "
+                        + "'remote_device': 'R1', 'remote_interface': 'Eth2/1'}}"
+                        + "{'et-0/0/1': {'rack': 'U13', 'device_name': 'OverrideName', "
+                        + "'pre_fec_ber': '2e-5', 'lock_status': False, "
+                        + "'remote_device': 'R2', 'remote_interface': 'Et2/2'}}";
 
         String json =
                 """

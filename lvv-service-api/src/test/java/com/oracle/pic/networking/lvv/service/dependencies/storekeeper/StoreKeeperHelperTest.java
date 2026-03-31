@@ -117,7 +117,7 @@ class StoreKeeperHelperTest {
         assertEquals("PF2", rr2.getPlatformName());
 
         assertNull(rr3.getRackSerial()); // both actual and fallback are null -> null
-        assertEquals("AVAILABLE", rr3.getRackState());
+        assertEquals("IN-SERVICE", rr3.getRackState());
         assertEquals("PF3", rr3.getPlatformName());
 
         // On success, failure metric should not be emitted

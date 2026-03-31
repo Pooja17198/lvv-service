@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -276,14 +277,63 @@ class NcpClientHelperTest {
         Job mockJob = mock(Job.class);
         when(mockJob.getRequest()).thenReturn(jobRequest);
         when(mockJob.getState()).thenReturn(Job.State.Failed);
+        Date mockStartDate = Date.from(Instant.parse("2026-03-26T20:00:00Z"));
+        Date mockEndDate = Date.from(Instant.parse("2026-03-26T20:00:05Z"));
+        when(mockJob.getStartDate()).thenReturn(mockStartDate);
+        when(mockJob.getEndDate()).thenReturn(mockEndDate);
 
         when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
         when(mockJobsClient.getJob(any(GetJobRequest.class)))
                 .thenReturn(GetJobResponse.builder().job(mockJob).build());
 
-        Map<String, JobStatus> jobStatusMap = helper.fetchJobStatus(rackSerial, region);
+        Map<String, NcpClientHelper.ValidationJobRuntimeInfo> jobStatusMap =
+                helper.fetchJobStatus(rackSerial, region);
         assertEquals(1, jobStatusMap.size());
-        assertEquals(JobStatus.FAILED, jobStatusMap.get("DeviceA"));
+        assertEquals(JobStatus.FAILED, jobStatusMap.get("DeviceA").getJobStatus());
+        assertEquals("2026-03-26T20:00:00Z", jobStatusMap.get("DeviceA").getStartDate());
+        assertEquals("2026-03-26T20:00:05Z", jobStatusMap.get("DeviceA").getEndDate());
+        assertEquals(JobType.HEALTH_CHECK, jobStatusMap.get("DeviceA").getJobType());
+    }
+
+    @Test
+    void testFetchJobStatus_skipsMetadataUpdateWhenUnchanged() {
+        String rackSerial = "RSN-UNCHANGED";
+        String region = "us-phx";
+
+        NcpJobDetails inProgressDetail = mock(NcpJobDetails.class);
+        when(inProgressDetail.getJobStatus()).thenReturn(JobStatus.IN_PROGRESS);
+        when(inProgressDetail.getDeviceName()).thenReturn("DeviceU");
+        when(inProgressDetail.getJobId()).thenReturn("job-u1");
+
+        when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial))
+                .thenReturn(List.of(inProgressDetail));
+
+        NcpJobDetails existing =
+                NcpJobDetails.builder()
+                        .deviceName("DeviceU")
+                        .rackSerial(rackSerial)
+                        .jobId("job-u1")
+                        .jobStatus(JobStatus.IN_PROGRESS)
+                        .build();
+        JobRequest jobRequest = mock(JobRequest.class);
+        when(jobRequest.getJobType()).thenReturn(JobType.HEALTH_CHECK);
+        Job mockJob = mock(Job.class);
+        when(mockJob.getRequest()).thenReturn(jobRequest);
+        when(mockJob.getState()).thenReturn(Job.State.Succeeded);
+        when(mockJob.getStartDate()).thenReturn(Date.from(Instant.parse("2026-03-26T20:00:00Z")));
+        when(mockJob.getEndDate()).thenReturn(Date.from(Instant.parse("2026-03-26T20:00:05Z")));
+
+        when(mockClientSetup.getNcpClient(mockConfig, region)).thenReturn(mockJobsClient);
+        when(mockJobsClient.getJob(any(GetJobRequest.class)))
+                .thenReturn(GetJobResponse.builder().job(mockJob).build());
+
+        Map<String, NcpClientHelper.ValidationJobRuntimeInfo> result =
+                helper.fetchJobStatus(rackSerial, region);
+
+        assertEquals(JobStatus.COMPLETED, result.get("DeviceU").getJobStatus());
+        assertEquals("2026-03-26T20:00:00Z", result.get("DeviceU").getStartDate());
+        assertEquals("2026-03-26T20:00:05Z", result.get("DeviceU").getEndDate());
+        assertEquals(JobType.HEALTH_CHECK, result.get("DeviceU").getJobType());
     }
 
     @Test
@@ -322,9 +372,10 @@ class NcpClientHelperTest {
                 .thenReturn(GetJobResponse.builder().job(jobPending).build())
                 .thenReturn(GetJobResponse.builder().job(jobSucceeded).build());
 
-        Map<String, JobStatus> status = helper.fetchJobStatus(rackSerial, region);
-        assertEquals(JobStatus.IN_PROGRESS, status.get("DevP"));
-        assertEquals(JobStatus.COMPLETED, status.get("DevS"));
+        Map<String, NcpClientHelper.ValidationJobRuntimeInfo> status =
+                helper.fetchJobStatus(rackSerial, region);
+        assertEquals(JobStatus.IN_PROGRESS, status.get("DevP").getJobStatus());
+        assertEquals(JobStatus.COMPLETED, status.get("DevS").getJobStatus());
     }
 
     @Test
@@ -350,6 +401,10 @@ class NcpClientHelperTest {
         when(mockJob.getRequest()).thenReturn(jobRequest);
         when(mockJob.getState()).thenReturn(Job.State.Succeeded);
         when(mockJob.getId()).thenReturn("prvJob");
+        Date mockStartDate = Date.from(Instant.parse("2026-03-26T20:00:00Z"));
+        Date mockEndDate = Date.from(Instant.parse("2026-03-26T20:00:10Z"));
+        when(mockJob.getStartDate()).thenReturn(mockStartDate);
+        when(mockJob.getEndDate()).thenReturn(mockEndDate);
         when(mockJobsClient.getJob(any(GetJobRequest.class)))
                 .thenReturn(GetJobResponse.builder().job(mockJob).build());
 
@@ -362,9 +417,13 @@ class NcpClientHelperTest {
         when(mockJobProgressClient.listJobUnits(any(ListJobUnitsRequest.class)))
                 .thenReturn(jobUnitsResponse);
 
-        Map<String, JobStatus> jobStatusMap = helper.fetchJobStatus(rackSerial, region);
+        Map<String, NcpClientHelper.ValidationJobRuntimeInfo> jobStatusMap =
+                helper.fetchJobStatus(rackSerial, region);
 
-        assertEquals(JobStatus.FAILED, jobStatusMap.get("DeviceA"));
+        assertEquals(JobStatus.FAILED, jobStatusMap.get("DeviceA").getJobStatus());
+        assertEquals("2026-03-26T20:00:00Z", jobStatusMap.get("DeviceA").getStartDate());
+        assertEquals("2026-03-26T20:00:10Z", jobStatusMap.get("DeviceA").getEndDate());
+        assertEquals(JobType.PER_RACK_VALIDATION_JOB, jobStatusMap.get("DeviceA").getJobType());
     }
 
     @MockitoSettings(strictness = Strictness.LENIENT)
@@ -435,7 +494,8 @@ class NcpClientHelperTest {
         List<NcpJobDetails> jobDetails = List.of(detail);
         when(mockNcpJobDetailsDao.getNcpJobDetailsForRack(rackSerial)).thenReturn(jobDetails);
 
-        Map<String, JobStatus> jobStatusMap = helper.fetchJobStatus(rackSerial, region);
+        Map<String, NcpClientHelper.ValidationJobRuntimeInfo> jobStatusMap =
+                helper.fetchJobStatus(rackSerial, region);
         assertTrue(jobStatusMap.isEmpty());
     }
 

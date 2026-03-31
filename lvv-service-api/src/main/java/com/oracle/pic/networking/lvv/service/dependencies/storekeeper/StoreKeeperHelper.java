@@ -11,6 +11,7 @@ import com.oracle.pic.storekeeper.requests.ListRackLocationsMapRequest;
 import com.oracle.pic.storekeeper.responses.ListRackLocationsMapResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,7 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 public class StoreKeeperHelper {
 
     private final StoreKeeper storeKeeperClient;
-    private static final List<String> RACK_STATES = List.of("DELIVERED", "RECEIVED", "AVAILABLE");
+    private static final Set<String> ALLOWED_RACK_STATES =
+            Set.of("DELIVERED", "RECEIVED", "AVAILABLE");
     private static final int RACK_LIST_SIZE = 1000;
 
     @Inject
@@ -38,6 +40,10 @@ public class StoreKeeperHelper {
             return rack.getRackSerial();
         }
         return null;
+    }
+
+    public String normalizedRackState(String rackState) {
+        return "AVAILABLE".equals(rackState) ? "IN-SERVICE" : rackState;
     }
 
     public List<Rack> listRacks(String blockName, String buildingName, MetricsScope scope) {
@@ -84,7 +90,7 @@ public class StoreKeeperHelper {
                                 .filter(
                                         rackLocationMap ->
                                                 rackLocationMap.getRackState() != null
-                                                        && RACK_STATES.contains(
+                                                        && ALLOWED_RACK_STATES.contains(
                                                                 rackLocationMap.getRackState()))
                                 .map(
                                         rackLocationMap ->
@@ -94,7 +100,10 @@ public class StoreKeeperHelper {
                                                         .rackLocation(
                                                                 rackLocationMap.getRackNumber())
                                                         .rackSerial(getRackSerial(rackLocationMap))
-                                                        .rackState(rackLocationMap.getRackState())
+                                                        .rackState(
+                                                                normalizedRackState(
+                                                                        rackLocationMap
+                                                                                .getRackState()))
                                                         .platformName(
                                                                 rackLocationMap.getPlatformName())
                                                         .build())

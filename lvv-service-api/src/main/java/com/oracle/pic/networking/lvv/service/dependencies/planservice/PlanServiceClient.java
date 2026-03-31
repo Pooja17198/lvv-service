@@ -8,6 +8,7 @@ import com.oracle.bmc.retrier.RetryConfiguration;
 import com.oracle.bmc.waiter.ExponentialBackoffDelayStrategy;
 import com.oracle.bmc.waiter.MaxAttemptsTerminationStrategy;
 import com.oracle.pic.networking.autonet.plan.service.PlanServiceVClient;
+import com.oracle.pic.networking.lvv.service.config.CommonClientConfigurator;
 import com.oracle.pic.networking.lvv.service.config.PlanServiceConfiguration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +47,10 @@ public class PlanServiceClient {
     public PlanServiceVClient getPlanServiceVClient(String region) {
         ClientConfiguration clientConfiguration = getClientConfiguration();
         PlanServiceVClient psPublicClient =
-                new PlanServiceVClient(authProvider, clientConfiguration);
+                PlanServiceVClient.builder()
+                        .configuration(clientConfiguration)
+                        .clientConfigurator(new CommonClientConfigurator("PlanService"))
+                        .build(authProvider);
         String endpoint = String.format(config.getEndpoint(), region);
         log.info("Initialize plan service with endpoint {}", endpoint);
         psPublicClient.setEndpoint(endpoint);

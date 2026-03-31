@@ -117,7 +117,7 @@ public class BlockDetailsDao {
             scope.recordSuccess();
             return blockDetailsStore.getItem(block);
         } catch (RuntimeException e) {
-            log.info("Block does not exist");
+            log.info("Block {} in building {} does not exist", blockNumber, building);
             return null;
         }
     }

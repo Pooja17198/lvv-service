@@ -2,6 +2,7 @@ package com.oracle.pic.networking.lvv.service.dependencies.ncp;
 
 import com.oracle.bmc.auth.AbstractAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
+import com.oracle.pic.networking.lvv.service.config.CommonClientConfigurator;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.ncp.JobProgressClient;
 import com.oracle.pic.networking.ncp.JobResultsClient;
@@ -11,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class NcpClientSetup {
 
-    String endpoint;
     AbstractAuthenticationDetailsProvider authProvider;
 
     public NcpClientSetup() {
@@ -25,7 +25,11 @@ public class NcpClientSetup {
         JobsClient jobsClient;
         String endpoint = String.format(config.getNcpServiceConfiguration().getEndpoint(), region);
 
-        jobsClient = JobsClient.builder().endpoint(endpoint).build(authProvider);
+        jobsClient =
+                JobsClient.builder()
+                        .endpoint(endpoint)
+                        .clientConfigurator(new CommonClientConfigurator("NcpJobs"))
+                        .build(authProvider);
         return jobsClient;
     }
 
@@ -36,7 +40,11 @@ public class NcpClientSetup {
         JobResultsClient jobResultsClient;
         String endpoint = String.format(config.getNcpServiceConfiguration().getEndpoint(), region);
 
-        jobResultsClient = JobResultsClient.builder().endpoint(endpoint).build(authProvider);
+        jobResultsClient =
+                JobResultsClient.builder()
+                        .endpoint(endpoint)
+                        .clientConfigurator(new CommonClientConfigurator("NcpJobResults"))
+                        .build(authProvider);
         return jobResultsClient;
     }
 
@@ -47,7 +55,11 @@ public class NcpClientSetup {
         JobProgressClient jobProgressClient;
         String endpoint = String.format(config.getNcpServiceConfiguration().getEndpoint(), region);
 
-        jobProgressClient = JobProgressClient.builder().endpoint(endpoint).build(authProvider);
+        jobProgressClient =
+                JobProgressClient.builder()
+                        .endpoint(endpoint)
+                        .clientConfigurator(new CommonClientConfigurator("NcpJobProgress"))
+                        .build(authProvider);
         return jobProgressClient;
     }
 }

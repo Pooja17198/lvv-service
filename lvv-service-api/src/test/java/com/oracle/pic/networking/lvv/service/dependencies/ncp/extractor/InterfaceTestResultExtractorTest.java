@@ -58,13 +58,14 @@ class InterfaceTestResultExtractorTest {
     @Test
     void extract_messageWithoutInterfaces_addsUnknownRow_andEmitsMetric() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        // No interface names matching the regex pattern in this message
+
         extractor.extract(
                 "deviceA", "Failed: Ports appear to be down", metricsScope, deviceResults);
 
         Map<String, List<Map<String, String>>> perDevice = deviceResults.get("deviceA");
         List<Map<String, String>> rows = perDevice.get("Interface Errors");
         assertEquals(1, rows.size());
+
         Map<String, String> row = rows.get(0);
         assertEquals("deviceA", row.get("Device Name"));
         assertEquals("Unknown", row.get("Device Port"));
@@ -74,63 +75,61 @@ class InterfaceTestResultExtractorTest {
     }
 
     @Test
-    void extract_parsesPorts_multiplePatterns_addsRows() {
+    void extract_parsesBracketedPorts_multipleRowsAdded() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        String message = "Failed: Ethernet1/1 down; something et1/2 also down; and et-2/3 impacted";
+        String message =
+                "Failed: Device aga5-q2-p4-t0-r28 interfaces are not enabled or up: ['swp39s0', 'swp55s1']";
 
         extractor.extract("dev1", message, metricsScope, deviceResults);
 
         Map<String, List<Map<String, String>>> perDevice = deviceResults.get("dev1");
         List<Map<String, String>> rows = perDevice.get("Interface Errors");
-        assertEquals(3, rows.size());
+        assertEquals(2, rows.size());
 
         assertEquals("dev1", rows.get(0).get("Device Name"));
-        assertEquals("Ethernet1/1", rows.get(0).get("Device Port"));
-        assertEquals("Interface not enables or up", rows.get(0).get("Issue"));
+        assertEquals("swp39s0", rows.get(0).get("Device Port"));
+        assertEquals("Interfaces are not enabled or up", rows.get(0).get("Issue"));
 
         assertEquals("dev1", rows.get(1).get("Device Name"));
-        assertEquals("et1/2", rows.get(1).get("Device Port"));
-        assertEquals("Interface not enables or up", rows.get(1).get("Issue"));
+        assertEquals("swp55s1", rows.get(1).get("Device Port"));
+        assertEquals("Interfaces are not enabled or up", rows.get(1).get("Issue"));
 
-        assertEquals("dev1", rows.get(2).get("Device Name"));
-        assertEquals("et-2/3", rows.get(2).get("Device Port"));
-        assertEquals("Interface not enables or up", rows.get(2).get("Issue"));
-
-        verifyNoMoreInteractions(metricsScope); // no unexpected format metric on valid parse
+        verifyNoMoreInteractions(metricsScope);
     }
 
     @Test
-    void extract_withoutFailedPrefix_parsesPorts() {
+    void extract_parsesBracketedEthernetPort_addsSingleRow() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        String message = "Ethernet1/1 down and et1/2 down";
+        String message =
+                "Failed: Device dxb3-c1-b3-t0-r10 interfaces are not enabled or up: ['Ethernet1/22']";
 
         extractor.extract("devX", message, metricsScope, deviceResults);
 
         List<Map<String, String>> rows = deviceResults.get("devX").get("Interface Errors");
-        assertEquals(2, rows.size());
-        assertEquals("Ethernet1/1", rows.get(0).get("Device Port"));
-        assertEquals("et1/2", rows.get(1).get("Device Port"));
+        assertEquals(1, rows.size());
+        assertEquals("Ethernet1/22", rows.get(0).get("Device Port"));
+        assertEquals("Interfaces are not enabled or up", rows.get(0).get("Issue"));
         verifyNoInteractions(metricsScope);
     }
 
     @Test
-    void extract_deduplicatesPorts_onlyUniqueRows() {
+    void extract_deduplicatesBracketedPorts_onlyUniqueRows() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        String message = "Failed: Ethernet1/1 down; Ethernet1/1 still down; et1/2 down";
+        String message =
+                "Failed: Device devDup interfaces are not enabled or up: ['swp39s0', 'swp39s0', 'swp55s1']";
 
         extractor.extract("devDup", message, metricsScope, deviceResults);
 
         List<Map<String, String>> rows = deviceResults.get("devDup").get("Interface Errors");
         assertEquals(2, rows.size());
-        assertEquals("Ethernet1/1", rows.get(0).get("Device Port"));
-        assertEquals("et1/2", rows.get(1).get("Device Port"));
+        assertEquals("swp39s0", rows.get(0).get("Device Port"));
+        assertEquals("swp55s1", rows.get(1).get("Device Port"));
     }
 
     @Test
     void extract_skipsPortsAlreadyCapturedByLLDP() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
 
-        // Pre-populate with LLDP Errors containing Device A Port = Ethernet1/1
         Map<String, List<Map<String, String>>> perDevice = new HashMap<>();
         List<Map<String, String>> lldpErrors = new ArrayList<>();
         Map<String, String> lldpRow = new HashMap<>();
@@ -139,13 +138,15 @@ class InterfaceTestResultExtractorTest {
         perDevice.put("LLDP Errors", lldpErrors);
         deviceResults.put("dev2", perDevice);
 
-        // Message contains Ethernet1/1 (should be skipped) and et1/2 (should be added)
         extractor.extract(
-                "dev2", "Failed: Ethernet1/1 down; et1/2 down", metricsScope, deviceResults);
+                "dev2",
+                "Failed: Device dev2 interfaces are not enabled or up: ['Ethernet1/1', 'Ethernet1/2']",
+                metricsScope,
+                deviceResults);
 
         List<Map<String, String>> rows = deviceResults.get("dev2").get("Interface Errors");
         assertEquals(1, rows.size());
-        assertEquals("et1/2", rows.get(0).get("Device Port"));
+        assertEquals("Ethernet1/2", rows.get(0).get("Device Port"));
     }
 
     @Test
@@ -158,7 +159,11 @@ class InterfaceTestResultExtractorTest {
         perDevice.put("Interface Errors", existing);
         deviceResults.put("dev3", perDevice);
 
-        extractor.extract("dev3", "Failed: et1/2 down", metricsScope, deviceResults);
+        extractor.extract(
+                "dev3",
+                "Failed: Device dev3 interfaces are not enabled or up: ['et1/2']",
+                metricsScope,
+                deviceResults);
 
         List<Map<String, String>> rows = deviceResults.get("dev3").get("Interface Errors");
         assertEquals(3, rows.size());
@@ -171,8 +176,16 @@ class InterfaceTestResultExtractorTest {
     void extract_separateDeviceIds_isolatedResults() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
 
-        extractor.extract("d1", "Failed: et1/1 down", metricsScope, deviceResults);
-        extractor.extract("d2", "Failed: et1/2 down", metricsScope, deviceResults);
+        extractor.extract(
+                "d1",
+                "Failed: Device d1 interfaces are not enabled or up: ['et1/1']",
+                metricsScope,
+                deviceResults);
+        extractor.extract(
+                "d2",
+                "Failed: Device d2 interfaces are not enabled or up: ['et1/2']",
+                metricsScope,
+                deviceResults);
 
         assertTrue(deviceResults.containsKey("d1"));
         assertTrue(deviceResults.containsKey("d2"));
@@ -188,7 +201,11 @@ class InterfaceTestResultExtractorTest {
     @Test
     void extract_doesNotUseMetricsScope_onValidParse() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        extractor.extract("dev", "Failed: et1/1 down; et1/2 down", metricsScope, deviceResults);
+        extractor.extract(
+                "dev",
+                "Failed: Device dev interfaces are not enabled or up: ['et1/1', 'et1/2']",
+                metricsScope,
+                deviceResults);
         verifyNoMoreInteractions(metricsScope);
     }
 

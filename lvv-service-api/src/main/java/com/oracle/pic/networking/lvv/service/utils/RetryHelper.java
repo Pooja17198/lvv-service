@@ -121,4 +121,7 @@ public class RetryHelper<T> {
 
     // Assume ssh error is always retryable
     public static Predicate<Exception> retryAll = null;
+
+    public static final Predicate<Exception> PLAN_SERVICE_NON_RETRYABLE_404 =
+            e -> (e instanceof BmcException) && ((BmcException) e).getStatusCode() == 404;
 }

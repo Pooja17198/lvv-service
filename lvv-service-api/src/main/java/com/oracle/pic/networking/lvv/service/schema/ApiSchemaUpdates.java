@@ -13,6 +13,7 @@ import java.util.List;
 public final class ApiSchemaUpdates {
 
     private static final String PROJECT_ITEMS_BUCKET = "projectItemsBucket";
+    private static final String VALIDATION_RESULTS_BUCKET = "cableResultJsonStore";
 
     private static final SchemaUpdate V1_ADD_REGION_COLUMN =
             new SchemaUpdate(1, "Add regionName column (nullable STRING(64))")
@@ -52,12 +53,20 @@ public final class ApiSchemaUpdates {
                             new ColumnDescription<>("createdBy", DataType.STRING, 64, true),
                             PROJECT_ITEMS_BUCKET);
 
+    private static final SchemaUpdate V5_ADD_LAST_VALIDATED_TIME_COLUMN =
+            new SchemaUpdate(5, "Add lastValidatedTime column (nullable TIMESTAMP)")
+                    .addColumn(
+                            "lastValidatedTime",
+                            new ColumnDescription<>("lastValidatedTime", DataType.TIMESTAMP, true),
+                            VALIDATION_RESULTS_BUCKET);
+
     public static List<SchemaUpdate> plan() {
         return Arrays.asList(
                 V1_ADD_REGION_COLUMN,
                 V2_ADD_REGION_INDEX,
                 V3_ADD_CM_LINK_COLUMN,
-                V4_ADD_CREATED_BY_COLUMN);
+                V4_ADD_CREATED_BY_COLUMN,
+                V5_ADD_LAST_VALIDATED_TIME_COLUMN);
     }
 
     private ApiSchemaUpdates() {}

@@ -58,6 +58,7 @@ import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
+import com.oracle.pic.networking.lvv.service.service.EmitMetricsService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
 import com.oracle.pic.networking.lvv.service.service.RacksService;
 import com.oracle.pic.networking.lvv.service.service.RegionsService;
@@ -98,6 +99,7 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(CablingTaskService.class).in(Singleton.class);
         bind(ProjectService.class).in(Singleton.class);
         bind(CablingValidationService.class).in(Singleton.class);
+        bind(EmitMetricsService.class).in(Singleton.class);
         bind(RegionsService.class).in(Singleton.class);
         bind(RacksService.class).in(Singleton.class);
 
@@ -352,6 +354,7 @@ public class LvvServiceApiModule extends AbstractModule {
         } else {
             skClient =
                     StoreKeeperClient.builder()
+                            .clientConfigurator(new CommonClientConfigurator("StoreKeeper"))
                             .build(
                                     S2SAuthenticationDetailsProvider.builder()
                                             .useInstancePrincipals()

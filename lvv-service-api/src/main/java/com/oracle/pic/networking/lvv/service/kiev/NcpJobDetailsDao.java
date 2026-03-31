@@ -58,7 +58,7 @@ public class NcpJobDetailsDao {
     public void addUpdateNcpJobDetails(
             @NonNull HashMap<String, String> jobs, String rackSerial, MetricsScope scope) {
 
-        log.info("Get existing Job details for rack {}", rackSerial);
+        log.info("Starting to add or update Job details for rack {}", rackSerial);
 
         Map<String, NcpJobDetails> existingJobDetails =
                 getNcpJobDetailsForRack(rackSerial).stream()
@@ -121,6 +121,7 @@ public class NcpJobDetailsDao {
                 }
             }
         }
+        log.info("Finished add or update Job details for rack {}", rackSerial);
     }
 
     public NcpJobDetails getNcpJobDetails(@NonNull String deviceName) {

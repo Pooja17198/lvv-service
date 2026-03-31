@@ -532,6 +532,37 @@ paths:
         default:
           $ref: '#/responses/Error'
 
+  /emitMetrics:
+    post:
+      tags: [ 'metrics' ]
+      x-obmcs-splat:
+        operationType: POST
+        apiType: Synchronous
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: EmitMetrics
+      summary: Emit a UI metric
+      description: Creates a UIMetrics scope, adds the provided dimensions, emits the given metric, and records success.
+      parameters:
+        - $ref: '#/parameters/EmitMetricsRequestBodyParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: Metric emitted successfully
+          headers:
+            opc-request-id: *ref-opc-request-id
+        400:
+          description: Invalid metric request
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          $ref: '#/responses/Error'
+
   /getValidationJobStatus:
     get:
       tags: [ 'cablingValidation' ]
@@ -932,6 +963,22 @@ definitions:
       jobStatus:
         type: string
 
+  EmitMetricsRequest:
+    type: object
+    required:
+      - metricName
+      - time
+    properties:
+      metricName:
+        type: string
+      time:
+        type: integer
+        format: int64
+      dimensions:
+        type: object
+        additionalProperties:
+          type: string
+
   Project:
     description: A project object represents the information of a specific project.
     type: object
@@ -1213,6 +1260,13 @@ parameters:
     schema:
       $ref: '#/definitions/PutProjectRequest'
     description: Information required for creating or updating a project
+  EmitMetricsRequestBodyParam:
+    name: value
+    in: body
+    required: true
+    schema:
+      $ref: '#/definitions/EmitMetricsRequest'
+    description: Information required for emitting a UI metric
   ProjectIdentifierPathParam:
     name: projectId
     type: string

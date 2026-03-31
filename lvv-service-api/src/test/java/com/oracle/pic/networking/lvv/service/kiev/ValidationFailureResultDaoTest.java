@@ -54,12 +54,14 @@ public class ValidationFailureResultDaoTest {
             String device,
             Map<String, List<Map<String, String>>> vr,
             int validations) {
+        Timestamp now = Timestamp.from(Instant.now());
         return ValidationFailureResult.builder()
                 .rackSerial(rack)
                 .deviceName(device)
                 .validationResults(vr)
                 .numberOfValidations(validations)
-                .firstValidatedTime(Timestamp.from(Instant.now()))
+                .firstValidatedTime(now)
+                .lastValidatedTime(now)
                 .build();
     }
 
@@ -82,6 +84,8 @@ public class ValidationFailureResultDaoTest {
         assertEquals(result, created.getValidationResults());
         assertEquals(1, created.getNumberOfValidations());
         assertNotNull(created.getFirstValidatedTime());
+        assertNotNull(created.getLastValidatedTime());
+        assertEquals(created.getFirstValidatedTime(), created.getLastValidatedTime());
 
         verify(mockTransaction, times(1)).commit();
     }
@@ -124,6 +128,10 @@ public class ValidationFailureResultDaoTest {
         assertEquals(3, updated.getNumberOfValidations());
         assertEquals(newResult, updated.getValidationResults());
         assertNotNull(updated.getFirstValidatedTime());
+        assertNotNull(updated.getLastValidatedTime());
+        assertTrue(
+                !updated.getLastValidatedTime().before(updated.getFirstValidatedTime()),
+                "lastValidatedTime should be same or after firstValidatedTime");
 
         verify(mockTransaction, times(1)).commit();
     }
@@ -211,8 +219,17 @@ public class ValidationFailureResultDaoTest {
         Map<String, Object> result = (Map<String, Object>) out;
 
         assertEquals(2, result.size());
-        assertSame(mv1, result.get("devA"));
-        assertSame(mv2, result.get("devB"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> devA = (Map<String, Object>) result.get("devA");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> devB = (Map<String, Object>) result.get("devB");
+
+        assertNotNull(devA);
+        assertNotNull(devB);
+        assertEquals(mv1.get("a"), devA.get("a"));
+        assertEquals(mv2.get("b"), devB.get("b"));
+        assertEquals(r1.getLastValidatedTime(), devA.get("Last Validated"));
+        assertEquals(r2.getLastValidatedTime(), devB.get("Last Validated"));
         assertFalse(result.containsKey("devOther"));
     }
 
@@ -279,11 +296,16 @@ public class ValidationFailureResultDaoTest {
     void updateValidationFailureResultsForDevice_preservesFirstValidatedTime() {
         ValidationFailureResult existing = buildResult("r", "d", Map.of(), 5);
         Timestamp original = existing.getFirstValidatedTime();
+        Timestamp originalLastValidated = existing.getLastValidatedTime();
 
         when(mockStore.beginTransaction("d")).thenReturn(mockTransaction);
         Map<String, List<Map<String, String>>> newRs = Map.of("k", List.of(Map.of("a", "b")));
         dao.updateValidationFailureResultsForDevice(existing, "d", newRs, mockScope);
 
         assertEquals(original, existing.getFirstValidatedTime());
+        assertNotNull(existing.getLastValidatedTime());
+        assertTrue(
+                !existing.getLastValidatedTime().before(originalLastValidated),
+                "lastValidatedTime should be refreshed on update");
     }
 }

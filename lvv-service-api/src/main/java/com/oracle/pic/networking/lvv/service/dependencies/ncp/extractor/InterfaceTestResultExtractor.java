@@ -9,8 +9,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -30,9 +28,6 @@ public class InterfaceTestResultExtractor implements TestResultExtractor {
     private static final String DEVICE_NAME = "Device Name";
     private static final String DEVICE_PORT = "Device Port";
     private static final String ISSUE = "Issue";
-
-    private static final Pattern INTERFACE_NAME =
-            Pattern.compile("\\b(?:Ethernet\\d+(?:/\\d+)+|et-?\\d+(?:/\\d+)+)\\b");
 
     public InterfaceTestResultExtractor() {
         this.mapper = new ObjectMapper();
@@ -63,25 +58,14 @@ public class InterfaceTestResultExtractor implements TestResultExtractor {
             return;
         }
         log.debug(
-                "[INTERFACE] Processing Interface Error message for device {}: \n {}",
+                "[INTERFACE] Processing Interface Error message for device {}: {}",
                 deviceId,
                 message);
 
-        final String PREFIX = "Failed:";
-        final String ISSUE_DESCRIPTION = "Interface not enables or up";
+        final String ISSUE_DESCRIPTION = "Interfaces are not enabled or up";
 
         try {
-            String body = message.trim();
-            if (body.startsWith(PREFIX)) {
-                body = body.substring(PREFIX.length()).trim();
-            }
-
-            // Parse the message to add ports to a list
-            LinkedHashSet<String> ports = new LinkedHashSet<>();
-            Matcher portName = INTERFACE_NAME.matcher(body);
-            while (portName.find()) {
-                ports.add(portName.group().trim());
-            }
+            LinkedHashSet<String> ports = extractPorts(message);
 
             // For empty Interface error ports, we set the status to UNKNOWN
             if (ports.isEmpty()) {
@@ -137,5 +121,34 @@ public class InterfaceTestResultExtractor implements TestResultExtractor {
             interfaceResults.add(result);
         }
         log.info("[INTERFACE] Parsed output for Interface error: deviceName: {}", deviceId);
+    }
+
+    // returns all port names extracted from the message
+    private LinkedHashSet<String> extractPorts(String message) {
+        LinkedHashSet<String> ports = new LinkedHashSet<>();
+
+        int start = message.lastIndexOf('[');
+        int end = message.lastIndexOf(']');
+        if (start < 0 || end <= start) {
+            return ports;
+        }
+
+        String portList = message.substring(start + 1, end).trim();
+        if (portList.isBlank()) {
+            return ports;
+        }
+
+        for (String rawPort : portList.split(",")) {
+            String port = rawPort.trim();
+            if ((port.startsWith("'") && port.endsWith("'"))
+                    || (port.startsWith("\"") && port.endsWith("\""))) {
+                port = port.substring(1, port.length() - 1).trim();
+            }
+            if (!port.isBlank()) {
+                ports.add(port);
+            }
+        }
+
+        return ports;
     }
 }

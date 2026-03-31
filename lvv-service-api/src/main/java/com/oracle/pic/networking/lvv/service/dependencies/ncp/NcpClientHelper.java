@@ -51,6 +51,15 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 public class NcpClientHelper {
 
+    @lombok.Builder
+    @lombok.Value
+    public static class ValidationJobRuntimeInfo {
+        JobStatus jobStatus;
+        String jobType;
+        String startDate;
+        String endDate;
+    }
+
     private static final int DEFAULT_CLIENT_RETRY_COUNT = 3;
     private static final String RESULT_NAME = "TestResults";
     private static final int PRE_PARSE_PREVIEW_CHARS = 1024;
@@ -439,14 +448,34 @@ public class NcpClientHelper {
         }
     }
 
-    public Map<String, JobStatus> fetchJobStatus(String rackSerialNumber, String region) {
+    private ValidationJobRuntimeInfo buildValidationJobRuntimeInfo(Job job, JobStatus jobStatus) {
+        if (job == null) {
+            return ValidationJobRuntimeInfo.builder().jobStatus(jobStatus).build();
+        }
+
+        return ValidationJobRuntimeInfo.builder()
+                .jobStatus(jobStatus)
+                .jobType(
+                        job.getRequest() == null || job.getRequest().getJobType() == null
+                                ? null
+                                : job.getRequest().getJobType())
+                .startDate(
+                        job.getStartDate() == null
+                                ? null
+                                : job.getStartDate().toInstant().toString())
+                .endDate(job.getEndDate() == null ? null : job.getEndDate().toInstant().toString())
+                .build();
+    }
+
+    public Map<String, ValidationJobRuntimeInfo> fetchJobStatus(
+            String rackSerialNumber, String region) {
         JobsClient ncpApiJobsClient = ncpClientSetup.getNcpClient(config, region);
 
         // Fetch NcpJob Details for all devices in the rack
         List<NcpJobDetails> jobDetails = ncpJobDetailsDao.getNcpJobDetailsForRack(rackSerialNumber);
 
-        // Map of Device name -> Job status
-        Map<String, JobStatus> deviceJobStatusMap = new HashMap<>();
+        // Map of Device name -> runtime job info
+        Map<String, ValidationJobRuntimeInfo> deviceJobStatusMap = new HashMap<>();
 
         // Map of Job ID -> Job
         Map<String, Job> jobsMap = new HashMap<>();
@@ -469,7 +498,9 @@ public class NcpClientHelper {
                 log.info("Device {} Job State is {}", ncpJobDetails.getDeviceName(), state);
 
                 if (JOB_FAILED_STATES.contains(state)) {
-                    deviceJobStatusMap.put(ncpJobDetails.getDeviceName(), JobStatus.FAILED);
+                    deviceJobStatusMap.put(
+                            ncpJobDetails.getDeviceName(),
+                            buildValidationJobRuntimeInfo(job, JobStatus.FAILED));
                 } else {
 
                     // If Job Type is PER_RACK_VALIDATION_JOB
@@ -481,12 +512,14 @@ public class NcpClientHelper {
                                 // We are still waiting for the PER_RACK_VALIDATION_JOB to trigger a
                                 // HEALTH_CHECK Job
                                 deviceJobStatusMap.put(
-                                        ncpJobDetails.getDeviceName(), JobStatus.IN_PROGRESS);
+                                        ncpJobDetails.getDeviceName(),
+                                        buildValidationJobRuntimeInfo(job, JobStatus.IN_PROGRESS));
                             } else if (JOB_SUCCEEDED_STATE.contains(state)) {
                                 // PER_RACK_VALIDATION_JOB succeeded but was unable to trigger a
                                 // Health_check job
                                 deviceJobStatusMap.put(
-                                        ncpJobDetails.getDeviceName(), JobStatus.FAILED);
+                                        ncpJobDetails.getDeviceName(),
+                                        buildValidationJobRuntimeInfo(job, JobStatus.FAILED));
                             }
                         } else {
                             // PER_RACK_VALIDATION_JOB has triggered a HEALTH_CHECK Job
@@ -498,10 +531,12 @@ public class NcpClientHelper {
                     } else { // If Job Type is HEALTH_CHECK
                         if (JOB_PENDING_STATES.contains(state)) {
                             deviceJobStatusMap.put(
-                                    ncpJobDetails.getDeviceName(), JobStatus.IN_PROGRESS);
+                                    ncpJobDetails.getDeviceName(),
+                                    buildValidationJobRuntimeInfo(job, JobStatus.IN_PROGRESS));
                         } else {
                             deviceJobStatusMap.put(
-                                    ncpJobDetails.getDeviceName(), JobStatus.COMPLETED);
+                                    ncpJobDetails.getDeviceName(),
+                                    buildValidationJobRuntimeInfo(job, JobStatus.COMPLETED));
                         }
                     }
                 }

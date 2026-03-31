@@ -83,6 +83,12 @@ public class RacksService {
             String building,
             MetricsScope scope) {
 
+        log.info(
+                "Getting device details for rack serial {} with rack number {} in building {} in region {}",
+                rackSerialNumber,
+                rackNumber,
+                building,
+                regionName);
         List<Device> devices = listDevicesInRack(regionName, rackNumber, building, scope);
 
         // Map that stores {deviceName -> NCP Job ID}
@@ -107,7 +113,7 @@ public class RacksService {
 
         Map<String, JobStatus> deviceJobStatus =
                 cablingValidationService.getValidationJobStatus(
-                        scope, regionName, rackSerialNumber, rackNumber, false);
+                        scope, regionName, building, rackSerialNumber, rackNumber, false);
 
         return resourceModelTransformer.toModel(deviceJobStatus, devices);
     }

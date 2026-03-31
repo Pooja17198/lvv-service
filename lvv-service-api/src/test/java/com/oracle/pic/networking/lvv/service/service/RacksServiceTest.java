@@ -100,7 +100,7 @@ class RacksServiceTest {
         jobStatus.put("devA", JobStatus.IN_PROGRESS);
         jobStatus.put("devB", JobStatus.COMPLETED);
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(jobStatus);
 
         List<DeviceDetails> expectedDetails = Collections.singletonList(mock(DeviceDetails.class));
@@ -130,7 +130,8 @@ class RacksServiceTest {
                 "rack serial must not be used as a device when devices exist");
 
         verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+                .getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false);
         verify(resourceModelTransformer).toModel(jobStatus, devices);
         verifyNoMoreInteractions(resourceModelTransformer, cablingValidationService);
     }
@@ -143,7 +144,7 @@ class RacksServiceTest {
 
         Map<String, JobStatus> jobStatus = new HashMap<>(); // could be empty or anything
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(jobStatus);
 
         List<DeviceDetails> expected = Collections.emptyList();
@@ -168,7 +169,8 @@ class RacksServiceTest {
         assertEquals("", jobsInserted.get(rackSerial));
 
         verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+                .getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false);
         verify(resourceModelTransformer).toModel(jobStatus, Collections.emptyList());
     }
 
@@ -185,7 +187,7 @@ class RacksServiceTest {
         Map<String, JobStatus> jobStatus = new HashMap<>();
         jobStatus.put("dup", JobStatus.IN_PROGRESS);
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(jobStatus);
 
         when(resourceModelTransformer.toModel(jobStatus, devices))
@@ -215,7 +217,7 @@ class RacksServiceTest {
 
         Map<String, JobStatus> emptyStatus = Collections.emptyMap();
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(emptyStatus);
         when(resourceModelTransformer.toModel(emptyStatus, devices))
                 .thenReturn(Collections.emptyList());
@@ -231,7 +233,8 @@ class RacksServiceTest {
         verify(ncpJobDetailsDao, never())
                 .addUpdateNcpJobDetails(any(HashMap.class), anyString(), any(MetricsScope.class));
         verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+                .getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false);
         verify(resourceModelTransformer).toModel(emptyStatus, devices);
     }
 
@@ -264,7 +267,7 @@ class RacksServiceTest {
 
         Map<String, JobStatus> emptyStatus = Collections.emptyMap();
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, null, rackSerial, null, false))
+                        metricsScope, null, null, rackSerial, null, false))
                 .thenReturn(emptyStatus);
 
         when(resourceModelTransformer.toModel(emptyStatus, Collections.emptyList()))
@@ -288,7 +291,7 @@ class RacksServiceTest {
         assertEquals("", jobsInserted.get(rackSerial));
 
         verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, null, rackSerial, null, false);
+                .getValidationJobStatus(metricsScope, null, null, rackSerial, null, false);
         verify(resourceModelTransformer).toModel(emptyStatus, Collections.emptyList());
     }
 
@@ -303,7 +306,7 @@ class RacksServiceTest {
         Map<String, JobStatus> jobStatus = new HashMap<>();
         jobStatus.put("devA", JobStatus.COMPLETED);
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(jobStatus);
 
         RuntimeException boom = new RuntimeException("transformer failed");
@@ -320,7 +323,8 @@ class RacksServiceTest {
 
         verify(planServiceHelper).getDeviceListInRack(rackNumber, building, region, metricsScope);
         verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+                .getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false);
         verify(resourceModelTransformer).toModel(jobStatus, devices);
     }
 
@@ -331,7 +335,7 @@ class RacksServiceTest {
 
         RuntimeException boom = new RuntimeException("cabling failed");
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenThrow(boom);
 
         assertSame(
@@ -358,7 +362,7 @@ class RacksServiceTest {
         Map<String, JobStatus> status = new HashMap<>();
         status.put("dev1", JobStatus.IN_PROGRESS);
         when(cablingValidationService.getValidationJobStatus(
-                        metricsScope, region, rackSerial, rackNumber, false))
+                        metricsScope, region, building, rackSerial, rackNumber, false))
                 .thenReturn(status);
 
         when(resourceModelTransformer.toModel(status, devices)).thenReturn(Collections.emptyList());
@@ -377,7 +381,8 @@ class RacksServiceTest {
                 .addUpdateNcpJobDetails(
                         Mockito.<HashMap<String, String>>any(), eq(rackSerial), eq(metricsScope));
         inOrder.verify(cablingValidationService)
-                .getValidationJobStatus(metricsScope, region, rackSerial, rackNumber, false);
+                .getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false);
         inOrder.verify(resourceModelTransformer).toModel(status, devices);
         inOrder.verifyNoMoreInteractions();
     }

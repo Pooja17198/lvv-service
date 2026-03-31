@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.pic.commons.metrics.MetricsScope;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import java.util.HashMap;
@@ -110,6 +109,76 @@ class FecBerResultExtractorTest {
     }
 
     @Test
+    void extract_prefixedSingleInterfaceMessage_processesProvidedExample() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: The following 1 interfaces do not have fec alignment lock or had errors above 1e-07: {'Ethernet42/1': {'lock_status': True, 'pre_fec_ber': 2.55257167638123e-05, 'elevation': '38', 'rack': '0908', 'device_name': 'dxb3-q1-b3-t0-r8', 'remote_device': 'dxb3-q1-b3-t1-r10', 'remote_interface': 'Ethernet57/1', 'warning': 'action required, check host status'}}";
+
+        extractor.extract("fallbackDev", message, metricsScope, deviceResults);
+
+        List<Map<String, String>> rows = deviceResults.get("fallbackDev").get("FEC_BER Errors");
+        assertEquals(1, rows.size());
+
+        Map<String, String> row = rows.get(0);
+        assertEquals("0908", row.get("Device Rack"));
+        assertEquals("dxb3-q1-b3-t0-r8", row.get("Device Name"));
+        assertEquals("Ethernet42/1", row.get("Device Port"));
+        assertEquals("2.55257167638123e-05", row.get("PRE_FEC_BER"));
+        assertEquals("true", row.get("Lock Status"));
+        assertEquals("dxb3-q1-b3-t1-r10", row.get("Remote Device"));
+        assertEquals("Ethernet57/1", row.get("Remote Interface"));
+        assertNull(row.get("Error Message"));
+
+        verifyNoInteractions(metricsScope);
+    }
+
+    @Test
+    void extract_prefixedMultipleInterfaceMessage_addsOneRowPerInterface() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: The following 2 interfaces do not have fec alignment lock or had errors above 1e-07: {'Ethernet26/1': {'lock_status': True, 'pre_fec_ber': 1.7873778271625481e-06, 'elevation': '11', 'rack': '4210', 'device_name': 'cwl16-q1-b2-t0-r22', 'remote_device': 'cwl16-q1-b2-t1-r25', 'remote_interface': 'Ethernet11/5', 'warning': 'action required, check host status'}} {'Ethernet27/5': {'lock_status': True, 'pre_fec_ber': 1.7161905458676178e-07, 'elevation': '11', 'rack': '4210', 'device_name': 'cwl16-q1-b2-t0-r22', 'remote_device': 'cwl16-q1-b2-t1-r28', 'remote_interface': 'Ethernet11/5', 'warning': 'action required, check host status'}}";
+
+        extractor.extract("fallbackDev", message, metricsScope, deviceResults);
+
+        List<Map<String, String>> rows = deviceResults.get("fallbackDev").get("FEC_BER Errors");
+        assertEquals(2, rows.size());
+
+        assertEquals("Ethernet26/1", rows.get(0).get("Device Port"));
+        assertEquals("1.7873778271625481e-06", rows.get(0).get("PRE_FEC_BER"));
+        assertEquals("cwl16-q1-b2-t1-r25", rows.get(0).get("Remote Device"));
+        assertEquals("Ethernet11/5", rows.get(0).get("Remote Interface"));
+
+        assertEquals("Ethernet27/5", rows.get(1).get("Device Port"));
+        assertEquals("1.7161905458676178e-07", rows.get(1).get("PRE_FEC_BER"));
+        assertEquals("cwl16-q1-b2-t1-r28", rows.get(1).get("Remote Device"));
+        assertEquals("Ethernet11/5", rows.get(1).get("Remote Interface"));
+
+        verifyNoInteractions(metricsScope);
+    }
+
+    @Test
+    void extract_supportsArbitraryQuotedInterfaceNames() {
+        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
+        String message =
+                "Failed: {'et-0/0/0': {'rack': 'R10', 'device_name': 'router-1', 'pre_fec_ber': 9.9e-08, 'lock_status': False, 'remote_device': 'router-2', 'remote_interface': 'xe-0/0/1'}}";
+
+        extractor.extract("fallbackDev", message, metricsScope, deviceResults);
+
+        List<Map<String, String>> rows = deviceResults.get("fallbackDev").get("FEC_BER Errors");
+        assertEquals(1, rows.size());
+
+        Map<String, String> row = rows.get(0);
+        assertEquals("et-0/0/0", row.get("Device Port"));
+        assertEquals("router-1", row.get("Device Name"));
+        assertEquals("9.9e-08", row.get("PRE_FEC_BER"));
+        assertEquals("false", row.get("Lock Status"));
+        assertEquals("router-2", row.get("Remote Device"));
+        assertEquals("xe-0/0/1", row.get("Remote Interface"));
+
+        verifyNoInteractions(metricsScope);
+    }
+
+    @Test
     void extract_unexpectedFormat_addsUnknownRow_andEmitsMetric() {
         Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
         extractor.extract(
@@ -150,28 +219,5 @@ class FecBerResultExtractorTest {
         assertEquals("Unknown", r.get("Remote Interface"));
 
         verifyNoInteractions(metricsScope);
-    }
-
-    @Test
-    void constructor_withNullMapper_usesDefault() {
-        FecBerTestResultExtractor custom = new FecBerTestResultExtractor((ObjectMapper) null);
-        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        custom.extract("devN", null, metricsScope, deviceResults);
-
-        assertTrue(deviceResults.containsKey("devN"));
-        assertTrue(deviceResults.get("devN").containsKey("FEC_BER Errors"));
-        assertTrue(deviceResults.get("devN").get("FEC_BER Errors").isEmpty());
-    }
-
-    @Test
-    void constructor_withCustomMapper_usesProvided() {
-        ObjectMapper mapper = new ObjectMapper();
-        FecBerTestResultExtractor custom = new FecBerTestResultExtractor(mapper);
-        Map<String, Map<String, List<Map<String, String>>>> deviceResults = new HashMap<>();
-        custom.extract("devM", null, metricsScope, deviceResults);
-
-        assertTrue(deviceResults.containsKey("devM"));
-        assertTrue(deviceResults.get("devM").containsKey("FEC_BER Errors"));
-        assertTrue(deviceResults.get("devM").get("FEC_BER Errors").isEmpty());
     }
 }

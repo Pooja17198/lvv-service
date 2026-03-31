@@ -11,6 +11,9 @@ public final class DeviceValidationEligibilityUtils {
     private static final String CONF = "conf";
     private static final String DEVICE_STATE = "device.state";
     private static final String DEPLOYED_STATE = "deployed";
+    private static final String ROLE_PDU = "pdu";
+    private static final String ROLE_NVSWITCH = "nvswitch";
+    private static final String ROLE_COMPUTE = "compute";
 
     private DeviceValidationEligibilityUtils() {}
 
@@ -37,5 +40,44 @@ public final class DeviceValidationEligibilityUtils {
 
     public static boolean isValidationEligibleDevice(Device device) {
         return isMonitoredDevice(device) && isDeployedState(device);
+    }
+
+    public static boolean isDisplayEligibleDevice(Device device) {
+        if (device == null) {
+            return false;
+        }
+
+        if (hasExcludedRole(device)) {
+            return false;
+        }
+
+        return !isComputeChildDevice(device);
+    }
+
+    static boolean hasExcludedRole(Device device) {
+        String role = normalize(device.getRole());
+        return ROLE_PDU.equals(role) || ROLE_NVSWITCH.equals(role);
+    }
+
+    static boolean isComputeChildDevice(Device device) {
+        if (device == null) {
+            return false;
+        }
+
+        String role = normalize(device.getRole());
+        if (ROLE_COMPUTE.equals(role)) {
+            return false;
+        }
+
+        String name = device.getName();
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+
+        return name.contains("-compute") && !name.matches(".*-compute\\d+$");
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT);
     }
 }

@@ -67,23 +67,38 @@ class RacksServiceTest {
 
     private Device mockDeviceWithName(String name) {
         Device device = mock(Device.class);
-        when(device.getName()).thenReturn(name);
+        lenient().when(device.getName()).thenReturn(name);
         Map<String, Object> configAttributes = new HashMap<>();
         configAttributes.put("monitoring.interfaces", List.of("Eth0/1"));
-        when(device.getConfigAttributes()).thenReturn(configAttributes);
+        lenient().when(device.getConfigAttributes()).thenReturn(configAttributes);
 
         Map<String, String> conf = new HashMap<>();
         conf.put("device.state", "deployed");
         Map<String, Map<String, String>> state = new HashMap<>();
         state.put("conf", conf);
-        when(device.getState()).thenReturn(state);
+        lenient().when(device.getState()).thenReturn(state);
         return device;
     }
 
     private Device mockIneligibleDeviceWithName(String name) {
         Device device = mock(Device.class);
-        when(device.getConfigAttributes()).thenReturn(Collections.emptyMap());
+        lenient().when(device.getConfigAttributes()).thenReturn(Collections.emptyMap());
         return device;
+    }
+
+    private Device mockDisplayableDevice(String name, String role) {
+        Device device = mockDeviceWithName(name);
+        lenient().when(device.getRole()).thenReturn(role);
+        return device;
+    }
+
+    private Device mockDeviceWithExcludedRole(String name, String role) {
+        Device device = mockDisplayableDevice(name, role);
+        return device;
+    }
+
+    private Device mockComputeChildDevice(String name, String role) {
+        return mockDisplayableDevice(name, role);
     }
 
     @Test
@@ -204,6 +219,47 @@ class RacksServiceTest {
         Map<String, String> jobsInserted = jobsCaptor.getValue();
         assertEquals(1, jobsInserted.size());
         assertEquals("", jobsInserted.get("dup"));
+    }
+
+    @Test
+    void getDeviceDetailsInRack_filtersExcludedRolesAndComputeChildren_beforeTransform() {
+        Device kept = mockDisplayableDevice("aga5-c1-b6-t0-r4-compute9", "compute");
+        Device excludedPsu = mockDeviceWithExcludedRole("aga5-c1-b6-t0-r3-u1-pdu7", "pdu");
+        Device excludedNvSwitch =
+                mockDeviceWithExcludedRole("aga5-c1-b6-t0-r3-u1-nvswitch3", "nvswitch");
+        Device excludedComputeChild =
+                mockComputeChildDevice("aga5-c1-b6-t0-r4-compute9-ilom", "ilom");
+
+        List<Device> fetchedDevices =
+                List.of(kept, excludedPsu, excludedNvSwitch, excludedComputeChild);
+        List<Device> expectedDisplayedDevices = List.of(kept);
+
+        when(planServiceHelper.getDeviceListInRack(rackNumber, building, region, metricsScope))
+                .thenReturn(fetchedDevices);
+
+        Map<String, JobStatus> jobStatus =
+                Map.of("aga5-c1-b6-t0-r4-compute9", JobStatus.IN_PROGRESS);
+        when(cablingValidationService.getValidationJobStatus(
+                        metricsScope, region, building, rackSerial, rackNumber, false))
+                .thenReturn(jobStatus);
+
+        List<DeviceDetails> expectedDetails = Collections.singletonList(mock(DeviceDetails.class));
+        when(resourceModelTransformer.toModel(eq(jobStatus), anyList()))
+                .thenReturn(expectedDetails);
+
+        ArgumentCaptor<HashMap<String, String>> jobsCaptor = ArgumentCaptor.forClass(HashMap.class);
+        ArgumentCaptor<List<Device>> displayedDevicesCaptor = ArgumentCaptor.forClass(List.class);
+
+        List<DeviceDetails> result =
+                service.getDeviceDetailsInRack(
+                        rackSerial, region, rackNumber, building, metricsScope);
+
+        assertEquals(expectedDetails, result);
+        verify(ncpJobDetailsDao)
+                .addUpdateNcpJobDetails(jobsCaptor.capture(), eq(rackSerial), eq(metricsScope));
+        assertEquals(Map.of("aga5-c1-b6-t0-r4-compute9", ""), jobsCaptor.getValue());
+        verify(resourceModelTransformer).toModel(eq(jobStatus), displayedDevicesCaptor.capture());
+        assertEquals(expectedDisplayedDevices, displayedDevicesCaptor.getValue());
     }
 
     @Test

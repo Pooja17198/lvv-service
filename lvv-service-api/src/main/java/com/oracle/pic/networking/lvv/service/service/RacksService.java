@@ -73,7 +73,11 @@ public class RacksService {
     private List<Device> listDevicesInRack(
             String regionName, String rackNumber, String building, MetricsScope scope) {
 
-        return planServiceHelper.getDeviceListInRack(rackNumber, building, regionName, scope);
+        return planServiceHelper
+                .getDeviceListInRack(rackNumber, building, regionName, scope)
+                .stream()
+                .filter(DeviceValidationEligibilityUtils::isDisplayEligibleDevice)
+                .toList();
     }
 
     public List<DeviceDetails> getDeviceDetailsInRack(

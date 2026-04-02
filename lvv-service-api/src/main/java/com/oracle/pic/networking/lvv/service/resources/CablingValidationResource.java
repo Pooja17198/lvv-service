@@ -12,10 +12,11 @@ import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
-import com.oracle.pic.networking.lvv.service.utils.DownloadCsvReportBuilder;
+import com.oracle.pic.networking.lvv.service.utils.DownloadExcelReportBuilder;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
@@ -119,8 +120,9 @@ public class CablingValidationResource extends AbstractCablingValidationResource
     }
 
     @Override
-    public void downloadValidationFailures(
+    public byte[] downloadValidationFailures(
             String rackSerial,
+            String format,
             String regionName,
             String opcRequestId,
             Principal principal,
@@ -133,21 +135,32 @@ public class CablingValidationResource extends AbstractCablingValidationResource
             log.info("Starting downloadValidations for rack {}", rackSerial);
 
             scope.withDimension("region", GeneralUtils.getRegionInternalName(regionName));
-            scope.emit(MetricNames.ValidateCables.DownloadCsv.name(), 1.0);
+
+            if (format != null && !format.isBlank()) {
+                String normalized = format.trim().toUpperCase(Locale.ROOT);
+                if (!"XLSX".equals(normalized) && !"EXCEL".equals(normalized)) {
+                    throw new RenderableException(
+                            ErrorCode.InvalidParameter,
+                            "Unsupported download format: " + format + ". Supported format: xlsx");
+                }
+            }
+
+            scope.emit(MetricNames.ValidateCables.DownloadExcel.name(), 1.0);
 
             Object resultsWrapper =
                     cablingValidationService.getValidationFailuresByRack(rackSerial);
 
-            String csv = DownloadCsvReportBuilder.buildMultiTableCsv(resultsWrapper, rackSerial);
-
+            byte[] workbookBytes =
+                    DownloadExcelReportBuilder.buildWorkbook(resultsWrapper, rackSerial);
             Response response =
-                    Response.ok(csv)
-                            .type("text/csv")
+                    Response.ok(workbookBytes)
+                            .type(
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                             .header(
                                     "Content-Disposition",
                                     "attachment; filename=\"validationFailureResults_"
                                             + rackSerial
-                                            + ".csv\"")
+                                            + ".xlsx\"")
                             .build();
             scope.recordSuccess();
             throw new WebApplicationException(response);

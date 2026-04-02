@@ -77,7 +77,7 @@ public class MetricNames {
         NcpJobPollingFail,
         NcpJobCompleted,
         KievResultAddFailure,
-        DownloadCsv
+        DownloadExcel
     }
 
     public enum GetValidationJobStatus {

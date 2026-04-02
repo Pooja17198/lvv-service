@@ -598,7 +598,7 @@ paths:
   /downloadCablingValidationResults:
     get:
       produces:
-        - text/csv
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       tags: [ 'cablingValidation' ]
       x-obmcs-splat:
         operationType: GET
@@ -609,25 +609,29 @@ paths:
           strategy: route-to-any-ad
         serviceList: [ 'lvv-api-beta' ]
       operationId: DownloadValidationFailures
-      summary: Download validation failure results for a rack in a csv file
-      description: Downloads validation diagnostics from Kiev for a specific rack in a csv file
+      summary: Download validation failure results for a rack in an Excel file
+      description: Downloads validation diagnostics from Kiev for a specific rack in Excel format
       parameters:
         - name: rackSerialNumber
           in: query
           required: true
-          schema:
-            type: string
+          type: string
+        - name: format
+          in: query
+          required: false
+          type: string
+          description: Download format. Supported value is `xlsx`.
+          enum:
+            - xlsx
         - $ref: '#/parameters/RegionNameQueryParam'
         - $ref: '#/parameters/OpcRequestId'
       responses:
         200:
-          description: CSV file of link-level validation results
-          content:
-            text/csv:
-              schema:
-                type: string
-                format: binary
-                x-java-type: javax.ws.rs.core.Response
+          description: Excel file of link-level validation results
+          schema:
+            type: string
+            format: binary
+            x-java-type: javax.ws.rs.core.Response
         default:
           description: Unexpected error
           schema:

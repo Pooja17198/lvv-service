@@ -13,8 +13,12 @@ import com.oracle.pic.networking.lvv.service.kiev.JobStatus;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResultDao;
 import com.oracle.pic.networking.lvv.service.model.DeviceValidationStatus;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Map;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -502,11 +506,119 @@ class CablingValidationResourceTest {
 
     @Test
     void testDownloadValidationFailures_returnsResponse_viaWebApplicationException() {
-        // The resource now returns a JAX-RS Response by throwing WebApplicationException.
-        assertThrows(
-                javax.ws.rs.WebApplicationException.class,
-                () ->
-                        resource.downloadValidationFailures(
-                                "rack001", region, opcRequestId, principal, authorizationRequest));
+        when(cablingValidationService.getValidationFailuresByRack("rack001")).thenReturn(Map.of());
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            WebApplicationException ex =
+                    assertThrows(
+                            WebApplicationException.class,
+                            () ->
+                                    resource.downloadValidationFailures(
+                                            "rack001",
+                                            null,
+                                            region,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+
+            Response response = ex.getResponse();
+            assertEquals(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    response.getMediaType().toString());
+            assertTrue(
+                    String.valueOf(response.getHeaders().getFirst("Content-Disposition"))
+                            .contains("validationFailureResults_rack001.xlsx"));
+            assertNotNull(response.getEntity());
+            verify(metricsScope).recordSuccess();
+        }
+    }
+
+    @Test
+    void testDownloadValidationFailures_explicitCsv_throwsRenderableException() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+
+            RenderableException ex =
+                    assertThrows(
+                            RenderableException.class,
+                            () ->
+                                    resource.downloadValidationFailures(
+                                            "rack001",
+                                            "csv",
+                                            region,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+
+            assertTrue(ex.getMessage().contains("Unsupported download format"));
+            verify(cablingValidationService, never()).getValidationFailuresByRack(anyString());
+            verify(metricsScope, never()).recordSuccess();
+        }
+    }
+
+    @Test
+    void testDownloadValidationFailures_defaultExcel_containsRequiredSheets() throws Exception {
+        Map<String, Object> wrapper = Map.of("rack001", Map.of());
+        when(cablingValidationService.getValidationFailuresByRack("rack001")).thenReturn(wrapper);
+
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).emit(anyString(), anyDouble());
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+            doReturn(metricsScope).when(metricsScope).recordSuccess();
+
+            WebApplicationException ex =
+                    assertThrows(
+                            WebApplicationException.class,
+                            () ->
+                                    resource.downloadValidationFailures(
+                                            "rack001",
+                                            null,
+                                            region,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+
+            Response response = ex.getResponse();
+            byte[] bytes = (byte[]) response.getEntity();
+            try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+                assertNotNull(workbook.getSheet("Summary"));
+                assertNull(workbook.getSheet("LLDP Mismatch + Link Down"));
+                assertNull(workbook.getSheet("Optic Errors"));
+                assertNull(workbook.getSheet("FEC_BER Errors"));
+                assertNull(workbook.getSheet("Power Errors"));
+                assertNull(workbook.getSheet("Interface Down Errors"));
+                assertNull(workbook.getSheet("Fan Errors"));
+            }
+        }
+    }
+
+    @Test
+    void testDownloadValidationFailures_invalidFormat_throwsRenderableException() {
+        try (MockedStatic<MetricsScope> staticMock = mockStatic(MetricsScope.class)) {
+            staticMock.when(() -> MetricsScope.create(anyString())).thenReturn(metricsScope);
+            doReturn(metricsScope).when(metricsScope).withDimension(anyString(), anyString());
+
+            RenderableException ex =
+                    assertThrows(
+                            RenderableException.class,
+                            () ->
+                                    resource.downloadValidationFailures(
+                                            "rack001",
+                                            "pdf",
+                                            region,
+                                            opcRequestId,
+                                            principal,
+                                            authorizationRequest));
+
+            assertTrue(ex.getMessage().contains("Unsupported download format"));
+            verify(metricsScope, never()).recordSuccess();
+        }
     }
 }

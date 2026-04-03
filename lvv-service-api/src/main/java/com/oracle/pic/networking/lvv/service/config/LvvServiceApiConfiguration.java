@@ -45,7 +45,13 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
 
     @NotNull private PlanServiceConfiguration planServiceConfiguration;
 
+    @NotNull private NotificationClientConfiguration notificationClientConfiguration;
+
     @NotNull private StoreKeeperClientConfig skConfig;
+
+    // When false, network monitoring and alerting features are disabled<br>
+    // (/badLinks short-circuit + ONS no-op)
+    private boolean enableNetworkMonitoringAndAlerting;
 
     public void validateAdAndRegionConfiguration() {
         Validate.isTrue(getLocation().isValid());

@@ -21,6 +21,7 @@ import com.oracle.pic.networking.lvv.service.config.LvvServiceApiConfiguration;
 import com.oracle.pic.networking.lvv.service.config.LvvServiceApiModule;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiHealthCheck;
 import com.oracle.pic.networking.lvv.service.kiev.KievRateLimiter;
+import com.oracle.pic.networking.lvv.service.resources.BadLinksResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.EmitMetricsResource;
@@ -75,6 +76,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                     .add(EmitMetricsResource.class)
                     .add(RegionsResource.class)
                     .add(RacksResource.class)
+                    .add(BadLinksResource.class)
                     .build();
 
     /*

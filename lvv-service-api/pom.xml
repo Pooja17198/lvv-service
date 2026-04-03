@@ -406,6 +406,11 @@
       <groupId>com.oracle.pic.kiev</groupId>
       <artifactId>kiev-library</artifactId>
     </dependency>
+     <dependency>
+        <groupId>com.oracle.pic.ons</groupId>
+        <artifactId>ons-gateway-java-client-2.x</artifactId>
+        <version>3.1.37</version>
+     </dependency>
   </dependencies>
 
   <build>

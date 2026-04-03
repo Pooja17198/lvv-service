@@ -23,6 +23,7 @@ import io.atlassian.util.concurrent.Promise;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -247,5 +248,157 @@ public class JiraSDServiceTest {
         assertNotNull(t);
         assertEquals("K1", t.getTicketId());
         assertNotNull(t.getTicketCategory()); // category derived from enum
+    }
+
+    /**
+     * Verifies paginated search over multiple pages:<br>
+     * 1) First page returns 2 issues with total=3; second page returns 1 issue.<br>
+     * 2) Aggregates issues across pages into a single list of 3.<br>
+     * 3) Invokes searchJql with startAt offsets 0 and 2 and stops when startAt+count >= total.<br>
+     */
+    @Test
+    public void shouldSearchJiraTicketsPaginated_multiplePages_returnsAllIssues() {
+        String jql = "project = DO";
+        int pageSize = 2;
+
+        io.atlassian.util.concurrent.Promise<SearchResult> firstPromise = mock();
+        io.atlassian.util.concurrent.Promise<SearchResult> secondPromise = mock();
+
+        SearchResult firstResult = mock();
+        SearchResult secondResult = mock();
+
+        Issue i1 = mock();
+        Issue i2 = mock();
+        Issue i3 = mock();
+        when(i1.getKey()).thenReturn("KEY-1");
+        when(i2.getKey()).thenReturn("KEY-2");
+        when(i3.getKey()).thenReturn("KEY-3");
+
+        when(firstPromise.claim()).thenReturn(firstResult);
+        when(secondPromise.claim()).thenReturn(secondResult);
+
+        when(firstResult.getIssues()).thenReturn(java.util.List.of(i1, i2));
+        when(firstResult.getTotal()).thenReturn(3);
+
+        when(secondResult.getIssues()).thenReturn(java.util.List.of(i3));
+        when(secondResult.getTotal()).thenReturn(3);
+
+        when(this.mockedSearchRestClient.searchJql(
+                        eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(firstPromise);
+        when(this.mockedSearchRestClient.searchJql(
+                        eq(jql), eq(pageSize), eq(2), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(secondPromise);
+
+        List<Issue> issues = this.jiraSDService.searchJiraSDPaginated(jql, pageSize, Set.of());
+
+        assertEquals(3, issues.size());
+        assertTrue(issues.contains(i1));
+        assertTrue(issues.contains(i2));
+        assertTrue(issues.contains(i3));
+
+        verify(this.mockedSearchRestClient)
+                .searchJql(eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull());
+        verify(this.mockedSearchRestClient)
+                .searchJql(eq(jql), eq(pageSize), eq(2), org.mockito.ArgumentMatchers.isNull());
+    }
+
+    /**
+     * Verifies empty result handling for paginated search:<br>
+     * 1) First page returns total=0 with no issues.<br>
+     * 2) Returns an empty list and performs only a single searchJql call.<br>
+     */
+    @Test
+    public void shouldSearchJiraTicketsPaginated_emptyResults_returnsEmptyList() {
+        String jql = "project = DO";
+        int pageSize = 50;
+
+        io.atlassian.util.concurrent.Promise<SearchResult> firstPromise = mock();
+        SearchResult firstResult = mock();
+
+        when(firstPromise.claim()).thenReturn(firstResult);
+        when(firstResult.getIssues()).thenReturn(java.util.List.of());
+        when(firstResult.getTotal()).thenReturn(0);
+
+        when(this.mockedSearchRestClient.searchJql(
+                        eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(firstPromise);
+
+        List<Issue> issues = this.jiraSDService.searchJiraSDPaginated(jql, pageSize, Set.of());
+
+        assertNotNull(issues);
+        assertTrue(issues.isEmpty());
+        verify(this.mockedSearchRestClient)
+                .searchJql(eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull());
+    }
+
+    /**
+     * Verifies stop condition when total equals page size on the first page:<br>
+     * 1) First page returns exactly pageSize issues and total=pageSize.<br>
+     * 2) Stops pagination after first page and returns those issues only.<br>
+     * 3) Performs only one searchJql call with startAt=0.<br>
+     */
+    @Test
+    public void shouldSearchJiraTicketsPaginated_exactTotal_stopsAfterFirstPage() {
+        String jql = "project = DO";
+        int pageSize = 2;
+
+        io.atlassian.util.concurrent.Promise<SearchResult> firstPromise = mock();
+        SearchResult firstResult = mock();
+
+        Issue i1 = mock();
+        Issue i2 = mock();
+        when(i1.getKey()).thenReturn("KEY-1");
+        when(i2.getKey()).thenReturn("KEY-2");
+
+        when(firstPromise.claim()).thenReturn(firstResult);
+        when(firstResult.getIssues()).thenReturn(java.util.List.of(i1, i2));
+        when(firstResult.getTotal()).thenReturn(2);
+
+        when(this.mockedSearchRestClient.searchJql(
+                        eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(firstPromise);
+
+        List<Issue> issues = this.jiraSDService.searchJiraSDPaginated(jql, pageSize, Set.of());
+
+        assertEquals(2, issues.size());
+        verify(this.mockedSearchRestClient)
+                .searchJql(eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull());
+    }
+
+    /**
+     * Verifies behavior when pageSize exceeds total results:<br>
+     * 1) First page returns all 30 issues with total=30.<br>
+     * 2) Pagination stops after the first request (startAt=0 only).<br>
+     * 3) Returns exactly 30 aggregated issues.<br>
+     */
+    @Test
+    public void shouldSearchJiraTicketsPaginated_largePageSize_singleCallReturnsAll() {
+        String jql = "project = DO";
+        int pageSize = 100;
+
+        io.atlassian.util.concurrent.Promise<SearchResult> firstPromise = mock();
+        SearchResult firstResult = mock();
+
+        List<Issue> pageIssues = new LinkedList<>();
+        for (int i = 0; i < 30; i++) {
+            Issue issue = mock(Issue.class);
+            when(issue.getKey()).thenReturn("KEY-" + i);
+            pageIssues.add(issue);
+        }
+
+        when(firstPromise.claim()).thenReturn(firstResult);
+        when(firstResult.getIssues()).thenReturn(pageIssues);
+        when(firstResult.getTotal()).thenReturn(30);
+
+        when(this.mockedSearchRestClient.searchJql(
+                        eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(firstPromise);
+
+        List<Issue> issues = this.jiraSDService.searchJiraSDPaginated(jql, pageSize, Set.of());
+
+        assertEquals(30, issues.size());
+        verify(this.mockedSearchRestClient)
+                .searchJql(eq(jql), eq(pageSize), eq(0), org.mockito.ArgumentMatchers.isNull());
     }
 }

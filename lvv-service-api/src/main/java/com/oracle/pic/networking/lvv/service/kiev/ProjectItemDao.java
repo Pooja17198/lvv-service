@@ -15,6 +15,7 @@ import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.ScanPage;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
+import com.oracle.pic.networking.lvv.service.dependencies.notificationservice.NotificationServiceHelper;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.List;
 import java.util.Objects;
@@ -37,13 +38,17 @@ public class ProjectItemDao {
     private final Index<ProjectItem.RegionNameIndex, ProjectItem> regionNameIndex;
     private final Index<ProjectItem.VendorRegionIndex, ProjectItem> vendorRegionIndex;
     private final BlockDetailsDao blockDetailsDao;
+    private final NotificationServiceHelper notificationServiceHelper;
+    private final MonitoringDao monitoringDao;
 
     @Inject
     public ProjectItemDao(
             @NonNull ConfigurationStore<Long, ProjectItem> projectItemStore,
             @NonNull PaginationTokenSerializer serializer,
             @NonNull MappedHashBucket<Long, ProjectItem> projectItemProvider,
-            @NonNull BlockDetailsDao blockDetailsDao) {
+            @NonNull BlockDetailsDao blockDetailsDao,
+            @NonNull NotificationServiceHelper notificationServiceHelper,
+            @NonNull MonitoringDao monitoringDao) {
         this.projectItemStore = projectItemStore;
         this.projectItemProvider = projectItemProvider;
         this.serializer = serializer;
@@ -61,6 +66,8 @@ public class ProjectItemDao {
                 projectItemProvider.getIndex(
                         ProjectItem.VENDOR_REGION_INDEX_NAME, ProjectItem.VendorRegionIndex.class);
         this.blockDetailsDao = blockDetailsDao;
+        this.notificationServiceHelper = notificationServiceHelper;
+        this.monitoringDao = monitoringDao;
     }
 
     BlockDetails checkBlockIsUnassigned(BlockDetails blockDetail) {
@@ -118,6 +125,7 @@ public class ProjectItemDao {
     public void addProjectItem(
             @NonNull ProjectItem item,
             @NonNull List<BlockDetails> blockDetails,
+            @NonNull String building,
             MetricsScope scope) {
         ProjectItem existingItem = null;
 
@@ -165,9 +173,12 @@ public class ProjectItemDao {
             this.projectItemStore.createItem(txn, item);
             scope.emit(MetricNames.AddProjectItem.AddProject.name(), 1.0);
 
+            ensureTopicAndEmailSubscription(building, item, txn);
+
             try {
                 txn.commit();
                 log.info("Project ID {} has been created successfully", item.getProjectId());
+
             } catch (CommitConflictException | DuplicateKeyException exception) {
                 String message = "Failed to create project " + item;
                 scope.emit(MetricNames.AddProjectItem.KievCommitFailure.name(), 1.0);
@@ -182,6 +193,7 @@ public class ProjectItemDao {
     public void updateProjectItem(
             @NonNull ProjectItem item,
             @NonNull List<BlockDetails> blockDetails,
+            @NonNull String building,
             MetricsScope scope) {
         ProjectItem existingItem = null;
 
@@ -232,9 +244,12 @@ public class ProjectItemDao {
 
             scope.emit(MetricNames.UpdateProjectItem.UpdateProject.name(), 1.0);
 
+            ensureTopicAndEmailSubscription(building, item, txn);
+
             try {
                 txn.commit();
                 log.info("Project ID {} has been updated successfully", item.getProjectId());
+
             } catch (CommitConflictException | DuplicateKeyException exception) {
                 String message = "Failed to update project " + item;
                 scope.emit(MetricNames.UpdateProjectItem.KievCommitFailure.name(), 1.0);
@@ -282,6 +297,7 @@ public class ProjectItemDao {
             try {
                 txn.commit();
                 log.info("Project deleted successfully");
+
             } catch (CommitConflictException | DuplicateKeyException exception) {
                 String message = "Failed to delete projectType item " + projectId;
                 scope.emit(MetricNames.DeleteProjectItem.KievCommitFailure.name(), 1.0);
@@ -595,6 +611,25 @@ public class ProjectItemDao {
             }
         }
         return expectedRegion.equals(projRegion);
+    }
+
+    private void ensureTopicAndEmailSubscription(
+            @NonNull String building, @NonNull ProjectItem item, @NonNull Transaction txn) {
+        try {
+            // ensure that topicOcid exists for this building
+            String topicOcid = monitoringDao.ensureTopicExistsForBuilding(building, txn);
+            if (!item.getVendorEmail().isBlank()) {
+                // Add the vendorEmail as subscription to the topicOcid if not already
+                notificationServiceHelper.ensureEmailSubscription(topicOcid, item.getVendorEmail());
+            }
+        } catch (Exception e) {
+            log.error(
+                    "Failed to create topic and subscription for building {}, email {}",
+                    building,
+                    item.getVendorEmail(),
+                    e);
+            throw e;
+        }
     }
 
     private void handleException(Transaction txn, Exception exception, String message) {

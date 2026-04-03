@@ -35,16 +35,22 @@ import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
 import com.oracle.pic.networking.lvv.service.dependencies.ncp.NcpClientHelper;
+import com.oracle.pic.networking.lvv.service.dependencies.notificationservice.NotificationServiceClient;
+import com.oracle.pic.networking.lvv.service.dependencies.notificationservice.NotificationServiceHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceClient;
 import com.oracle.pic.networking.lvv.service.dependencies.planservice.PlanServiceHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.storekeeper.StoreKeeperHelper;
 import com.oracle.pic.networking.lvv.service.health.LvvServiceApiDeepCheck;
+import com.oracle.pic.networking.lvv.service.kiev.BadLinks;
+import com.oracle.pic.networking.lvv.service.kiev.BadLinksDao;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetails;
 import com.oracle.pic.networking.lvv.service.kiev.BlockDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.DataStoreProvider;
 import com.oracle.pic.networking.lvv.service.kiev.KievConfigurationStore;
 import com.oracle.pic.networking.lvv.service.kiev.KievHashBucketProvider;
+import com.oracle.pic.networking.lvv.service.kiev.Monitoring;
+import com.oracle.pic.networking.lvv.service.kiev.MonitoringDao;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
@@ -56,6 +62,7 @@ import com.oracle.pic.networking.lvv.service.secret.FileBasedSecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetriever;
 import com.oracle.pic.networking.lvv.service.secret.SecretRetrieverException;
 import com.oracle.pic.networking.lvv.service.secret.SecretServiceBasedSecretRetriever;
+import com.oracle.pic.networking.lvv.service.service.BadLinksService;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.EmitMetricsService;
@@ -102,8 +109,10 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(EmitMetricsService.class).in(Singleton.class);
         bind(RegionsService.class).in(Singleton.class);
         bind(RacksService.class).in(Singleton.class);
+        bind(BadLinksService.class).in(Singleton.class);
 
         bind(NcpClientHelper.class).in(Singleton.class);
+        bind(NotificationServiceHelper.class).in(Singleton.class);
         bind(PlanServiceHelper.class).in(Singleton.class);
         bind(JiraSDHelper.class).in(Singleton.class);
         bind(StoreKeeperHelper.class).in(Singleton.class);
@@ -111,12 +120,16 @@ public class LvvServiceApiModule extends AbstractModule {
         bindProjectBucket();
         bindValidationFailureResultBucket();
         bindBlockDetailsBucket();
+        bindBadLinksBucket();
+        bindMonitoringBucket();
         bindNcpJobDetailsBucket();
 
         bind(ProjectItemDao.class).in(Singleton.class);
         bind(ValidationFailureResultDao.class).in(Singleton.class);
         bind(BlockDetailsDao.class).in(Singleton.class);
         bind(NcpJobDetailsDao.class).in(Singleton.class);
+        bind(MonitoringDao.class).in(Singleton.class);
+        bind(BadLinksDao.class).in(Singleton.class);
 
         bind(ResourceModelTransformer.class).in(Singleton.class);
 
@@ -134,6 +147,35 @@ public class LvvServiceApiModule extends AbstractModule {
                         .monitoringClient(getMonitoringClient())
                         .shouldOverrideMetricKeys(false)
                         .build());
+    }
+
+    private void bindBadLinksBucket() {
+        KievHashBucketProvider<String, BadLinks> badLinksProvider =
+                new KievHashBucketProvider<>(
+                        "badLinksBucket",
+                        "Bucket to store bad links per building",
+                        String.class,
+                        BadLinks.class);
+
+        bind(new TypeLiteral<MappedHashBucket<String, BadLinks>>() {}).toProvider(badLinksProvider);
+
+        bind(new TypeLiteral<ConfigurationStore<String, BadLinks>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, BadLinks>>() {});
+    }
+
+    private void bindMonitoringBucket() {
+        KievHashBucketProvider<String, Monitoring> monitoringProvider =
+                new KievHashBucketProvider<>(
+                        "monitoringBucket",
+                        "Bucket to store monitoring snapshot per building",
+                        String.class,
+                        Monitoring.class);
+
+        bind(new TypeLiteral<MappedHashBucket<String, Monitoring>>() {})
+                .toProvider(monitoringProvider);
+
+        bind(new TypeLiteral<ConfigurationStore<String, Monitoring>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, Monitoring>>() {});
     }
 
     private void bindProjectBucket() {
@@ -384,6 +426,18 @@ public class LvvServiceApiModule extends AbstractModule {
         BasicAuthenticationDetailsProvider authProvider =
                 S2SAuthenticationDetailsProvider.builder().useInstancePrincipals().build();
         return new PlanServiceClient(config.getPlanServiceConfiguration(), authProvider);
+    }
+
+    @Provides
+    @Singleton
+    public NotificationServiceClient getNotificationClient() {
+        BasicAuthenticationDetailsProvider authProvider =
+                InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+        return new NotificationServiceClient(
+                authProvider,
+                config.getRegion().getPublicRegionName(),
+                config.getNotificationClientConfiguration().getCompartmentOcid(),
+                config.isEnableNetworkMonitoringAndAlerting());
     }
 
     @Provides

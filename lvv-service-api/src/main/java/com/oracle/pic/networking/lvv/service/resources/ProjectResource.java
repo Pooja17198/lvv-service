@@ -78,6 +78,7 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.createProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getVendorEmail(),
                     value.getProject().getCreatedBy(),
                     value.getProject().getCmLink(),
                     value.getProject().getRegion(),
@@ -118,6 +119,7 @@ public class ProjectResource extends AbstractProjectsResource {
             projectService.updateProject(
                     value.getProject().getProjectId(),
                     value.getProject().getVendorName(),
+                    value.getProject().getVendorEmail(),
                     value.getProject().getCreatedBy(),
                     value.getProject().getCmLink(),
                     value.getProject().getRegion(),

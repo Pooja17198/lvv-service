@@ -22,6 +22,7 @@ public class MetricNames {
         BAD_LINKS,
         MONITORING,
         NOTIFICATIONS,
+        GET_PATCH_PANEL,
     }
 
     public enum AddProjectItem {
@@ -55,6 +56,12 @@ public class MetricNames {
         ProjectNotFound,
         NoBlocksInProject,
         VendorNameEmpty
+    }
+
+    public enum GetPatchPanel {
+        GetPatchPanel,
+        MissingParameters,
+        IdeFetchFailed,
     }
 
     public enum CablingTasks {

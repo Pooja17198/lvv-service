@@ -31,6 +31,8 @@ import com.oracle.pic.kiev.mapping.MappedHashBucket;
 import com.oracle.pic.kiev.mapping.token.PaginationTokenSerializer;
 import com.oracle.pic.kiev.registry.data.ClientRegistryLocality;
 import com.oracle.pic.networking.lvv.service.LvvServiceApi;
+import com.oracle.pic.networking.lvv.service.dependencies.ide.IdeClient;
+import com.oracle.pic.networking.lvv.service.dependencies.ide.IdeClientConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDHelper;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDService;
@@ -53,6 +55,8 @@ import com.oracle.pic.networking.lvv.service.kiev.Monitoring;
 import com.oracle.pic.networking.lvv.service.kiev.MonitoringDao;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetails;
 import com.oracle.pic.networking.lvv.service.kiev.NcpJobDetailsDao;
+import com.oracle.pic.networking.lvv.service.kiev.PatchPanelEntry;
+import com.oracle.pic.networking.lvv.service.kiev.PatchPanelEntryDao;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItemDao;
 import com.oracle.pic.networking.lvv.service.kiev.ValidationFailureResult;
@@ -66,6 +70,7 @@ import com.oracle.pic.networking.lvv.service.service.BadLinksService;
 import com.oracle.pic.networking.lvv.service.service.CablingTaskService;
 import com.oracle.pic.networking.lvv.service.service.CablingValidationService;
 import com.oracle.pic.networking.lvv.service.service.EmitMetricsService;
+import com.oracle.pic.networking.lvv.service.service.PatchPanelService;
 import com.oracle.pic.networking.lvv.service.service.ProjectService;
 import com.oracle.pic.networking.lvv.service.service.RacksService;
 import com.oracle.pic.networking.lvv.service.service.RegionsService;
@@ -110,6 +115,8 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(RegionsService.class).in(Singleton.class);
         bind(RacksService.class).in(Singleton.class);
         bind(BadLinksService.class).in(Singleton.class);
+        bind(PatchPanelService.class).in(Singleton.class);
+        bind(IdeClient.class).in(Singleton.class);
 
         bind(NcpClientHelper.class).in(Singleton.class);
         bind(NotificationServiceHelper.class).in(Singleton.class);
@@ -123,6 +130,7 @@ public class LvvServiceApiModule extends AbstractModule {
         bindBadLinksBucket();
         bindMonitoringBucket();
         bindNcpJobDetailsBucket();
+        bindPatchPanelBucket();
 
         bind(ProjectItemDao.class).in(Singleton.class);
         bind(ValidationFailureResultDao.class).in(Singleton.class);
@@ -130,6 +138,7 @@ public class LvvServiceApiModule extends AbstractModule {
         bind(NcpJobDetailsDao.class).in(Singleton.class);
         bind(MonitoringDao.class).in(Singleton.class);
         bind(BadLinksDao.class).in(Singleton.class);
+        bind(PatchPanelEntryDao.class).in(Singleton.class);
 
         bind(ResourceModelTransformer.class).in(Singleton.class);
 
@@ -234,6 +243,26 @@ public class LvvServiceApiModule extends AbstractModule {
 
         bind(new TypeLiteral<ConfigurationStore<String, NcpJobDetails>>() {})
                 .to(new TypeLiteral<KievConfigurationStore<String, NcpJobDetails>>() {});
+    }
+
+    private void bindPatchPanelBucket() {
+        KievHashBucketProvider<String, PatchPanelEntry> provider =
+                new KievHashBucketProvider<>(
+                        "patchPanelBucket",
+                        "Bucket to store patch panel (physical cutsheet) data per device port",
+                        String.class,
+                        PatchPanelEntry.class);
+        bind(new TypeLiteral<MappedHashBucket<String, PatchPanelEntry>>() {})
+                .toProvider(provider);
+
+        bind(new TypeLiteral<ConfigurationStore<String, PatchPanelEntry>>() {})
+                .to(new TypeLiteral<KievConfigurationStore<String, PatchPanelEntry>>() {});
+    }
+
+    @Provides
+    @Singleton
+    public IdeClientConfig getIdeClientConfig() {
+        return config.getIdeClientConfig();
     }
 
     @Provides

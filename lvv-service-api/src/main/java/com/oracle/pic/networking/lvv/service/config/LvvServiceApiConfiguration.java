@@ -8,6 +8,7 @@ import com.oracle.pic.commons.util.AvailabilityDomain;
 import com.oracle.pic.commons.util.Realm;
 import com.oracle.pic.commons.util.Region;
 import com.oracle.pic.kiev.KaasStoreConfig;
+import com.oracle.pic.networking.lvv.service.dependencies.ide.IdeClientConfig;
 import com.oracle.pic.networking.lvv.service.dependencies.jira.JiraSDConfig;
 import com.oracle.pic.sherlock.collector.AuditConfig;
 import com.oracle.pic.vault.SecretServiceConfig;
@@ -40,6 +41,8 @@ public class LvvServiceApiConfiguration extends ServiceConfiguration
     @NotNull private AuthConfig authConfig;
 
     @NotNull private JiraSDConfig jiraSDConfig;
+
+    @NotNull private IdeClientConfig ideClientConfig;
 
     @NotNull private NcpServiceConfiguration ncpServiceConfiguration;
 

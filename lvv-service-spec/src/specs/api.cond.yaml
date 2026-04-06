@@ -749,6 +749,38 @@ paths:
           description: Unexpected error
           schema: { $ref: '#/definitions/Error' }
 
+  /patchPanel:
+    get:
+      tags: [ 'patchPanel' ]
+      x-obmcs-splat:
+        operationType: GET
+        apiType: Synchronous
+        maximumAttemptCount: 3
+        allowAllRequestHeaders: true
+        routing:
+          strategy: route-to-any-ad
+        serviceList: [ 'lvv-api-beta' ]
+      operationId: GetPatchPanel
+      summary: Get patch panel data for a rack
+      description: Returns physical cutsheet (patch panel) data for all devices in a rack. Fetches from IDE and caches in Kiev; subsequent calls return cached data.
+      parameters:
+        - $ref: '#/parameters/BuildingNameQueryParam'
+        - $ref: '#/parameters/RackNumberParam'
+        - $ref: '#/parameters/RackSerialNumberParam'
+        - $ref: '#/parameters/RegionNameQueryParam'
+        - $ref: '#/parameters/OpcRequestId'
+      responses:
+        200:
+          description: List of patch panel entries for the rack
+          headers:
+            opc-request-id: *ref-opc-request-id
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PatchPanelItem'
+        default:
+          $ref: '#/responses/Error'
+
   /badLinks:
     get:
       tags: ['badLinks']
@@ -788,6 +820,27 @@ paths:
 #==========[ Definitions ]================================================================================================
 
 definitions:
+  PatchPanelItem:
+    type: object
+    properties:
+      deviceName:
+        type: string
+      devicePort:
+        type: string
+      buildingName:
+        type: string
+      roomName:
+        type: string
+      rackNumber:
+        type: string
+      easyMark:
+        type: array
+        items:
+          type: string
+      lastFetchedAt:
+        type: string
+        format: date-time
+
   BadLinkDetail:
     type: object
     properties:

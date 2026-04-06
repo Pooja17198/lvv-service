@@ -6,6 +6,7 @@ import com.oracle.pic.kiev.ColumnSetDescription;
 import com.oracle.pic.kiev.DataType;
 import com.oracle.pic.networking.lvv.service.kiev.BadLinks;
 import com.oracle.pic.networking.lvv.service.kiev.Monitoring;
+import com.oracle.pic.networking.lvv.service.kiev.PatchPanelEntry;
 import com.oracle.pic.networking.lvv.service.kiev.ProjectItem;
 import com.oracle.pic.networking.lvv.service.utils.KievConstants;
 import com.oracle.pic.sfw.kiev.schema.updates.SchemaUpdate;
@@ -21,6 +22,7 @@ public final class ApiSchemaUpdates {
     private static final String BAD_LINKS_BUCKET = "badLinksBucket";
     private static final String MONITORING_BUCKET = "monitoringBucket";
     private static final String VALIDATION_RESULTS_BUCKET = "cableResultJsonStore";
+    private static final String PATCH_PANEL_BUCKET = "patchPanelBucket";
 
     private static final SchemaUpdate V1_ADD_REGION_COLUMN =
             new SchemaUpdate(1, "Add regionName column (nullable STRING(64))")
@@ -167,6 +169,65 @@ public final class ApiSchemaUpdates {
                                     true),
                             MONITORING_BUCKET);
 
+    private static final SchemaUpdate V11_ADD_PATCH_PANEL_BUCKET =
+            new SchemaUpdate(11, "Create patchPanelBucket with devicePortKey hash key and rackSerial index")
+                    .addBucket(
+                            PATCH_PANEL_BUCKET,
+                            BucketDescription.builder()
+                                    .setName(PATCH_PANEL_BUCKET)
+                                    .addHashKeyDescription(
+                                            new ColumnDescription<>(
+                                                    "devicePortKey",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    false))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    PatchPanelEntry.RACK_SERIAL_COLUMN_NAME,
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    false))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "deviceName",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "devicePort",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "buildingName",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "roomName",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "rackNumber",
+                                                    DataType.STRING,
+                                                    KievConstants.MAX_NAME_LENGTH,
+                                                    true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "easyMark", DataType.JSON_CLOB, true))
+                                    .addColumnDescription(
+                                            new ColumnDescription<>(
+                                                    "lastFetchedAt", DataType.TIMESTAMP, true))
+                                    .addIndex(
+                                            PatchPanelEntry.RACK_SERIAL_COLUMN_NAME,
+                                            PatchPanelEntry.RACK_SERIAL_COLUMN_NAME)
+                                    .build());
+
     public static List<SchemaUpdate> plan() {
         return Arrays.asList(
                 V1_ADD_REGION_COLUMN,
@@ -178,7 +239,8 @@ public final class ApiSchemaUpdates {
                 V7_ADD_BADLINKS_BUCKET,
                 V8_ADD_MONITORING_BUCKET,
                 V9_ADD_VENDOR_EMAIL_COLUMN,
-                V10_ADD_MONITORING_LAST_EMAIL_SENT_AT_COLUMN);
+                V10_ADD_MONITORING_LAST_EMAIL_SENT_AT_COLUMN,
+                V11_ADD_PATCH_PANEL_BUCKET);
     }
 
     private ApiSchemaUpdates() {}

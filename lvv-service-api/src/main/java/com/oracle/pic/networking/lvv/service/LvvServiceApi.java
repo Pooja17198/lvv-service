@@ -25,6 +25,7 @@ import com.oracle.pic.networking.lvv.service.resources.BadLinksResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingTaskResource;
 import com.oracle.pic.networking.lvv.service.resources.CablingValidationResource;
 import com.oracle.pic.networking.lvv.service.resources.EmitMetricsResource;
+import com.oracle.pic.networking.lvv.service.resources.PatchPanelResource;
 import com.oracle.pic.networking.lvv.service.resources.ProjectResource;
 import com.oracle.pic.networking.lvv.service.resources.RacksResource;
 import com.oracle.pic.networking.lvv.service.resources.RegionsResource;
@@ -77,6 +78,7 @@ public class LvvServiceApi extends Application<LvvServiceApiConfiguration> {
                     .add(RegionsResource.class)
                     .add(RacksResource.class)
                     .add(BadLinksResource.class)
+                    .add(PatchPanelResource.class)
                     .build();
 
     /*

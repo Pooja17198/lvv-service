@@ -9,12 +9,11 @@ import com.oracle.pic.identity.authorization.sdk.AuthorizationRequest;
 import com.oracle.pic.networking.lvv.service.api.AbstractPatchPanelResource;
 import com.oracle.pic.networking.lvv.service.dependencies.metrics.MetricNames;
 import com.oracle.pic.networking.lvv.service.kiev.PatchPanelEntry;
+import com.oracle.pic.networking.lvv.service.model.PatchPanelItem;
 import com.oracle.pic.networking.lvv.service.service.PatchPanelService;
 import com.oracle.pic.networking.lvv.service.utils.GeneralUtils;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,7 +29,7 @@ public class PatchPanelResource extends AbstractPatchPanelResource {
     }
 
     @Override
-    public List<Map<String, Object>> getPatchPanel(
+    public List<PatchPanelItem> getPatchPanel(
             String buildingName,
             String rackNumber,
             String rackSerialNumber,
@@ -73,16 +72,17 @@ public class PatchPanelResource extends AbstractPatchPanelResource {
                         "Failed to fetch patch panel data: " + e.getMessage());
             }
 
-            List<Map<String, Object>> response = new ArrayList<>(entries.size());
+            List<PatchPanelItem> response = new ArrayList<>(entries.size());
             for (PatchPanelEntry entry : entries) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("deviceName", entry.getDeviceName());
-                item.put("devicePort", entry.getDevicePort());
-                item.put("buildingName", entry.getBuildingName());
-                item.put("roomName", entry.getRoomName());
-                item.put("rackNumber", entry.getRackNumber());
-                item.put("easyMark", entry.getEasyMark());
-                item.put("lastFetchedAt", entry.getLastFetchedAt());
+                PatchPanelItem item =
+                        PatchPanelItem.builder()
+                                .deviceName(entry.getDeviceName())
+                                .devicePort(entry.getDevicePort())
+                                .buildingName(entry.getBuildingName())
+                                .roomName(entry.getRoomName())
+                                .rackNumber(entry.getRackNumber())
+                                .easyMark(entry.getEasyMark())
+                                .build();
                 response.add(item);
             }
 

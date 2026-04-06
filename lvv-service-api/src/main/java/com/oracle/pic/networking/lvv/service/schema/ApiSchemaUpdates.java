@@ -219,7 +219,7 @@ public final class ApiSchemaUpdates {
                                                     true))
                                     .addColumnDescription(
                                             new ColumnDescription<>(
-                                                    "easyMark", DataType.JSON_CLOB, true))
+                                                    "easyMark", DataType.CLOB, true))
                                     .addColumnDescription(
                                             new ColumnDescription<>(
                                                     "lastFetchedAt", DataType.TIMESTAMP, true))

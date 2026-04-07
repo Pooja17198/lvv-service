@@ -2,22 +2,24 @@ package com.oracle.pic.networking.lvv.service.dependencies.ide;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
+import com.oracle.bmc.http.signing.RequestSigningFilter;
+import com.oracle.pic.networking.lvv.service.config.ServiceProviderMetricsFilter;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import com.oracle.pic.identity.authentication.ServiceAuthenticationClient;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import javax.ws.rs.ProcessingException;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -30,23 +32,18 @@ import lombok.extern.slf4j.Slf4j;
 public class IdeClient {
 
     private static final String PHYSICAL_CUTSHEETS_PATH = "/idelvv/physicalcutsheets";
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int TIMEOUT_IN_MILLIS = (int) Duration.ofSeconds(30).toMillis();
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final String ideEndpoint;
-    private final HttpClient httpClient;
+    private final Client httpClient;
     private final ObjectMapper objectMapper;
-    private final ServiceAuthenticationClient serviceAuthenticationClient;
 
     @Inject
-    public IdeClient(
-            IdeClientConfig config,
-            ObjectMapper objectMapper,
-            ServiceAuthenticationClient serviceAuthenticationClient) {
+    public IdeClient(IdeClientConfig config, ObjectMapper objectMapper) {
         this.ideEndpoint = config.getEndpoint().replaceAll("/$", "");
-        this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+        this.httpClient = buildSignedClient();
         this.objectMapper = objectMapper;
-        this.serviceAuthenticationClient = serviceAuthenticationClient;
     }
 
     /**
@@ -66,37 +63,51 @@ public class IdeClient {
             String url = buildUrl(buildingName, rackNumber, nextPage);
             log.info("Fetching IDE physical cutsheets: {}", url);
 
-            HttpRequest.Builder requestBuilder =
-                    HttpRequest.newBuilder()
-                            .uri(URI.create(url))
-                            .GET()
-                            .timeout(TIMEOUT)
-                            .header("Accept", "application/json");
-            requestBuilder.header("Authorization", resolveAuthorizationHeaderValue());
-            HttpRequest request = requestBuilder.build();
+            WebTarget target = httpClient.target(ideEndpoint).path(PHYSICAL_CUTSHEETS_PATH);
+            if (buildingName != null && !buildingName.isBlank()) {
+                target = target.queryParam("buildingName", buildingName);
+            }
+            if (rackNumber != null && !rackNumber.isBlank()) {
+                target = target.queryParam("rackNumber", rackNumber);
+            }
+            if (nextPage != null) {
+                target = target.queryParam("page", nextPage);
+            }
 
-            HttpResponse<String> response;
-            try {
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            } catch (IOException | InterruptedException e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                log.error("Failed to fetch IDE physical cutsheets for building={} rack={}", buildingName, rackNumber, e);
+            int statusCode;
+            String responseBody;
+            String nextPageHeader;
+            try (Response response =
+                    target.request(MediaType.APPLICATION_JSON_TYPE)
+                            .property("jersey.config.client.connectTimeout", TIMEOUT_IN_MILLIS)
+                            .property("jersey.config.client.readTimeout", TIMEOUT_IN_MILLIS)
+                            .get()) {
+                statusCode = response.getStatus();
+                responseBody = response.readEntity(String.class);
+                nextPageHeader = response.getHeaderString("opc-next-page");
+            } catch (ProcessingException e) {
+                log.error(
+                        "Failed to fetch IDE physical cutsheets for building={} rack={}",
+                        buildingName,
+                        rackNumber,
+                        e);
                 throw new RuntimeException("IDE physical cutsheets request failed", e);
             }
 
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.error("IDE returned {} for building={} rack={}: {}",
-                        response.statusCode(), buildingName, rackNumber, response.body());
-                throw new RuntimeException(
-                        "IDE physical cutsheets returned HTTP " + response.statusCode());
+            if (statusCode < 200 || statusCode >= 300) {
+                log.error(
+                        "IDE returned {} for building={} rack={}: {}",
+                        statusCode,
+                        buildingName,
+                        rackNumber,
+                        responseBody);
+                throw new RuntimeException("IDE physical cutsheets returned HTTP " + statusCode);
             }
 
-            List<Map<String, Object>> items = parseItems(response.body());
+            List<Map<String, Object>> items = parseItems(responseBody);
             allItems.addAll(items);
 
-            nextPage = response.headers().firstValue("opc-next-page").orElse(null);
+            nextPage = nextPageHeader;
             log.debug("Fetched {} items, nextPage={}", items.size(), nextPage);
 
         } while (nextPage != null);
@@ -121,100 +132,14 @@ public class IdeClient {
         return url.endsWith("&") || url.endsWith("?") ? url.substring(0, url.length() - 1) : url;
     }
 
-    private String resolveAuthorizationHeaderValue() {
-        String authHeader =
-                resolveAuthHeaderFromMethods(
-                        List.of(
-                                "getAuthorizationHeader",
-                                "getAuthorizationHeaderValue",
-                                "getAuthorizationString"));
-        if (authHeader != null) {
-            return ensureBearerPrefix(authHeader);
-        }
-
-        String token =
-                resolveAuthHeaderFromMethods(
-                        List.of("getSecurityToken", "getToken", "getAccessToken", "getSessionToken"));
-        if (token != null) {
-            return ensureBearerPrefix(token);
-        }
-
-        throw new RuntimeException(
-                "Unable to obtain authorization token for IDE physical cutsheets request");
-    }
-
-    private String resolveAuthHeaderFromMethods(List<String> methodNames) {
-        for (String methodName : methodNames) {
-            for (Method method : serviceAuthenticationClient.getClass().getMethods()) {
-                if (!method.getName().equals(methodName)) {
-                    continue;
-                }
-                Class<?>[] params = method.getParameterTypes();
-                if (params.length == 0) {
-                    String value = tryInvokeMethod(method);
-                    if (value != null) {
-                        return value;
-                    }
-                } else if (params.length == 1 && params[0].equals(String.class)) {
-                    String value = tryInvokeMethod(method, ideEndpoint);
-                    if (value != null) {
-                        return value;
-                    }
-                } else if (params.length == 1 && params[0].equals(URI.class)) {
-                    String value = tryInvokeMethod(method, URI.create(ideEndpoint));
-                    if (value != null) {
-                        return value;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private String tryInvokeMethod(Method method, Object... args) {
-        try {
-            Object result = method.invoke(serviceAuthenticationClient, args);
-            return extractValue(result);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            log.debug("Failed invoking authentication method {}", method.getName(), e);
-            return null;
-        }
-    }
-
-    private String extractValue(Object result) {
-        if (result == null) {
-            return null;
-        }
-        if (result instanceof String value) {
-            return value.isBlank() ? null : value;
-        }
-        if (result instanceof Optional<?> optional) {
-            return optional.map(this::extractValue).orElse(null);
-        }
-
-        for (String methodName :
-                List.of("getAuthorizationHeader", "getAuthorizationHeaderValue", "getToken", "value")) {
-            try {
-                Method getter = result.getClass().getMethod(methodName);
-                Object nestedValue = getter.invoke(result);
-                String extracted = extractValue(nestedValue);
-                if (extracted != null) {
-                    return extracted;
-                }
-            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) {
-                // Try next getter name.
-            }
-        }
-
-        return null;
-    }
-
-    private String ensureBearerPrefix(String value) {
-        String trimmed = value.trim();
-        if (trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            return trimmed;
-        }
-        return "Bearer " + trimmed;
+    private Client buildSignedClient() {
+        BasicAuthenticationDetailsProvider authProvider =
+                S2SAuthenticationDetailsProvider.builder().useInstancePrincipals().build();
+        RequestSigningFilter signingFilter = RequestSigningFilter.fromAuthProvider(authProvider);
+        return ClientBuilder.newBuilder()
+                .register(signingFilter)
+                .register(new ServiceProviderMetricsFilter("Ide"))
+                .build();
     }
 
     @SuppressWarnings("unchecked")

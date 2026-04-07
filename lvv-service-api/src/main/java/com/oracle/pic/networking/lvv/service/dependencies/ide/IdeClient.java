@@ -3,7 +3,6 @@ package com.oracle.pic.networking.lvv.service.dependencies.ide;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
-import com.oracle.bmc.auth.S2SAuthenticationDetailsProvider;
 import com.oracle.bmc.http.signing.RequestSigningFilter;
 import com.oracle.pic.networking.lvv.service.config.ServiceProviderMetricsFilter;
 import com.google.inject.Inject;
@@ -40,9 +39,12 @@ public class IdeClient {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public IdeClient(IdeClientConfig config, ObjectMapper objectMapper) {
+    public IdeClient(
+            IdeClientConfig config,
+            ObjectMapper objectMapper,
+            BasicAuthenticationDetailsProvider authProvider) {
         this.ideEndpoint = config.getEndpoint().replaceAll("/$", "");
-        this.httpClient = buildSignedClient();
+        this.httpClient = buildSignedClient(authProvider);
         this.objectMapper = objectMapper;
     }
 
@@ -132,9 +134,7 @@ public class IdeClient {
         return url.endsWith("&") || url.endsWith("?") ? url.substring(0, url.length() - 1) : url;
     }
 
-    private Client buildSignedClient() {
-        BasicAuthenticationDetailsProvider authProvider =
-                S2SAuthenticationDetailsProvider.builder().useInstancePrincipals().build();
+    private Client buildSignedClient(BasicAuthenticationDetailsProvider authProvider) {
         RequestSigningFilter signingFilter = RequestSigningFilter.fromAuthProvider(authProvider);
         return ClientBuilder.newBuilder()
                 .register(signingFilter)

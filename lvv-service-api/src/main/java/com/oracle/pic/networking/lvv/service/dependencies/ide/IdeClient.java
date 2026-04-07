@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.oracle.pic.identity.authentication.ServiceAuthenticationClient;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,12 +36,17 @@ public class IdeClient {
     private final String ideEndpoint;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final ServiceAuthenticationClient serviceAuthenticationClient;
 
     @Inject
-    public IdeClient(IdeClientConfig config, ObjectMapper objectMapper) {
+    public IdeClient(
+            IdeClientConfig config,
+            ObjectMapper objectMapper,
+            ServiceAuthenticationClient serviceAuthenticationClient) {
         this.ideEndpoint = config.getEndpoint().replaceAll("/$", "");
         this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
         this.objectMapper = objectMapper;
+        this.serviceAuthenticationClient = serviceAuthenticationClient;
     }
 
     /**
@@ -57,13 +66,14 @@ public class IdeClient {
             String url = buildUrl(buildingName, rackNumber, nextPage);
             log.info("Fetching IDE physical cutsheets: {}", url);
 
-            HttpRequest request =
+            HttpRequest.Builder requestBuilder =
                     HttpRequest.newBuilder()
                             .uri(URI.create(url))
                             .GET()
                             .timeout(TIMEOUT)
-                            .header("Accept", "application/json")
-                            .build();
+                            .header("Accept", "application/json");
+            requestBuilder.header("Authorization", resolveAuthorizationHeaderValue());
+            HttpRequest request = requestBuilder.build();
 
             HttpResponse<String> response;
             try {
@@ -109,6 +119,102 @@ public class IdeClient {
         // Remove trailing & or ?
         String url = sb.toString();
         return url.endsWith("&") || url.endsWith("?") ? url.substring(0, url.length() - 1) : url;
+    }
+
+    private String resolveAuthorizationHeaderValue() {
+        String authHeader =
+                resolveAuthHeaderFromMethods(
+                        List.of(
+                                "getAuthorizationHeader",
+                                "getAuthorizationHeaderValue",
+                                "getAuthorizationString"));
+        if (authHeader != null) {
+            return ensureBearerPrefix(authHeader);
+        }
+
+        String token =
+                resolveAuthHeaderFromMethods(
+                        List.of("getSecurityToken", "getToken", "getAccessToken", "getSessionToken"));
+        if (token != null) {
+            return ensureBearerPrefix(token);
+        }
+
+        throw new RuntimeException(
+                "Unable to obtain authorization token for IDE physical cutsheets request");
+    }
+
+    private String resolveAuthHeaderFromMethods(List<String> methodNames) {
+        for (String methodName : methodNames) {
+            for (Method method : serviceAuthenticationClient.getClass().getMethods()) {
+                if (!method.getName().equals(methodName)) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0) {
+                    String value = tryInvokeMethod(method);
+                    if (value != null) {
+                        return value;
+                    }
+                } else if (params.length == 1 && params[0].equals(String.class)) {
+                    String value = tryInvokeMethod(method, ideEndpoint);
+                    if (value != null) {
+                        return value;
+                    }
+                } else if (params.length == 1 && params[0].equals(URI.class)) {
+                    String value = tryInvokeMethod(method, URI.create(ideEndpoint));
+                    if (value != null) {
+                        return value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private String tryInvokeMethod(Method method, Object... args) {
+        try {
+            Object result = method.invoke(serviceAuthenticationClient, args);
+            return extractValue(result);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            log.debug("Failed invoking authentication method {}", method.getName(), e);
+            return null;
+        }
+    }
+
+    private String extractValue(Object result) {
+        if (result == null) {
+            return null;
+        }
+        if (result instanceof String value) {
+            return value.isBlank() ? null : value;
+        }
+        if (result instanceof Optional<?> optional) {
+            return optional.map(this::extractValue).orElse(null);
+        }
+
+        for (String methodName :
+                List.of("getAuthorizationHeader", "getAuthorizationHeaderValue", "getToken", "value")) {
+            try {
+                Method getter = result.getClass().getMethod(methodName);
+                Object nestedValue = getter.invoke(result);
+                String extracted = extractValue(nestedValue);
+                if (extracted != null) {
+                    return extracted;
+                }
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) {
+                // Try next getter name.
+            }
+        }
+
+        return null;
+    }
+
+    private String ensureBearerPrefix(String value) {
+        String trimmed = value.trim();
+        if (trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return trimmed;
+        }
+        return "Bearer " + trimmed;
     }
 
     @SuppressWarnings("unchecked")

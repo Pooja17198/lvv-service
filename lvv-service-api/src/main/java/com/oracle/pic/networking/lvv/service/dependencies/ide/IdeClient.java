@@ -3,22 +3,21 @@ package com.oracle.pic.networking.lvv.service.dependencies.ide;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
-import com.oracle.bmc.http.signing.RequestSigningFilter;
-import com.oracle.pic.networking.lvv.service.config.ServiceProviderMetricsFilter;
+import com.oracle.bmc.http.signing.DefaultRequestSigner;
+import com.oracle.bmc.http.signing.RequestSigner;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.ws.rs.ProcessingException;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,11 +30,12 @@ import lombok.extern.slf4j.Slf4j;
 public class IdeClient {
 
     private static final String PHYSICAL_CUTSHEETS_PATH = "/idelvv/physicalcutsheets";
-    private static final int TIMEOUT_IN_MILLIS = (int) Duration.ofSeconds(30).toMillis();
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final String ideEndpoint;
-    private final Client httpClient;
+    private final HttpClient httpClient;
+    private final RequestSigner requestSigner;
     private final ObjectMapper objectMapper;
 
     @Inject
@@ -44,7 +44,8 @@ public class IdeClient {
             ObjectMapper objectMapper,
             BasicAuthenticationDetailsProvider authProvider) {
         this.ideEndpoint = config.getEndpoint().replaceAll("/$", "");
-        this.httpClient = buildSignedClient(authProvider);
+        this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+        this.requestSigner = DefaultRequestSigner.createRequestSigner(authProvider);
         this.objectMapper = objectMapper;
     }
 
@@ -65,29 +66,21 @@ public class IdeClient {
             String url = buildUrl(buildingName, rackNumber, nextPage);
             log.info("Fetching IDE physical cutsheets: {}", url);
 
-            WebTarget target = httpClient.target(ideEndpoint).path(PHYSICAL_CUTSHEETS_PATH);
-            if (buildingName != null && !buildingName.isBlank()) {
-                target = target.queryParam("buildingName", buildingName);
-            }
-            if (rackNumber != null && !rackNumber.isBlank()) {
-                target = target.queryParam("rackNumber", rackNumber);
-            }
-            if (nextPage != null) {
-                target = target.queryParam("page", nextPage);
-            }
-
             int statusCode;
             String responseBody;
             String nextPageHeader;
-            try (Response response =
-                    target.request(MediaType.APPLICATION_JSON_TYPE)
-                            .property("jersey.config.client.connectTimeout", TIMEOUT_IN_MILLIS)
-                            .property("jersey.config.client.readTimeout", TIMEOUT_IN_MILLIS)
-                            .get()) {
-                statusCode = response.getStatus();
-                responseBody = response.readEntity(String.class);
-                nextPageHeader = response.getHeaderString("opc-next-page");
-            } catch (ProcessingException e) {
+            try {
+                URI uri = URI.create(url);
+                HttpRequest request = buildSignedGetRequest(uri);
+                HttpResponse<String> response =
+                        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                statusCode = response.statusCode();
+                responseBody = response.body();
+                nextPageHeader = response.headers().firstValue("opc-next-page").orElse(null);
+            } catch (IOException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
                 log.error(
                         "Failed to fetch IDE physical cutsheets for building={} rack={}",
                         buildingName,
@@ -134,12 +127,15 @@ public class IdeClient {
         return url.endsWith("&") || url.endsWith("?") ? url.substring(0, url.length() - 1) : url;
     }
 
-    private Client buildSignedClient(BasicAuthenticationDetailsProvider authProvider) {
-        RequestSigningFilter signingFilter = RequestSigningFilter.fromAuthProvider(authProvider);
-        return ClientBuilder.newBuilder()
-                .register(signingFilter)
-                .register(new ServiceProviderMetricsFilter("Ide"))
-                .build();
+    private HttpRequest buildSignedGetRequest(URI uri) {
+        Map<String, List<String>> headersToSign = new HashMap<>();
+        headersToSign.put("accept", List.of("application/json"));
+        Map<String, String> signedHeaders =
+                requestSigner.signRequest(uri, "GET", headersToSign, null);
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(TIMEOUT);
+        signedHeaders.forEach(builder::header);
+        return builder.build();
     }
 
     @SuppressWarnings("unchecked")

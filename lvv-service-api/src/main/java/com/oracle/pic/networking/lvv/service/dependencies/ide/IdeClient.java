@@ -31,6 +31,8 @@ public class IdeClient {
 
     private static final String PHYSICAL_CUTSHEETS_PATH = "/idelvv/physicalcutsheets";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final String ACCEPT_HEADER_NAME = "Accept";
+    private static final String ACCEPT_HEADER_VALUE = "application/json";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final String ideEndpoint;
@@ -129,12 +131,19 @@ public class IdeClient {
 
     private HttpRequest buildSignedGetRequest(URI uri) {
         Map<String, List<String>> headersToSign = new HashMap<>();
-        headersToSign.put("accept", List.of("application/json"));
+        headersToSign.put("accept", List.of(ACCEPT_HEADER_VALUE));
         Map<String, String> signedHeaders =
                 requestSigner.signRequest(uri, "GET", headersToSign, null);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(TIMEOUT);
-        signedHeaders.forEach(builder::header);
+        builder.header(ACCEPT_HEADER_NAME, ACCEPT_HEADER_VALUE);
+        signedHeaders.forEach(
+                (name, value) -> {
+                    if ("host".equalsIgnoreCase(name) || "content-length".equalsIgnoreCase(name)) {
+                        return;
+                    }
+                    builder.header(name, value);
+                });
         return builder.build();
     }
 

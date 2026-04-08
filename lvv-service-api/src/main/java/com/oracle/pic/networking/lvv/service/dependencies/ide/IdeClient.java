@@ -30,6 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 public class IdeClient {
 
     private static final String PHYSICAL_CUTSHEETS_PATH = "/idelvv/physicalcutsheets";
+    private static final String RACK_ROLE_QUERY_PARAM = "rackRole";
+    private static final String RACK_ROLE_SOURCE = "source";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final String ACCEPT_HEADER_NAME = "Accept";
     private static final String ACCEPT_HEADER_VALUE = "application/json";
@@ -121,6 +123,7 @@ public class IdeClient {
         if (rackNumber != null && !rackNumber.isBlank()) {
             sb.append("rackNumber=").append(rackNumber).append("&");
         }
+        sb.append(RACK_ROLE_QUERY_PARAM).append("=").append(RACK_ROLE_SOURCE).append("&");
         if (page != null) {
             sb.append("page=").append(page).append("&");
         }

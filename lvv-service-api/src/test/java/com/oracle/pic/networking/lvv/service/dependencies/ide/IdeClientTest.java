@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.http.signing.RequestSigner;
+import com.oracle.pic.vault.MockAuthenticationDetailsProvider;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -37,7 +38,7 @@ class IdeClientTest {
         IdeClientConfig config = new IdeClientConfig();
         config.setEndpoint("https://lvv.us-phoenix-1.oci.oc-test.com/");
 
-        BasicAuthenticationDetailsProvider authProvider = mock(BasicAuthenticationDetailsProvider.class);
+        BasicAuthenticationDetailsProvider authProvider = new MockAuthenticationDetailsProvider();
         ideClient = new IdeClient(config, new ObjectMapper(), authProvider);
 
         requestSigner = mock(RequestSigner.class);

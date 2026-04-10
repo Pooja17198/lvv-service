@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -72,13 +74,11 @@ class IdeClientTest {
 
         HttpRequest request = (HttpRequest) invokeMethod(ideClient, "buildSignedGetRequest", uri);
 
-        String acceptHeader =
-                request.headers().map().entrySet().stream()
-                        .filter(entry -> entry.getKey().equalsIgnoreCase("accept"))
-                        .flatMap(entry -> entry.getValue().stream())
-                        .findFirst()
-                        .orElse("");
-        assertEquals("application/json", acceptHeader);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, List<String>>> headersToSignCaptor =
+                (ArgumentCaptor<Map<String, List<String>>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Map.class);
+        verify(requestSigner).signRequest(eq(uri), eq("GET"), headersToSignCaptor.capture(), isNull());
+        assertEquals(List.of("application/json"), headersToSignCaptor.getValue().get("accept"));
         assertEquals("Signature abc", request.headers().firstValue("authorization").orElse(""));
         assertEquals("Tue, 08 Apr 2026 00:00:00 GMT", request.headers().firstValue("date").orElse(""));
         assertTrue(request.headers().firstValue("host").isEmpty());

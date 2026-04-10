@@ -72,7 +72,13 @@ class IdeClientTest {
 
         HttpRequest request = (HttpRequest) invokeMethod(ideClient, "buildSignedGetRequest", uri);
 
-        assertEquals("application/json", request.headers().firstValue("Accept").orElse(""));
+        String acceptHeader =
+                request.headers().map().entrySet().stream()
+                        .filter(entry -> entry.getKey().equalsIgnoreCase("accept"))
+                        .flatMap(entry -> entry.getValue().stream())
+                        .findFirst()
+                        .orElse("");
+        assertEquals("application/json", acceptHeader);
         assertEquals("Signature abc", request.headers().firstValue("authorization").orElse(""));
         assertEquals("Tue, 08 Apr 2026 00:00:00 GMT", request.headers().firstValue("date").orElse(""));
         assertTrue(request.headers().firstValue("host").isEmpty());

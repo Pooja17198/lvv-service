@@ -2,6 +2,9 @@ package com.oracle.pic.networking.lvv.service.dependencies.ide;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
+import com.oracle.bmc.http.signing.DefaultRequestSigner;
+import com.oracle.bmc.http.signing.RequestSigner;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.IOException;
@@ -12,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -26,17 +30,26 @@ import lombok.extern.slf4j.Slf4j;
 public class IdeClient {
 
     private static final String PHYSICAL_CUTSHEETS_PATH = "/idelvv/physicalcutsheets";
+    private static final String RACK_ROLE_QUERY_PARAM = "rackRole";
+    private static final String RACK_ROLE_SOURCE = "source";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final String ACCEPT_HEADER_NAME = "Accept";
+    private static final String ACCEPT_HEADER_VALUE = "application/json";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final String ideEndpoint;
     private final HttpClient httpClient;
+    private final RequestSigner requestSigner;
     private final ObjectMapper objectMapper;
 
     @Inject
-    public IdeClient(IdeClientConfig config, ObjectMapper objectMapper) {
+    public IdeClient(
+            IdeClientConfig config,
+            ObjectMapper objectMapper,
+            BasicAuthenticationDetailsProvider authProvider) {
         this.ideEndpoint = config.getEndpoint().replaceAll("/$", "");
         this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+        this.requestSigner = DefaultRequestSigner.createRequestSigner(authProvider);
         this.objectMapper = objectMapper;
     }
 
@@ -57,36 +70,43 @@ public class IdeClient {
             String url = buildUrl(buildingName, rackNumber, nextPage);
             log.info("Fetching IDE physical cutsheets: {}", url);
 
-            HttpRequest request =
-                    HttpRequest.newBuilder()
-                            .uri(URI.create(url))
-                            .GET()
-                            .timeout(TIMEOUT)
-                            .header("Accept", "application/json")
-                            .build();
-
-            HttpResponse<String> response;
+            int statusCode;
+            String responseBody;
+            String nextPageHeader;
             try {
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                URI uri = URI.create(url);
+                HttpRequest request = buildSignedGetRequest(uri);
+                HttpResponse<String> response =
+                        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                statusCode = response.statusCode();
+                responseBody = response.body();
+                nextPageHeader = response.headers().firstValue("opc-next-page").orElse(null);
             } catch (IOException | InterruptedException e) {
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
                 }
-                log.error("Failed to fetch IDE physical cutsheets for building={} rack={}", buildingName, rackNumber, e);
+                log.error(
+                        "Failed to fetch IDE physical cutsheets for building={} rack={}",
+                        buildingName,
+                        rackNumber,
+                        e);
                 throw new RuntimeException("IDE physical cutsheets request failed", e);
             }
 
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.error("IDE returned {} for building={} rack={}: {}",
-                        response.statusCode(), buildingName, rackNumber, response.body());
-                throw new RuntimeException(
-                        "IDE physical cutsheets returned HTTP " + response.statusCode());
+            if (statusCode < 200 || statusCode >= 300) {
+                log.error(
+                        "IDE returned {} for building={} rack={}: {}",
+                        statusCode,
+                        buildingName,
+                        rackNumber,
+                        responseBody);
+                throw new RuntimeException("IDE physical cutsheets returned HTTP " + statusCode);
             }
 
-            List<Map<String, Object>> items = parseItems(response.body());
+            List<Map<String, Object>> items = parseItems(responseBody);
             allItems.addAll(items);
 
-            nextPage = response.headers().firstValue("opc-next-page").orElse(null);
+            nextPage = nextPageHeader;
             log.debug("Fetched {} items, nextPage={}", items.size(), nextPage);
 
         } while (nextPage != null);
@@ -103,12 +123,31 @@ public class IdeClient {
         if (rackNumber != null && !rackNumber.isBlank()) {
             sb.append("rackNumber=").append(rackNumber).append("&");
         }
+        sb.append(RACK_ROLE_QUERY_PARAM).append("=").append(RACK_ROLE_SOURCE).append("&");
         if (page != null) {
             sb.append("page=").append(page).append("&");
         }
         // Remove trailing & or ?
         String url = sb.toString();
         return url.endsWith("&") || url.endsWith("?") ? url.substring(0, url.length() - 1) : url;
+    }
+
+    private HttpRequest buildSignedGetRequest(URI uri) {
+        Map<String, List<String>> headersToSign = new HashMap<>();
+        headersToSign.put("accept", List.of(ACCEPT_HEADER_VALUE));
+        Map<String, String> signedHeaders =
+                requestSigner.signRequest(uri, "GET", headersToSign, null);
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(TIMEOUT);
+        builder.header(ACCEPT_HEADER_NAME, ACCEPT_HEADER_VALUE);
+        signedHeaders.forEach(
+                (name, value) -> {
+                    if ("host".equalsIgnoreCase(name) || "content-length".equalsIgnoreCase(name)) {
+                        return;
+                    }
+                    builder.header(name, value);
+                });
+        return builder.build();
     }
 
     @SuppressWarnings("unchecked")

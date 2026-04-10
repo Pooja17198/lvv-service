@@ -3,6 +3,7 @@ package com.oracle.pic.networking.lvv.service.config;
 import com.atlassian.jira.rest.client.api.JiraRestClient;
 import com.atlassian.jira.rest.client.api.JiraRestClientFactory;
 import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
@@ -263,6 +264,12 @@ public class LvvServiceApiModule extends AbstractModule {
     @Singleton
     public IdeClientConfig getIdeClientConfig() {
         return config.getIdeClientConfig();
+    }
+
+    @Provides
+    @Singleton
+    public ObjectMapper getObjectMapper() {
+        return new ObjectMapper();
     }
 
     @Provides
